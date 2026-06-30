@@ -10,6 +10,18 @@ a crew of specialized sub-agents, reusable skills, and slash commands.
 It does not *role-play* a company. It writes **real Claude Code primitives to disk** — subagent files
 in `.claude/agents/`, skill packages in `.claude/skills/`, and commands in `.claude/commands/`.
 
+## Quick start
+
+```bash
+# Global — Otto loads in every project on your machine (macOS/Linux):
+mkdir -p ~/.claude && curl -fsSL \
+  https://raw.githubusercontent.com/Robot-in-the-Loop-Technology-Inc/RobotInc/main/RobotInc.md \
+  -o ~/.claude/CLAUDE.md
+```
+
+On Windows, save `RobotInc.md` as `C:\Users\<you>\.claude\CLAUDE.md`. Then open Claude Code and say
+**`System Boot: Initialize Otto`** — your first session profiles you and builds your company once.
+
 ## The crew
 
 | Robot | Role | Handles |
