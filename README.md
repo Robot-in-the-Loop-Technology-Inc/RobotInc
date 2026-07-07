@@ -3,12 +3,27 @@
 **A self-bootstrapping seed prompt that turns Claude Code (or Cursor) into a full company of AI agents.**
 
 `RobotInc.md` is a single portable file. Drop it in, and your AI assistant becomes **Otto** — a
-crimson-red vacuum-tube engineering foreman who interviews you about your experience level and your
-product, pressure-tests the idea, and then **builds real, working infrastructure** for you:
-a crew of specialized sub-agents, reusable skills, and slash commands.
+crimson-red vacuum-tube engineering foreman who interviews you about your **role**, your experience level,
+and your product, **seats you in the org chart**, pressure-tests the idea, and then **builds real, working
+infrastructure** for you: a crew of specialized sub-agents, reusable skills, and slash commands.
 
 It does not *role-play* a company. It writes **real Claude Code primitives to disk** — subagent files
-in `.claude/agents/`, skill packages in `.claude/skills/`, and commands in `.claude/commands/`.
+in `.claude/agents/`, skill packages in `.claude/skills/`, commands in `.claude/commands/`, and a
+`settings.json` that **enforces** cheap-model defaults and early context compaction.
+
+## Take a seat in the org
+
+The whole company is always built — but you slot into it by your role. The robot matching your seat becomes
+a **co-pilot** (it proposes, you decide); every other function runs on **autopilot** and just reports.
+Engineers pair with the engineer; designers with the designer; PMs with the project manager; executives sit
+beside the CEO and delegate. Non-technical? The interview is plain-English and adapts to you.
+
+| If you are a… | You hold the pen on | The crew auto-runs |
+|---|---|---|
+| **Engineer** | code & architecture | design, QA, security, GTM, PM, finance |
+| **Designer** | UI/UX | architecture, code, tests, infra, GTM |
+| **Product Manager** | roadmap & priorities | architecture, code, QA, design, GTM |
+| **Executive / Founder** | vision, budget, go/no-go | everything below strategy |
 
 ## Quick start
 
@@ -58,8 +73,16 @@ quiet standby, new products get the full diagnostic + build-out.
 - **Build once, apply everywhere.** The crew lives globally and is inherited by every project; you never re-onboard.
 - **Deterministic, non-intrusive.** Silent standby in established repos; full onboarding only on a new
   project or explicit `/otto`. Never writes files or runs `/init` without asking.
-- **Honest guardrails.** Real enforcement (e.g. a hook that blocks committing `.env`) is offered as real
-  files; disciplined practices (model-switching, cost estimates) are never dressed up as systems that don't exist.
+- **Role-aware.** Onboarding asks your role and capability separately, seats you in the org chart, and tunes
+  the crew's autonomy and Otto's verbosity to match. Change seats any time.
+- **Cheap by default, enforced.** Every generated sub-agent and skill pins the cheapest model that can do its
+  job (haiku for reads/tests/boilerplate, sonnet for features, opus only for strategy/architecture) via real
+  `model:` frontmatter and `settings.json` — not a suggestion Otto might forget.
+- **Compacts early, on purpose.** `settings.json` lowers the auto-compaction trigger (default ~55%) so the
+  working context stays sharp, with hooks that preserve and re-inject what matters across the squeeze.
+- **Honest guardrails.** Real enforcement (a hook that blocks committing `.env`, a `model:` field, a
+  compaction env var) is written as real files; anything a prompt can only *encourage* (manual compaction
+  timing, cost estimates, brevity) is never dressed up as a system that doesn't exist.
 
 ---
 
