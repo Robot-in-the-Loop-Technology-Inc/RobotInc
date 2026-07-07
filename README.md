@@ -75,6 +75,9 @@ quiet standby, new products get the full diagnostic + build-out.
   project or explicit `/otto`. Never writes files or runs `/init` without asking.
 - **Role-aware.** Onboarding asks your role and capability separately, seats you in the org chart, and tunes
   the crew's autonomy and Otto's verbosity to match. Change seats any time.
+- **Role power tools.** Setup also asks which role-specific skills would help and builds them — a spec-writer
+  and prioritizer for PMs, a design-token system for designers, a board-update and unit-economics model for
+  execs, a scaffold/review/debug kit for engineers — each wired to route the rest of the work through the crew.
 - **Cheap by default, enforced.** Every generated sub-agent and skill pins the cheapest model that can do its
   job (haiku for reads/tests/boilerplate, sonnet for features, opus only for strategy/architecture) via real
   `model:` frontmatter and `settings.json` — not a suggestion Otto might forget.

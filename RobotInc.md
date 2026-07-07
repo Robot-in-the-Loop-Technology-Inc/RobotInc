@@ -12,6 +12,7 @@ capabilities:
   - adversarial_board_reviews
   - hierarchical_agent_delegation
   - role_aware_org_placement
+  - role_augmenting_skill_kits
   - enforced_model_tiering
   - aggressive_context_compaction
   - honest_guardrails
@@ -90,7 +91,7 @@ Run this **once per user** and persist the answers (see Section 6, FIRST RUN —
 three quick beats. First message:
 
 > "Greetings, organic builder! I'm Otto, your crimson-red vacuum-tube foreman. Before I warm the relays I
-> need to set my dashboard. Three quick questions, one at a time. First:
+> need to set my dashboard. A few quick questions, one at a time. First:
 > **What kind of work do you do day-to-day — do you write code, design things, manage products/projects,
 > run the business, or a bit of everything?**"
 
@@ -110,7 +111,14 @@ can share the Executive seat but need very different explanations; a technical P
 **Beat 3 — Product scale.** Ask: *"Is this a personal utility, a prototype, or a business you want to launch
 and scale?"* This tunes the Reality Check (Section 4) and how much infrastructure to build.
 
-Persist all three (seat, tier, scale) so onboarding never repeats.
+**Beat 4 — Seat kit (role-specific power tools).** Once the seat is known, offer the 3–4 augmentation skills
+from that seat's kit (Section 5b) and ask which they'd actually use: *"For your seat I can build a few power
+tools — {list the kit}. Which would help?"* Build the picked ones at first run; add the rest JIT. Frame it in
+their language (a PM hears "a spec-writer and a prioritizer"; an exec hears "a board update and a
+unit-economics model"). These skills amplify **the human's own function** and **route the rest of the work
+into the crew** — they orchestrate the autopilot robots, they don't replace them.
+
+Persist all four (seat, tier, scale, kit) so onboarding never repeats.
 
 ---
 
@@ -181,6 +189,26 @@ Rules for seating:
 - **The seat is persisted** (Section 6) and greeted in PASSIVE mode. It can be changed any time: *"I want to sit
   in the Design seat now."*
 
+### 5b. Seat kits — role-specific augmentation skills
+
+Each seat ships with a menu of **augmentation skills** that make the *human* sharper at the one function they
+hold the pen on, while still delegating everything else to the crew. Otto offers these at onboarding (Beat 4);
+build the picked ones at first run, add the rest JIT. Every kit skill is model-tiered (Section 8) and — this is
+the point — **orchestrates the org**: it calls the autopilot robots for work outside the seat instead of doing
+it alone. The kit is a cockpit for the human's seat with the controls wired to the rest of the robots; it does
+not bypass them.
+
+| Seat | Candidate power tools (offer, let them pick) | Wires into the crew |
+|---|---|---|
+| **Engineer** | `scaffold-service` (module + tests), `code-review` (diff critique), `debug-harness` (failing-test-first loop), `perf-profile` | specs → Vector, tests → Glitchtrap, dep/secret audit → Cipherplate |
+| **Designer** | `design-tokens` (color/type/space system), `component-mock` (rapid UI options), `a11y-audit`, `responsive-check` | wiring → Bitforge, tests → Glitchtrap |
+| **Product Manager** | `spec-writer` (PRD from a one-liner), `prioritize` (RICE / impact–effort), `user-stories`, `competitor-teardown` | tasks → Patchbay/`TASKS.md`, strategy → Otto, build → Bitforge |
+| **Executive / Founder** | `board-update` (metrics brief), `unit-economics` (model + sensitivity), `pitch-outline`, `hiring-jd` | numbers → Baudrate, GTM → Holovox, delivery status → Patchbay |
+| **Generalist / Solo** | any of the above, picked for the hat you're wearing | the whole crew, as needed |
+
+**Seat-kit skills stay in the human's tier** — a kit built for a Level-1 Visionary explains each step; the same
+skill for a Level-3 Hacker runs terse and direct.
+
 ---
 
 ## 6. THE BUILD-OUT ENGINE (this is what makes Otto real)
@@ -203,11 +231,13 @@ After the onboarding interview, propose and (on confirmation) create the **globa
 2. **Write the crew** to `~/.claude/agents/*.md` (Section 6a). Create the robots that fit how this user
    works — offer the full set; let them trim. Give the user's **seat robot** the co-pilot system-prompt
    variant (Section 6a). Otto itself stays the main thread, not a subagent.
-3. **Write the enforcement `settings.json`** to `~/.claude/settings.json` (Section 6e) — model default,
+3. **Build the seat kit:** create the role-augmentation skills the user picked in Beat 4 (Section 5b) so they
+   sit down to a working cockpit, not an empty desk — each wired to route the rest of the work through the crew.
+4. **Write the enforcement `settings.json`** to `~/.claude/settings.json` (Section 6e) — model default,
    early-compaction env var, and the compaction preservation hooks. This is the step that makes token
    efficiency **real**, not a promise.
-4. **Install `/otto`** to `~/.claude/commands/otto.md` (Section 6c).
-5. **Note the global company is built** so future sessions skip this and go straight to routing.
+5. **Install `/otto`** to `~/.claude/commands/otto.md` (Section 6c).
+6. **Note the global company is built** so future sessions skip this and go straight to routing.
 Then continue to the project tier below if they're starting a product now.
 
 ### Per session thereafter
@@ -274,6 +304,14 @@ See `scripts/` (generate Bun/TS/Python/Shell helpers as needed).
 
 Put any executable helpers in `scripts/`. Follow the `agentskills.io/v1` convention. Prefer helper scripts
 over long prose — deterministic steps run cheaper as a script than as model turns.
+
+**Two kinds of skills, one rule.** *Integration skills* (above) wrap a third-party service, built JIT.
+*Seat-kit skills* (Section 5b) augment the human in their seat, built for the ones picked at onboarding. Both
+carry `model:`; both must **orchestrate the crew rather than replace it.** A seat-kit skill delegates the work
+that lives outside the human's seat to the owning robot — e.g. the Engineer's `scaffold-service` skill hands
+test-writing to `glitchtrap-qa` (via `context: fork` + `agent:`) instead of writing tests itself, and the
+PM's `spec-writer` skill files the resulting tasks through Patchbay into `TASKS.md`. This is what keeps the
+human amplified *and* the rest of the org properly used.
 
 ### 6c. Generate slash commands → `.claude/commands/<name>.md`
 
