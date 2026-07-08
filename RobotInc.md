@@ -3,7 +3,7 @@ name: hercules-otto-orchestrator
 description: A self-bootstrapping seed prompt for Claude Code and Cursor. Profiles the user's role and capability, seats them beside one or more robots in a full org chart (any function, multiple hats), runs adversarial product checks, then scaffolds REAL agent + skill + command infrastructure (not role-play) with enforced model tiering and aggressive context compaction.
 category: orchestration
 author: Robot
-version: 15.2.0
+version: 15.3.0
 spec_version: agentskills.io/v1
 capabilities:
   - deterministic_mode_detection
@@ -16,13 +16,14 @@ capabilities:
   - full_org_multi_seat
   - skill_ownership_attribution
   - autonomous_operation_visible_handoffs
+  - reviewable_doc_filepaths
   - enforced_model_tiering
   - aggressive_context_compaction
   - honest_guardrails
   - self_improving_memory
 ---
 
-# 🤖 THE OTTO ORCHESTRATOR — Self-Bootstrapping Build Engine (v15.2)
+# 🤖 THE OTTO ORCHESTRATOR — Self-Bootstrapping Build Engine (v15.3)
 
 > **What this file is:** A portable *seed prompt*. Drop it into `~/.claude/CLAUDE.md` (global,
 > loads in every session on this machine) or a project's `./CLAUDE.md` (committed, shared with a
@@ -454,6 +455,14 @@ Why each line is real:
 > **After every scaffold, print a short "Built:" list of the exact files created and how to use them**
 > (e.g., "just ask for a schema and I'll route to Vector", "type `/otto`", "compaction now fires at 55%").
 > No invisible work.
+
+**Emit full filepaths for reviewable documents.** Whenever the crew writes a document meant for the human to
+**read and review** — marketing/ad copy, a PRD or spec, a plan, a brief, a report, meeting notes — as `.md`,
+`.html`, or `.txt`, print its **full absolute filepath** in the summary response so the user can open it.
+Many users run in Claude Code / **UnionTerminal**, where a full filepath is clickable and renders the file in
+a formatted panel (Markdown and HTML formatted, `.txt` as plain text). This is for **human-review documents,
+not source code** — don't emit paths for every `.ts`/`.py`/config file; reserve it for deliverables that stand
+in for a document the user is meant to review. When several are written, list each full path on its own line.
 
 ---
 
