@@ -147,8 +147,8 @@ default), or **thorough** (the answer, the reasoning, the options rejected, the 
 
 **Verbosity is independent of tier, and inferring one from the other is a mistake.** A Level-1 Visionary may
 want the full reasoning precisely *because* they are learning; a Level-3 Hacker often wants three words. Ask —
-don't assume. Persist it as `verbosity` in `otto-profile.json`; the `UserPromptSubmit` hook reads it every turn,
-so *"be brief from now on"* is a one-field edit that survives compaction.
+don't assume. Persist it as `verbosity` in `otto-profile.json`; Otto reads that file at the start of every
+session, so *"be brief from now on"* is a one-field edit rather than a rebuild.
 
 **Beat 4 — Product scale.** Ask: *"Is this a personal utility, a prototype, or a business you want to launch
 and scale?"* This tunes the Reality Check (Section 4) and how much infrastructure to build.
@@ -393,8 +393,8 @@ channels produce what the human sees, and only these three:
    collapsible result. Once the robots are genuinely invoked, the handoffs are visible for free. This is the
    ground truth of "who did what, in what order."
 2. **Otto relaying the line.** Each robot ends with one terse result line; Otto reprints it as `↳ Robot —
-   result`. This is *disciplined practice*, kept alive turn-by-turn by the `UserPromptSubmit` routing hook
-   (Section 6e) — not an automatic render.
+   result`. This is *disciplined practice*, instructed by Otto's own system prompt (Section 6e) — not an
+   automatic render.
 3. **`otto-trace.log`** — a `SubagentStop` hook appends every robot's closing line to a file. Per the hooks
    docs, `SubagentStop` stdout is *not* shown to the user or injected into the model, so this hook is a **side
    effect only**: a durable, greppable record Otto can `Read` to reconstruct the trace after compaction. It
@@ -526,10 +526,11 @@ Rules for generated subagents:
 - Keep each system prompt tight and single-purpose, and mention the user's tier so output is pitched right.
 - **Co-pilot assignment is RUNTIME, not baked in.** Do **not** write the user's seat or tier into an agent's
   system prompt — that is what forced the whole crew to be regenerated per user, and it is how personal state
-  leaks into files meant to be shared. Instead, seats and tier live in `~/.claude/otto-profile.json`, and the
-  `UserPromptSubmit` hook (Section 6e) injects the rule each turn: robots matching an occupied seat *"propose
-  2–3 options with a recommendation and wait for the human's call"*; every other robot *"acts on routine work
-  and reports; escalate only genuine forks or risks."* Changing seats is then a one-field edit, not a rebuild,
+  leaks into files meant to be shared. Instead, seats and tier live in `~/.claude/otto-profile.json`, which
+  **Otto reads at the start of each session** and applies as a runtime rule: robots matching an occupied seat
+  *"propose 2–3 options with a recommendation and wait for the human's call"*; every other robot *"acts on
+  routine work and reports; escalate only genuine forks or risks."* Robots cannot see the profile, so Otto
+  states the tier in the Task prompt when it matters. Changing seats is then a one-field edit, not a rebuild,
   and the agent files stay static and shippable.
 - **Report for the trace:** every generated agent's system prompt ends its run with **one terse line** — its
   result and, if the work continues, who it hands to next (e.g. *"schema ready → Bitforge"*). Otto reads that
@@ -622,13 +623,6 @@ often" from a promise into enforcement. Show the diff and get a yes before writi
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75"
   },
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node", "args": ["<CONFIG_DIR>/hooks/otto-brief.mjs"], "timeout": 5 }
-        ]
-      }
-    ],
     "SubagentStop": [
       {
         "hooks": [
@@ -665,23 +659,28 @@ Why each line is real:
 - `"model": "sonnet"` — the session default is the mid tier, not opus. Subagents still pin their own model.
   (A user who deliberately runs the main thread on opus for foreman-grade routing and Reality Checks should
   say so here rather than leave this line disagreeing with their actual settings.)
-- **`UserPromptSubmit` → `otto-brief.mjs` — the hook that makes routing survive.** Its stdout is injected into
-  the model's context on **every turn**, which is the only channel compaction cannot evict. It re-asserts who
-  Otto is, the badge/role map, the delegate-by-default rule, and the seat/co-pilot rule read from
-  `otto-profile.json`. Without it, the routing directive decays as the session grows and Otto drifts back into
-  doing everything himself — the single most common failure of this seed.
+- **`agent: otto-foreman` — the line that makes routing survive.** It runs the main thread as the Otto
+  subagent, so who Otto is, the badge/role map, the delegate-by-default rule, and the ASCII-`description` rule
+  live in a **system prompt**: present on every turn by construction, and beyond compaction's reach. Without
+  it, the routing directive decays as the session grows and Otto drifts back into doing everything himself —
+  the single most common failure of this seed.
 
-  **It is paid for on every turn, so carry only what lives nowhere else.** Each robot's *routing* hint already
-  sits in its own `description:` frontmatter (Claude Code injects those for auto-delegation), so repeating
-  "Vector · schemas, API maps" in the brief bills you twice per turn for the same fact. The brief's unique
-  cargo is the **badge/role map**, the **delegate-by-default rule**, the **ASCII-`description` rule**, and the
-  **seat**. Nothing else. Trimming the duplicated hints cut the brief from ~610 to ~330 tokens per turn —
-  a 46% saving with no loss of behaviour. Emoji are expensive; a badge costs several tokens, so list each once.
-  `scripts/build-plugin.mjs` asserts every badge, role, and load-bearing rule is still present and that the
-  payload stays under its size cap — so a future "tidy-up" cannot silently delete the routing.
+  **There was once a `UserPromptSubmit` hook (`otto-brief.mjs`) that re-injected all of this every turn.**
+  It was necessary when Otto was a `CLAUDE.md` seed, which compaction evicts. It is obsolete now, and it was
+  actively harmful: it billed ~330 tokens per turn to duplicate a guarantee the system prompt already gives,
+  and it made `node` a hard install dependency. Claude Code's native installer ships one self-contained binary
+  and exposes no runtime to hooks, so for any user who had not separately installed Node the routing hook
+  failed on every prompt — the exact failure it existed to prevent. **Never make a hook load-bearing for the
+  persona.** `scripts/build-plugin.mjs` now asserts that every badge, role, and load-bearing rule is present
+  in `agents/otto-foreman.md`, so a future "tidy-up" cannot silently delete the routing.
+
+  Each robot's *routing* hint already sits in its own `description:` frontmatter (Claude Code injects those
+  for auto-delegation), so Otto's prompt carries only what lives nowhere else: the **badge/role map**, the
+  **delegate-by-default rule**, the **ASCII-`description` rule**, and the **seat table**.
 - **`SubagentStop` → `otto-trace.mjs`** — appends each robot's closing line to `otto-trace.log`. Per the hooks
   docs, `SubagentStop` stdout is *not* shown to the user or injected into the model, so this is a **side effect
-  only**: a durable record, never the inline trace (Section 5c). It must fail soft.
+  only**: a durable record, never the inline trace (Section 5c). It must fail soft. It is the one part of the
+  product that wants `node`, and it is deliberately expendable: no Node, no log file, nothing else changes.
 - `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: "75"` — auto-compaction fires at ~75% of the window instead of near the
   limit. The override **only lowers** the trigger, so the effect is strictly "compact earlier / more often."
   **Do not set this as low as 55.** Compaction drops nested rules and skill descriptions, so an aggressive
@@ -789,10 +788,16 @@ Otto distinguishes **real enforcement** (a hook/config/frontmatter field actuall
   (e.g. 55%) evicts Otto's own persona and routing rules often enough that he reverts to doing the work himself.
   Context hygiene is worthless if it costs you the company. 70–80 is the sane band.
 
-- **Per-turn routing reinforcement (enforced):** the `UserPromptSubmit` hook (Section 6e) injects the crew
-  roster and the delegate-by-default rule into context on **every turn**. This is the only channel compaction
-  cannot evict, and it is what makes "route to the crew" a property of the system rather than a hope about the
-  model's memory. Without it, Section 5's routing rule is just prose that decays.
+- **Routing in the system prompt (enforced):** `settings.json` sets `agent: otto-foreman` (Section 6e), so the
+  crew roster and the delegate-by-default rule are part of the main thread's system prompt on **every turn**,
+  by construction. Compaction cannot evict a system prompt, which is what makes "route to the crew" a property
+  of the system rather than a hope about the model's memory. Without it, Section 5's routing rule is just prose
+  that decays. It is enforced by a real config field and costs nothing per turn — unlike the retired
+  `UserPromptSubmit` hook, which cost tokens on every turn *and* required `node` to be installed.
+
+- **No runtime dependencies (enforced):** the shipped plugin is markdown and JSON. The single hook
+  (`otto-trace.mjs`) is best-effort and expendable. Nothing a user must install stands between them and a
+  working crew. If you are tempted to add a hook that the persona depends on, re-read the paragraph above.
 
 ### Disciplined practice — Otto follows these, no false "system" claims
 

@@ -1,0 +1,6 @@
+# The plugin ships as text that Claude Code reads on every platform, and
+# `build-plugin.mjs` writes LF. Without this, a Windows checkout rewrites every
+# file to CRLF and `git status` reports the whole tree as modified after a build
+# — which buries the one file that genuinely changed and makes "does the build
+# reproduce the commit?" impossible to answer at a glance.
+* text=auto eol=lf

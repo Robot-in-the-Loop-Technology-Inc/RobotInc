@@ -233,4 +233,4 @@ w('.claude-plugin/marketplace.json', JSON.stringify({
 // ---------------------------------------------------------------- seed
 w('RobotInc.md', seed);
 
-console.log(`built plugin v${version}: ${agentCount} agents, ${skillCount} skills, ${commandCount} commands, 2 hooks`);
+console.log(`built plugin v${version}: ${agentCount} agents, ${skillCount} skills, ${commandCount} commands, 1 hook`);
