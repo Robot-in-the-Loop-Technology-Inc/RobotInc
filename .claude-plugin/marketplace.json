@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "robotinc",
+  "description": "RobotInc — Otto and the robot crew for Claude Code.",
+  "owner": {
+    "name": "Robot in the Loop Technology Inc",
+    "url": "https://robotintheloop.io"
+  },
+  "plugins": [
+    {
+      "name": "otto",
+      "source": "./",
+      "description": "A full robot company as real Claude Code primitives: 12 model-tiered robot subagents, 19 seat-kit skills, /otto, and routing hooks.",
+      "category": "orchestration"
+    }
+  ]
+}

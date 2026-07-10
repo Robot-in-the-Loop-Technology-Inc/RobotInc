@@ -1,0 +1,11 @@
+{
+  "name": "otto",
+  "version": "16.0.0",
+  "description": "Otto the crimson foreman plus a 12-robot crew as real, model-tiered Claude Code subagents — with proactive routing, per-turn reinforcement that survives compaction, and honest guardrails.",
+  "author": {
+    "name": "Robot in the Loop Technology Inc",
+    "url": "https://robotintheloop.io"
+  },
+  "homepage": "https://github.com/Robot-in-the-Loop-Technology-Inc/RobotInc",
+  "license": "MIT"
+}
