@@ -35,4 +35,4 @@ This is a **cockpit for the human's build hat** — it produces the scaffold the
 ## Guardrails
 - `feature/<task>` branch only; commit/push only when the user asks.
 - No secrets in code — `.env` + env vars only (`.env` git-ignored).
-- Stay in the user's tier (from the routing brief): explain tradeoffs briefly, use standard terms, don't over-narrate.
+- Stay in the user's tier (as stated in Otto's dispatch): explain tradeoffs briefly, use standard terms, don't over-narrate.

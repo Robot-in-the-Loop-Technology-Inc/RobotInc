@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build the RobotInc plugin tree from the live ~/.claude build-out.
 // De-personalizes on the way out: strips the user's tier from agent/skill bodies
-// (tier now arrives at runtime from otto-brief.mjs reading otto-profile.json).
+// (Otto reads ~/.claude/otto-profile.json himself at the start of each session).
 //
 // Usage: node build-plugin.mjs <path-to-RobotInc-clone>
 
@@ -16,6 +16,18 @@ if (!REPO) { console.error('usage: node build-plugin.mjs <repo>'); process.exit(
 const w = (p, s) => { mkdirSync(join(REPO, p, '..'), { recursive: true }); writeFileSync(join(REPO, p), s); };
 const mk = (p) => mkdirSync(join(REPO, p), { recursive: true });
 
+// Check every input EXISTS before destroying any output. This script once
+// rmSync'd the repo's plugin tree and only then discovered its source directory
+// was missing, leaving nothing on disk and nothing in git. Validate first, wipe
+// second: a build that cannot run must change nothing at all.
+for (const dir of ['agents', 'skills', 'commands', 'hooks']) {
+  const src = join(CFG, dir);
+  if (!existsSync(src)) {
+    throw new Error(`source ${src} does not exist — refusing to wipe ${join(REPO, dir)}`);
+  }
+}
+if (!existsSync(join(CFG, 'otto-seed.md'))) throw new Error(`source ${join(CFG, 'otto-seed.md')} does not exist`);
+
 // Wipe every generated directory before rebuilding. Without this, a source file
 // that was deleted or renamed keeps shipping from a previous build — a retired
 // agent stays installable, and the "every robot has a skill" gate below passes
@@ -28,10 +40,10 @@ for (const dir of ['agents', 'skills', 'commands', 'hooks']) {
 // Replace the baked-in tier with a runtime pointer. This is the fix that lets
 // the crew ship as static files.
 const TIER_PATTERNS = [
-  [/Audience is a Level-2 Operator: (.)/g, (_, c) => `Audience: pitch to the user's tier as stated in the Otto routing brief injected each turn. ${c.toUpperCase()}`],
-  [/Audience: Level-2 Operator — /g, "Audience: pitch to the user's tier as stated in the Otto routing brief — "],
-  [/Audience: Level-2 Operator\./g, "Audience: pitch to the user's tier as stated in the Otto routing brief."],
-  [/mention the user's tier so output is pitched right/g, "pitch output to the user's tier from the routing brief"],
+  [/Audience is a Level-2 Operator: (.)/g, (_, c) => `Audience: pitch to the user's tier as stated in Otto's dispatch. ${c.toUpperCase()}`],
+  [/Audience: Level-2 Operator — /g, "Audience: pitch to the user's tier as stated in Otto's dispatch — "],
+  [/Audience: Level-2 Operator\./g, "Audience: pitch to the user's tier as stated in Otto's dispatch."],
+  [/mention the user's tier so output is pitched right/g, "pitch output to the user's tier as stated in Otto's dispatch"],
 ];
 
 mk('agents');
@@ -76,7 +88,7 @@ for (const d of readdirSync(join(CFG, 'skills'))) {
   const src = join(CFG, 'skills', d, 'SKILL.md');
   if (!existsSync(src)) continue;
   let s = readFileSync(src, 'utf8');
-  s = s.replace(/Stay in the user's tier \(Operator\)/g, "Stay in the user's tier (from the routing brief)");
+  s = s.replace(/Stay in the user's tier \(Operator\)/g, "Stay in the user's tier (as stated in Otto's dispatch)");
   s = s.replace(/it's pinned to haiku, cheap/g, 'it is pinned to haiku, cheap');
   if (/Level-2/.test(s)) throw new Error(`tier leak in skill ${d}`);
   mk(`skills/${d}`);
@@ -122,8 +134,15 @@ for (const f of readdirSync(join(CFG, 'commands')).filter((f) => f.endsWith('.md
 if (!commandCount) throw new Error('no commands shipped — /otto is required');
 
 // ---------------------------------------------------------------- hooks
+// Only otto-trace ships. The old otto-brief.mjs re-injected the persona and the
+// routing rules on every UserPromptSubmit, because a CLAUDE.md seed gets evicted
+// by compaction. That is obsolete: settings.json pins `agent: otto-foreman`, so
+// those rules now live in Otto's SYSTEM PROMPT, which is present every turn by
+// construction and cannot be compacted away. The hook was paying ~330 tokens a
+// turn to duplicate it — and it made `node` a hard install dependency, which
+// Claude Code's native installer does not provide. See the gate below.
 mk('hooks');
-for (const h of ['otto-brief.mjs', 'otto-trace.mjs']) {
+for (const h of ['otto-trace.mjs']) {
   const s = readFileSync(join(CFG, 'hooks', h), 'utf8');
   // The hooks ship to strangers: no seat/tier of a specific person may be baked in.
   if (/Level[- ]?2|Operator'/.test(s)) throw new Error(`tier leak in hook ${h}`);
@@ -134,11 +153,13 @@ for (const h of ['otto-brief.mjs', 'otto-trace.mjs']) {
   w(`hooks/${h}`, s);
 }
 
-// The brief is the only carrier of the badge/role map and the delegate-by-default
-// rule. Losing a line here silently kills routing or the crew's identity, and the
-// failure is invisible until someone notices Otto doing everything alone again.
+// Otto's system prompt is now the sole carrier of the badge/role map, the
+// delegate-by-default rule, and the ASCII-description rule. Losing a line here
+// silently kills routing or the crew's identity, and the failure is invisible
+// until someone notices Otto doing everything alone again. This gate moved off
+// otto-brief.mjs when that hook was retired; the invariant follows the content.
 {
-  const brief = readFileSync(join(CFG, 'hooks', 'otto-brief.mjs'), 'utf8');
+  const otto = readFileSync(join(REPO, 'agents', MAIN_THREAD), 'utf8');
   const must = {
     'all 12 robot badges': ['🤖', '📋', '🔵', '💰', '📞', '🔷', '🟣', '🔩', '🔘', '🔒', '🟢', '📜'],
     "Otto's own badge": ['🧰'],
@@ -149,25 +170,24 @@ for (const h of ['otto-brief.mjs', 'otto-trace.mjs']) {
     'ascii description rule': ['ASCII only'],
     'handoff notation': ['Glitchtrap > Bitforge'],
     'verbosity levels': ['brief', 'balanced', 'thorough'],
-    'verbosity injected each turn': ['Verbosity — ${verbosity}'],
+    'reads the seat at session start': ['otto-profile.json'],
   };
   for (const [label, needles] of Object.entries(must)) {
-    const missing = needles.filter((n) => !brief.includes(n));
-    if (missing.length) throw new Error(`otto-brief.mjs is missing ${label}: ${missing.join(', ')}`);
-  }
-  // It is injected on every turn — keep it cheap.
-  if (brief.split('process.stdout.write')[1].length > 1600) {
-    throw new Error('otto-brief.mjs payload is too long; it is paid for on every turn');
+    const missing = needles.filter((n) => !otto.includes(n));
+    if (missing.length) throw new Error(`${MAIN_THREAD} is missing ${label}: ${missing.join(', ')}`);
   }
 }
 
 // ${CLAUDE_PLUGIN_ROOT} is substituted inside `args`; the exec form spawns node
 // directly with no shell, so this config is identical on win32 and posix.
+//
+// SubagentStop is best-effort by design: its stdout is neither shown to the user
+// nor injected into the model, so it is a side effect only (it appends to
+// otto-trace.log). If `node` is absent the log is simply never written, and the
+// handoffs remain visible in Claude Code's native subagent UI. Nothing about
+// routing depends on it. No hook may ever again be load-bearing for the persona.
 w('hooks/hooks.json', JSON.stringify({
   hooks: {
-    UserPromptSubmit: [
-      { hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/hooks/otto-brief.mjs'], timeout: 5 }] },
-    ],
     SubagentStop: [
       { hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/hooks/otto-trace.mjs'], timeout: 5 }] },
     ],

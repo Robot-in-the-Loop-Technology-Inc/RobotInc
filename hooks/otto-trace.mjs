@@ -8,10 +8,15 @@
 // What renders the trace the user sees:
 //   1. Claude Code's native Task UI (agent name + result), for free, once the
 //      robots are actually invoked.
-//   2. Otto reprinting a "↳ Robot — result" line, re-instructed every turn by
-//      otto-brief.mjs (UserPromptSubmit).
+//   2. Otto reprinting a "↳ Robot — result" line, as instructed by his own
+//      system prompt (agents/otto-foreman.md, pinned via settings.json `agent`).
 // What THIS hook adds: a durable, greppable log that survives compaction, so
 // Otto can reconstruct who ran and when by reading a file.
+//
+// This hook is BEST-EFFORT and must stay that way. It is the only part of the
+// plugin that needs `node`, which Claude Code's native installer does not
+// provide. If node is missing the log is never written and nothing else breaks.
+// Never move load-bearing behaviour (the persona, the roster, routing) in here.
 
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -24,7 +29,7 @@ import { homedir } from 'node:os';
 // A VS16 sequence (e.g. U+2699 U+FE0F, U+1F6E1 U+FE0F) promotes a narrow text
 // glyph to a wide emoji, and terminals routinely miscount the width — the cursor
 // desyncs and the surrounding text is overwritten. Badges never go in a Task
-// `description` for the same reason; see hooks/otto-brief.mjs.
+// `description` for the same reason; see agents/otto-foreman.md.
 // This file must contain no U+FE0F; scripts/build-plugin.mjs enforces it.
 // [badge, name, company role]. Otto 🧰 is the main thread and never appears here.
 const ROBOTS = {

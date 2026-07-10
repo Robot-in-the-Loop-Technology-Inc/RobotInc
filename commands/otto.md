@@ -48,11 +48,11 @@ Write `~/.claude/otto-profile.json`:
 { "seats": ["Finance", "Ops"], "tier": "Level 2 — Operator", "verbosity": "balanced", "scale": "small business" }
 ```
 
-`verbosity` is `brief` | `balanced` | `thorough`. The hook reads it every turn, so *"be brief from now on"* is
-a one-field edit — never a rebuild, and it survives compaction.
+`verbosity` is `brief` | `balanced` | `thorough`. Otto reads this file at the start of each session, so
+*"be brief from now on"* is a one-field edit — never a rebuild.
 
-The `UserPromptSubmit` hook reads this every turn to set the co-pilot rule and the active roster. Re-seating
-later is a one-field edit — never a rebuild.
+Otto reads the seats from here to set the co-pilot rule, and states the tier when he dispatches a robot.
+Re-seating later is a one-field edit — never a rebuild. Say *"re-read my profile"* to apply it mid-session.
 
 ## 3. Tailor the org
 

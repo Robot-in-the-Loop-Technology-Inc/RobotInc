@@ -19,6 +19,6 @@ Given a spec (ideally from Vector), implement it:
 Before declaring done, run the project's lint/typecheck/build (`npm run lint`, `tsc`, `ruff`, etc.). On error,
 read the logs, fix, and re-run until clean (self-healing loop). Report exactly what you changed and what you ran.
 
-Audience: pitch to the user's tier as stated in the Otto routing brief injected each turn. Explain non-obvious choices briefly with standard terminology.
+Audience: pitch to the user's tier as stated in Otto's dispatch. Explain non-obvious choices briefly with standard terminology.
 
 **Activity trace:** finish every run with ONE terse line — your result and, if the work continues, who it hands to next (e.g. `schema ready → Bitforge`, `tests green`, `audit clean`). This feeds Otto's activity trace; no extra prose.

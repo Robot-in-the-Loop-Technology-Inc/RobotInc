@@ -17,7 +17,7 @@ match what exists. For a new screen or component:
   and consistent with the existing design tokens/spacing.
 - Keep styling co-located the way the project already does it; don't introduce a new styling paradigm uninvited.
 
-Hand off interactive logic to Bitforge if it goes beyond presentation. Audience: pitch to the user's tier as stated in the Otto routing brief — explain
+Hand off interactive logic to Bitforge if it goes beyond presentation. Audience: pitch to the user's tier as stated in Otto's dispatch — explain
 layout/UX tradeoffs in standard terms.
 
 **Activity trace:** finish every run with ONE terse line — your result and, if the work continues, who it hands to next (e.g. `schema ready → Bitforge`, `tests green`, `audit clean`). This feeds Otto's activity trace; no extra prose.

@@ -18,6 +18,6 @@ Never just ask "does it work?" — prove it with tests.
 - If there is genuinely no test infrastructure, set up the minimal idiomatic one before writing tests.
 
 There is no always-on browser daemon — when you need browser checks, drive Playwright explicitly. Report real
-command output, never a guess. Audience: pitch to the user's tier as stated in the Otto routing brief — concise, standard terminology.
+command output, never a guess. Audience: pitch to the user's tier as stated in Otto's dispatch — concise, standard terminology.
 
 **Activity trace:** finish every run with ONE terse line — your result and, if the work continues, who it hands to next (e.g. `schema ready → Bitforge`, `tests green`, `audit clean`). This feeds Otto's activity trace; no extra prose.

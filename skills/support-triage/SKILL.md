@@ -42,4 +42,4 @@ answering them one at a time in whatever order they arrived.
   confirmation from the human.
 - A refund *policy* is a legal question, not a support decision — route it to Docket.
 - Quote the customer accurately. Never paraphrase a complaint into something milder than it was.
-- Stay in the user's tier as stated in the routing brief; lead with the answer.
+- Stay in the user's tier as stated in Otto's dispatch; lead with the answer.

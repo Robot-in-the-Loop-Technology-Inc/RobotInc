@@ -116,8 +116,11 @@ the v16 release exists to fix.
   on first run; it silently dropped the `use PROACTIVELY` trigger from six of them and the routing
   quietly died. Infrastructure is shipped, never generated.
 - **Delegate by default.** Routing is the product. Otto writes no production code, no tests, and no copy.
-- **Routing that survives compaction.** A `UserPromptSubmit` hook re-injects the crew roster and your seat
-  on every turn — the one channel context compaction cannot evict.
+- **Routing that survives compaction.** Installing sets `agent: otto-foreman`, so the crew roster, the badge
+  map, and the delegate-by-default rule live in Otto's *system prompt* — present every turn by construction,
+  and not something compaction can evict.
+- **No runtime dependencies.** Nothing you install needs Node, Python, or a package manager. The plugin is
+  markdown and JSON. If you can run Claude Code, you can run RobotInc.
 - **Cheap by default, enforced.** Every subagent and skill pins the cheapest model that can do its job via
   real `model:` frontmatter. (Never set `CLAUDE_CODE_SUBAGENT_MODEL` — it *overrides* every pin and
   collapses the tiering rather than flooring it.)
@@ -128,15 +131,19 @@ the v16 release exists to fix.
 
 ## What this plugin does to your machine (read this)
 
-**It runs local code on every prompt.** RobotInc installs two hooks:
+**It runs local code when a robot finishes.** RobotInc installs exactly one hook:
 
-- `hooks/otto-brief.mjs` runs on **every message you send**. It prints the crew roster and your seat so the
-  routing survives context compaction. It reads `~/.claude/otto-profile.json`. It sends nothing anywhere.
-- `hooks/otto-trace.mjs` runs when a robot finishes, and appends one line to `otto-trace.log`.
+- `hooks/otto-trace.mjs` runs when a robot finishes, and appends one line to `otto-trace.log`. It sends
+  nothing anywhere.
+
+That hook is the only part of RobotInc that needs `node` on your PATH, and it is **best-effort**: without
+Node the log file is simply never written. Nothing else changes — the handoffs still appear in Claude Code's
+native subagent UI, and routing is unaffected, because routing lives in Otto's system prompt rather than in a
+hook. You never have to install anything to use this plugin.
 
 Claude Code shows **no consent dialog, no warning, and no sandbox** for plugin hooks — they execute with the
 same privileges as Claude Code itself. That is true of every plugin you will ever install, including this one.
-Both files are short, dependency-free, and readable in two minutes. **Read them before you install.**
+The file is short, dependency-free, and readable in a minute. **Read it before you install.**
 
 `/otto` will also propose changes to your `~/.claude/settings.json` — the compaction threshold, a permissions
 allowlist, and `permissions.deny` for the departments you retired. It always shows the diff and waits for a
