@@ -30,7 +30,7 @@ import { homedir } from 'node:os';
 // glyph to a wide emoji, and terminals routinely miscount the width — the cursor
 // desyncs and the surrounding text is overwritten. Badges never go in a Task
 // `description` for the same reason; see agents/otto-foreman.md.
-// This file must contain no U+FE0F; scripts/build-plugin.mjs enforces it.
+// This file must contain no U+FE0F; scripts/validate.mjs enforces it.
 // [badge, name, company role]. Otto 🧰 is the main thread and never appears here.
 const ROBOTS = {
   // core — always active

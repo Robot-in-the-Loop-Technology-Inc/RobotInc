@@ -3,7 +3,7 @@ name: hercules-otto-orchestrator
 description: A company of robots for Claude Code. Interviews the user, seats them in an org chart, retires the departments they don't need, and routes every task to the specialist who owns it. Ships as a plugin: real subagents, skills, commands and hooks — never generated, never drifting.
 category: orchestration
 author: Robot
-version: 16.0.0
+version: 16.1.0
 spec_version: agentskills.io/v1
 capabilities:
   - profile_based_mode_detection
@@ -28,7 +28,7 @@ capabilities:
   - self_improving_memory
 ---
 
-# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v16.0.0)
+# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v16.1.0)
 
 > **What this file is:** the readable **specification** of RobotInc, and a portable fallback. The product
 > itself ships as a Claude Code **plugin** — real subagents, skills, commands and hooks, installed as files:
@@ -378,7 +378,7 @@ badge lives in prose. Each robot is identified once, in the right place:
 > U+FE0F variation-selector emoji (`⚙️` = U+2699 U+FE0F): a plain `🟠` breaks it too. `→`, `›` and `⇒` are
 > East-Asian-Ambiguous width and are equally unsafe; use the ASCII `>`. Badges *are* safe in Otto's prose and
 > in the log, which are rendered as text rather than laid out in columns. **Every badge above is a single
-> codepoint with no variation selector**, and `scripts/build-plugin.mjs` refuses to ship a hook containing one.
+> codepoint with no variation selector**, and `scripts/validate.mjs` rejects a hook containing one.
 
 Relay each line **in that robot's voice** (Section 6a) — Bitforge gruff, Glitchtrap gleeful, Baudrate dry.
 Personality lives in word choice, never in extra length.
@@ -509,7 +509,7 @@ Rules for generated subagents:
   So the robot's badge is carried by exactly two things, neither of them frontmatter: Otto's `↳` line and
   `otto-trace.log`. **The in-progress indicator is `color:` alone** — a badge in the `description` desyncs the
   terminal cursor and garbles the line (Section 5c). Every badge must be a **single codepoint with no U+FE0F
-  variation selector**; `scripts/build-plugin.mjs` refuses to ship a hook containing one. Otto's own badge is
+  variation selector**; `scripts/validate.mjs` rejects a hook containing one. Otto's own badge is
   **🧰** — the same one pinned in the PASSIVE standby template (Section 2).
 - **`disallowedTools`, not `tools`. This one field decides whether your company can do any work at all.**
   Declaring a `tools:` allowlist **opts the agent out of inheriting the session's MCP servers** — Gmail,
@@ -671,7 +671,7 @@ Why each line is real:
   and it made `node` a hard install dependency. Claude Code's native installer ships one self-contained binary
   and exposes no runtime to hooks, so for any user who had not separately installed Node the routing hook
   failed on every prompt — the exact failure it existed to prevent. **Never make a hook load-bearing for the
-  persona.** `scripts/build-plugin.mjs` now asserts that every badge, role, and load-bearing rule is present
+  persona.** `scripts/validate.mjs` asserts that every badge, role, and load-bearing rule is present
   in `agents/otto-foreman.md`, so a future "tidy-up" cannot silently delete the routing.
 
   Each robot's *routing* hint already sits in its own `description:` frontmatter (Claude Code injects those

@@ -25,16 +25,33 @@ Then run `/otto` once. It asks four short questions (your seat, your experience 
 scale, which power tools you want) and writes `~/.claude/otto-profile.json`. Nothing else about the crew
 needs generating — it already exists.
 
+### Staying up to date
+
+Turn on auto-update once and you inherit every improvement we ship, hands-free: run `/plugin`, open the
+**Marketplaces** tab, select **robotinc**, and **Enable auto-update**. Claude Code then refreshes the
+marketplace, updates the plugin, and prompts you to `/reload-plugins` when a new version lands.
+
+Prefer to update manually? Refresh the marketplace yourself:
+
+```
+/plugin marketplace update robotinc
+```
+
+Your `otto-profile.json` (seat, tier, verbosity) is yours — it lives in `~/.claude/`, outside the plugin,
+and survives every update untouched.
+
 ### Install it for a whole team
 
 Commit this to a repo's `.claude/settings.json` and everyone who opens the folder and trusts it gets
-prompted to install the crew. No commands to remember, no README to follow:
+prompted to install the crew — and inherits updates automatically. No commands to remember, no README
+to follow:
 
 ```json
 {
   "extraKnownMarketplaces": {
     "robotinc": {
-      "source": { "source": "github", "repo": "Robot-in-the-Loop-Technology-Inc/RobotInc" }
+      "source": { "source": "github", "repo": "Robot-in-the-Loop-Technology-Inc/RobotInc" },
+      "autoUpdate": true
     }
   }
 }
@@ -60,7 +77,8 @@ The whole company is always built — you slot into it by role. The robot matchi
 | **Executive / Founder** | vision, budget, go/no-go | everything below strategy |
 
 Change seats any time — *"put me in the Finance seat too"*. That rewrites one field in
-`otto-profile.json`; the routing hook picks it up on your next message. No files are regenerated.
+`otto-profile.json`; Otto reads it at the start of each session, and *"re-read my profile"* applies it
+mid-session. No files are regenerated.
 
 ## The crew
 
@@ -151,6 +169,35 @@ yes. It never connects an email account or a calendar on your behalf.
 
 **It changes your main thread.** Installing sets `agent: otto-foreman`, so Claude Code speaks as Otto in every
 session. Remove the plugin, or override `agent` in your own settings, to undo it.
+
+## Extending RobotInc (contributors & forks)
+
+**This repo is the source of truth.** The files you see — `agents/`, `skills/`, `commands/`, `hooks/` —
+are exactly what Claude Code installs, byte for byte. There is no build step and no generator: edit a
+file, and that edit *is* the change. (Until 2026-07-11 a script generated this tree from the maintainer's
+personal `~/.claude`; that script is gone, and with it the only reason you couldn't contribute.)
+
+The gates live in `scripts/validate.mjs`. CI runs it on every push and PR; run it yourself before
+committing:
+
+```bash
+node scripts/validate.mjs
+```
+
+**To add a robot:** create `agents/<name>.md` with `name:` (kebab-case, matching the filename), `color:`,
+`model:`, a `description:` containing the literal phrase `use PROACTIVELY` (this string drives
+auto-delegation — without it the robot sits idle forever), and `disallowedTools:` including `Agent`
+(robots must not spawn robots; Otto mediates every handoff). Then give it a row in `otto-foreman.md`'s
+roster table and at least one skill — the validator rejects a robot with no skills, because a department
+without tools is a costume.
+
+**To add a skill:** create `skills/<name>/SKILL.md` with `model:` and a `**Home robot:**` line naming the
+crew member that owns it. Every skill answers to a robot, even when the human drives it.
+
+**Never add a hook that the persona depends on.** The one shipped hook (`otto-trace.mjs`) is best-effort
+by design, because `node` is not guaranteed on a user's machine. Anything load-bearing belongs in Otto's
+system prompt (`agents/otto-foreman.md`), which is enforced by `settings.json → agent` and cannot be
+evicted by compaction. The validator rejects new files in `hooks/`.
 
 ## Legacy install (single file)
 
