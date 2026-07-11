@@ -15,4 +15,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      # Our own gates: the crew's invariants (PROACTIVELY triggers, model pins,
+      # Otto's roster, a home robot per skill, manifest counts, versions).
       - run: node scripts/validate.mjs
+
+      # Anthropic's gate: the same schema check the official plugin directory
+      # runs on submission. --strict also fails on unrecognized fields. If this
+      # breaks, we have silently dropped out of directory-eligibility.
+      - run: npx -y @anthropic-ai/claude-code plugin validate . --strict
