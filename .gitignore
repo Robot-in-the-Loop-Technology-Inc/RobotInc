@@ -1,0 +1,5 @@
+
+# Holovox drafts land here for human review before replacing README.md.
+# They must never ship to a public branch.
+README.draft.md
+*.draft.md
