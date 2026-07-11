@@ -1,5 +1,34 @@
 # Changelog
 
+## 16.2.0 — 2026-07-11
+
+Renamed the plugin `otto` → `robotinc`.
+
+Claude Code prefixes everything a plugin ships with the plugin's own name, so the crew rendered as
+`otto:otto-foreman` and `otto:bitforge-engineer` — the plugin name stuttering against the agent name.
+The plugin is now named for the company and the agents for the robots:
+
+| | before | after |
+|---|---|---|
+| agents | `otto:otto-foreman` | `robotinc:otto-foreman` |
+| | `otto:bitforge-engineer` | `robotinc:bitforge-engineer` |
+| commands | `/otto:otto` | `/robotinc:otto` |
+| skills | `otto:reality-check` | `robotinc:reality-check` |
+
+Each robot's name is still tinted in its own `color:` while it runs — red Otto, orange Bitforge,
+purple Vector — which is how you see who is working.
+
+**Upgrading from 16.0.x/16.1.0:** the plugin's *identity* changed, so auto-update cannot carry you
+across it. Uninstall the old one and install the new:
+
+```
+/plugin uninstall otto@robotinc
+/plugin install robotinc@robotinc
+/reload-plugins
+```
+
+Your `~/.claude/otto-profile.json` — seat, tier, verbosity — is untouched by this.
+
 ## 16.1.0 — 2026-07-11
 
 The repo is now the source of truth.

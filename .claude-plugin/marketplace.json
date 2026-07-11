@@ -8,7 +8,7 @@
   },
   "plugins": [
     {
-      "name": "otto",
+      "name": "robotinc",
       "source": "./",
       "description": "A full robot company as real Claude Code primitives: 12 model-tiered robot subagents, 19 seat-kit skills, /otto, and routing hooks.",
       "category": "orchestration"

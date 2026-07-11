@@ -173,10 +173,14 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   const plugin = JSON.parse(read('.claude-plugin/plugin.json'));
   const market = JSON.parse(read('.claude-plugin/marketplace.json'));
 
-  if (plugin.name !== 'otto') fail(`plugin.json: name must be "otto" (got "${plugin.name}")`);
+  if (plugin.name !== 'robotinc') fail(`plugin.json: name must be "robotinc" (got "${plugin.name}")`);
   if (market.name !== 'robotinc') fail(`marketplace.json: name must be "robotinc" (got "${market.name}")`);
-  const entry = (market.plugins || []).find((p) => p.name === 'otto');
-  if (!entry) fail('marketplace.json: no plugin entry named "otto"');
+  // The plugin's name is the prefix Claude Code shows on every agent, command
+  // and skill it ships (robotinc:bitforge-engineer). It was "otto" until 16.2.0,
+  // which rendered as otto:otto-foreman — the plugin name colliding with the
+  // agent name. Keep the plugin named for the company, the agents for the robots.
+  const entry = (market.plugins || []).find((p) => p.name === 'robotinc');
+  if (!entry) fail('marketplace.json: no plugin entry named "robotinc"');
 
   for (const [where, desc] of [['plugin.json', plugin.description], ['marketplace.json', entry?.description]]) {
     if (!desc) continue;

@@ -14,7 +14,7 @@ invoked automatically as work demands. You watch the handoffs happen.
 
 ```
 /plugin marketplace add Robot-in-the-Loop-Technology-Inc/RobotInc
-/plugin install otto@robotinc
+/plugin install robotinc@robotinc
 ```
 
 That's it. Twelve robots plus Otto himself, nineteen seat-kit skills, the `/otto` and `/standup` commands,
