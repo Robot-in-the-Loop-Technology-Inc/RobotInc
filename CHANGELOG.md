@@ -1,5 +1,23 @@
 # Changelog
 
+## 16.3.0 — 2026-07-11
+
+The README is a landing page, not a manual.
+
+- Rewritten to lead with the promise — *a full company, and it fills every chair you don't sit in* —
+  rather than a feature list. The seat/co-pilot/autopilot model is the product; it now reads that way.
+- Says plainly that RobotInc is **not just for people who write code**. A consultant hands a retainer to
+  Docket; a founder asks Baudrate to structure pricing before touching Stripe. The engineering department
+  is there when you need it and retired from your roster when you don't.
+- `displayName: "RobotInc"` so the plugin directory and UI carry proper capitals, while the technical
+  `name` (and the agent namespace, `robotinc:otto-foreman`) stays kebab-case.
+
+Two claims were cut before shipping, because a product that sells its honesty cannot fudge its own README:
+an illustrative handoff trace had been labelled "not a mockup" (it is an illustration, and now says so),
+and "no black box holding your prompts" could be misread as "your data never leaves your machine" — it now
+states explicitly that conversations go to Claude exactly as they already did, and that RobotInc adds no
+service of its own.
+
 ## 16.2.0 — 2026-07-11
 
 Renamed the plugin `otto` → `robotinc`.

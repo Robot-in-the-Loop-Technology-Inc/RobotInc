@@ -1,14 +1,16 @@
 # 🤖 RobotInc
 
-**A full company of AI agents for Claude Code, installed as real files — not role-play.**
+### A full company, seated inside the editor you already have.
 
-Meet **Otto**, a crimson-red vacuum-tube engineering foreman. He interviews you about your role, seats you
-in an org chart, pressure-tests your idea, and then **routes every task to the specialist robot that owns
-it** — the architect, the engineer, the QA inspector, the security auditor, the designer, the copywriter,
-the CFO, the PM, and the researcher.
+An architect. An engineer. A QA inspector. A security auditor. A designer. A sales & marketing lead. A
+CFO. A PM. A support rep. A researcher. A lawyer. A chief of staff. And **Otto**, the crimson-red
+vacuum-tube foreman who routes every task to whichever one owns it.
 
-The robots are **real Claude Code subagents**, each pinned to the cheapest model that can do its job, each
-invoked automatically as work demands. You watch the handoffs happen.
+That's not a metaphor and it isn't one model doing twelve impressions. It's **thirteen real Claude Code
+agent files** — dispatched by Claude Code itself, each one running as itself, its name tinted in its own
+colour while it works. You watch the handoffs happen.
+
+You take **one seat** in the company. The robots fill every other chair, and report back.
 
 ## Install
 
@@ -17,193 +19,136 @@ invoked automatically as work demands. You watch the handoffs happen.
 /plugin install robotinc@robotinc
 ```
 
-That's it. Twelve robots plus Otto himself, nineteen seat-kit skills, the `/otto` and `/standup` commands,
-and the routing hooks are copied to disk exactly as authored. **No LLM in the bootstrap path, so nothing
-can drift.**
+Then run `/otto` once. Four short questions — your seat, your experience level, your product's scale,
+which power tools you want — and you're staffed. Nothing gets generated; the crew, the 19 seat-kit
+skills, and the routing already exist on disk, byte for byte, the moment you install.
 
-Then run `/otto` once. It asks four short questions (your seat, your experience level, your product's
-scale, which power tools you want) and writes `~/.claude/otto-profile.json`. Nothing else about the crew
-needs generating — it already exists.
+## Watch it work
 
-### Staying up to date
-
-Turn on auto-update once and you inherit every improvement we ship, hands-free: run `/plugin`, open the
-**Marketplaces** tab, select **robotinc**, and **Enable auto-update**. Claude Code then refreshes the
-marketplace, updates the plugin, and prompts you to `/reload-plugins` when a new version lands.
-
-Prefer to update manually? Refresh the marketplace yourself:
+Ask for something ordinary and cross-functional — *"add rate limiting to the telemetry endpoint"* — and
+the handoffs arrive in your session like this:
 
 ```
-/plugin marketplace update robotinc
+↳ 🟣 Vector (Architect)  — rate-limit schema + middleware boundary drafted
+↳ 🔩 Bitforge (Engineer) — middleware + config on feature/rate-limit
+↳ 🔘 Glitchtrap (QA)     — 4 tests added, green
 ```
 
-Your `otto-profile.json` (seat, tier, verbosity) is yours — it lives in `~/.claude/`, outside the plugin,
-and survives every update untouched.
+Three real subagent calls, each one a colour-tinted name in Claude Code's own UI, each followed by a
+one-line result. Nothing narrated, nothing role-played. (That's an illustration of the format, not a
+transcript — but the shape is exactly what you get.) Every robot that fires also appends its line to
+`.claude/otto-trace.log`, so the trail survives after the conversation scrolls away.
 
-### Install it for a whole team
+If Otto ever answers everything himself and no subagent fires — that's the bug, not the feature.
 
-Commit this to a repo's `.claude/settings.json` and everyone who opens the folder and trusts it gets
-prompted to install the crew — and inherits updates automatically. No commands to remember, no README
-to follow:
+## One seat. A whole company fills the rest.
 
-```json
-{
-  "extraKnownMarketplaces": {
-    "robotinc": {
-      "source": { "source": "github", "repo": "Robot-in-the-Loop-Technology-Inc/RobotInc" },
-      "autoUpdate": true
-    }
-  }
-}
-```
+This is the actual promise, not a tagline: whatever seat you *don't* sit in, a robot already owns it,
+end to end, and just reports the outcome.
 
-Finally, add the compaction guardrail to `~/.claude/settings.json` (a plugin ships hooks, but cannot set
-your env vars). `/otto` will offer to merge it:
-
-```json
-{ "env": { "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75" } }
-```
-
-## Take a seat in the org
-
-The whole company is always built — you slot into it by role. The robot matching your seat becomes a
-**co-pilot** (it proposes, you decide); every other function runs on **autopilot** and just reports.
-
-| If you are a… | You hold the pen on | The crew auto-runs |
+| If you're the… | You hold the pen on | The crew runs autopilot on |
 |---|---|---|
-| **Engineer** | code & architecture | design, QA, security, GTM, PM, finance |
-| **Designer** | UI/UX | architecture, code, tests, infra, GTM |
-| **Product Manager** | roadmap & priorities | architecture, code, QA, design, GTM |
-| **Executive / Founder** | vision, budget, go/no-go | everything below strategy |
+| **Engineer** | code & architecture calls | design, QA, security, GTM, pricing, PM |
+| **Designer** | the UI/UX calls | architecture, code, tests, security, GTM |
+| **Founder / solopreneur** | vision & go/no-go | everything below strategy |
+| **Consultant** | the actual client work | the contract review, the invoice terms, the pricing |
+| **Marketer** | positioning & copy | the schema, the tests, the security audit |
 
-Change seats any time — *"put me in the Finance seat too"*. That rewrites one field in
-`otto-profile.json`; Otto reads it at the start of each session, and *"re-read my profile"* applies it
-mid-session. No files are regenerated.
+The robot sitting in your seat becomes a **co-pilot** — it proposes two or three options and waits for
+your call. Every seat you *didn't* take runs on **autopilot**: it acts on routine work and only
+interrupts you for a genuine fork or risk. A bookkeeper reviewing a contract never meets the architect —
+`/otto` retires the departments a given seat doesn't need, and one line brings any of them back.
+
+## Not just for people who write code
+
+RobotInc's core seven — chief of staff, PM, sales & marketing, finance, support, research, and Otto
+himself — run for everyone. A consultant hands a retainer offer to **Docket** and gets back the clauses
+that will actually hurt, in plain English. A founder asks **Baudrate** to structure pricing tiers before
+touching Stripe. A marketer asks **Holovox** for landing copy pitched at the audience they named. None of
+that touches a line of code, because none of it needs to. The engineering department — architect,
+engineer, QA, security, design — is there when you need it and gone from your `/otto` roster when you
+don't.
 
 ## The crew
 
-**The core runs for everyone.**
+**Core — runs for everyone**
 
-| Robot | Department | Handles | Model |
+| Robot | Role | Handles | Model |
 |---|---|---|---|
-| 🧰 **Otto** | CEO & Strategy | The Reality Check, routing, sign-off | *main thread* |
-| 🤖 **Switchboard** | Chief of Staff | Your inbox, calendar, follow-ups — **and your Claude Code setup** | sonnet |
-| 📋 **Patchbay** | PM | Tasks, delivery, branch safety | haiku |
-| 🔵 **Holovox** | Sales & Marketing | Landing copy, positioning, SEO | sonnet |
-| 💰 **Baudrate** | Finance | Pricing, unit economics, Stripe | haiku |
-| 📞 **Dialtone** | Support | Triage, replies in your voice, the pattern behind the tickets | sonnet |
-| 🔷 **Sonar** | Research | Sourced facts, competitor and market scans | sonnet |
+| 🧰 **Otto** | Foreman / CEO | Routes every task, runs the Reality Check, signs off | *main thread* |
+| 🤖 **Switchboard** | Chief of Staff | Inbox, calendar, follow-ups — and your Claude Code setup itself | sonnet |
+| 📋 **Patchbay** | PM | Atomic tasks, delivery, feature-branch safety | haiku |
+| 🔵 **Holovox** | Sales & Marketing | Landing copy, positioning, launches, SEO | sonnet |
+| 💰 **Baudrate** | CFO | Pricing tiers, unit economics, Stripe structure | haiku |
+| 📞 **Dialtone** | Support | Triage, replies in your voice, the pattern behind repeat tickets | sonnet |
+| 🔷 **Sonar** | Research | Sourced facts — competitor scans, vendor evaluations, "what's current best practice" | sonnet |
 
-**Departments you keep only if you need them** — `/otto` retires the rest, and one line brings any back.
+**Departments — opt in per seat; retire the rest with one line**
 
-| Robot | Department | Handles | Model |
+| Robot | Role | Handles | Model |
 |---|---|---|---|
-| 🟣 **Vector** | Architecture | Schemas, API maps, architecture diagrams | opus |
-| 🔩 **Bitforge** | Engineering | Clean, modular code on safe feature branches | sonnet |
-| 🔘 **Glitchtrap** | QA | Automated + regression tests | sonnet |
-| 🔒 **Cipherplate** | Security | Dependency/licence audits, secret hygiene | sonnet |
-| 🟢 **Cathode** | Design | Responsive, accessible UI | sonnet |
+| 🟣 **Vector** | Architect | Schemas, API route maps, architecture diagrams — before code exists | opus |
+| 🔩 **Bitforge** | Engineer | Clean, modular code and fixes, on isolated feature branches | sonnet |
+| 🔘 **Glitchtrap** | QA | Automated tests, regression-first on bugs | sonnet |
+| 🔒 **Cipherplate** | Security | Dependency/licence audits, secret hygiene, obvious vulnerabilities | sonnet |
+| 🟢 **Cathode** | Design | Responsive, accessible UI — multiple layout options, not one guess | sonnet |
 | 📜 **Docket** | Legal | Contracts, SOWs, NDAs, ToS — the clauses that actually hurt | sonnet |
 
-You never have to remember a robot's name — describe the work and Otto routes it.
+Every robot is pinned to the *cheapest* model that can do its job — real `model:` frontmatter, not a
+setting you have to remember to check. You never need to know a robot's name; describe the work and Otto
+routes it.
 
-**You always know who's working.** Each robot's name is tinted in its own colour while it runs, and its badge
-rides the result line: `↳ 📜 Docket (Legal) — 4 clauses flagged, indemnity uncapped`. Every robot that runs
-also appends a line to `.claude/otto-trace.log`.
+## Why here, and not somewhere else
 
-## How you can tell it's actually working
+RobotInc doesn't ask you to open a new tab, learn a new app, or hand your files to a hosted service. It
+runs *inside* the tool you already write code, review contracts, and draft copy in — reading the files
+that are actually on your machine. Install it and you own thirteen `.md`/`.json` files you can open, read,
+and edit yourself: every robot's prompt is right there in plain text, with nothing hidden from you. (Your
+conversations still go to Claude, exactly as they already do — RobotInc adds no service of its own, and
+sends nothing anywhere.) And there's nothing new to pay for — it runs on the Claude subscription you
+already have.
 
-Ask for something cross-functional (*"add rate limiting to the telemetry endpoint"*) and you should see
-Claude Code invoke `vector-architect`, then `bitforge-engineer`, then `glitchtrap-qa` — each as a real
-subagent call, each followed by a one-line trace:
+## What this does to your machine (read this)
 
-```
-↳ Vector — rate-limit schema + middleware boundary drafted
-↳ Bitforge — middleware + config on feature/rate-limit
-↳ Glitchtrap — 4 tests added, green
-```
+RobotInc installs exactly **one** hook: `hooks/otto-trace.mjs`, which fires when a robot finishes and
+appends one line to `otto-trace.log`. It sends nothing anywhere. It's the only part of the plugin that
+touches `node`, and it's best-effort — without Node on your PATH, the log simply isn't written. Nothing
+else breaks: the handoffs still render in Claude Code's native subagent UI, and routing is unaffected,
+because routing lives in Otto's system prompt, not in a hook.
 
-Every robot that runs also appends a line to `.claude/otto-trace.log`.
+Claude Code shows no consent dialog and no sandbox for plugin hooks — true of every plugin you'll ever
+install, this one included. The file is short and dependency-free. Read it before you install; that
+should take about a minute.
 
-**If Otto answers everything himself and no subagent ever fires, something is wrong.** That is the bug
-the v16 release exists to fix.
+Installing also sets `agent: otto-foreman`, so Claude Code speaks as Otto every session. Remove the
+plugin, or override `agent` in your own settings, and you're back to stock. `/otto` will separately
+propose changes to your `~/.claude/settings.json` — compaction threshold, a permissions allowlist,
+`permissions.deny` for retired departments — and always shows the diff first. It never connects an email
+account or a calendar without you saying so.
 
-## Design principles
+We say this plainly because we'd rather you trust the parts that are real than take our word for the
+parts that aren't. Anywhere this plugin can only *encourage* good behaviour — manual compaction timing,
+cost estimates, brevity — we say that too, instead of dressing a habit up as a system.
 
-- **Deterministic install.** The crew ships as files. Earlier versions asked the model to write the crew
-  on first run; it silently dropped the `use PROACTIVELY` trigger from six of them and the routing
-  quietly died. Infrastructure is shipped, never generated.
-- **Delegate by default.** Routing is the product. Otto writes no production code, no tests, and no copy.
-- **Routing that survives compaction.** Installing sets `agent: otto-foreman`, so the crew roster, the badge
-  map, and the delegate-by-default rule live in Otto's *system prompt* — present every turn by construction,
-  and not something compaction can evict.
-- **No runtime dependencies.** Nothing you install needs Node, Python, or a package manager. The plugin is
-  markdown and JSON. If you can run Claude Code, you can run RobotInc.
-- **Cheap by default, enforced.** Every subagent and skill pins the cheapest model that can do its job via
-  real `model:` frontmatter. (Never set `CLAUDE_CODE_SUBAGENT_MODEL` — it *overrides* every pin and
-  collapses the tiering rather than flooring it.)
-- **Honest guardrails.** Real enforcement (a `model:` field, a hook, an env var) is shipped as real files.
-  Anything a prompt can only *encourage* — manual compaction timing, cost estimates, brevity — is never
-  dressed up as a system that doesn't exist. The activity trace, for instance, is rendered by Claude
-  Code's native subagent UI and by Otto relaying each robot's closing line; no hook draws it, and we say so.
+## Zero runtime dependencies
 
-## What this plugin does to your machine (read this)
+No Node, no Python, no package manager to install. The plugin is markdown and JSON, copied to disk
+exactly as authored — no generation step, no LLM in the bootstrap path, nothing that can drift on the way
+in. If you can run Claude Code, you can run RobotInc. Mac or Windows.
 
-**It runs local code when a robot finishes.** RobotInc installs exactly one hook:
+## Extending RobotInc
 
-- `hooks/otto-trace.mjs` runs when a robot finishes, and appends one line to `otto-trace.log`. It sends
-  nothing anywhere.
-
-That hook is the only part of RobotInc that needs `node` on your PATH, and it is **best-effort**: without
-Node the log file is simply never written. Nothing else changes — the handoffs still appear in Claude Code's
-native subagent UI, and routing is unaffected, because routing lives in Otto's system prompt rather than in a
-hook. You never have to install anything to use this plugin.
-
-Claude Code shows **no consent dialog, no warning, and no sandbox** for plugin hooks — they execute with the
-same privileges as Claude Code itself. That is true of every plugin you will ever install, including this one.
-The file is short, dependency-free, and readable in a minute. **Read it before you install.**
-
-`/otto` will also propose changes to your `~/.claude/settings.json` — the compaction threshold, a permissions
-allowlist, and `permissions.deny` for the departments you retired. It always shows the diff and waits for a
-yes. It never connects an email account or a calendar on your behalf.
-
-**It changes your main thread.** Installing sets `agent: otto-foreman`, so Claude Code speaks as Otto in every
-session. Remove the plugin, or override `agent` in your own settings, to undo it.
-
-## Extending RobotInc (contributors & forks)
-
-**This repo is the source of truth.** The files you see — `agents/`, `skills/`, `commands/`, `hooks/` —
-are exactly what Claude Code installs, byte for byte. There is no build step and no generator: edit a
-file, and that edit *is* the change. (Until 2026-07-11 a script generated this tree from the maintainer's
-personal `~/.claude`; that script is gone, and with it the only reason you couldn't contribute.)
-
-The gates live in `scripts/validate.mjs`. CI runs it on every push and PR; run it yourself before
-committing:
-
-```bash
-node scripts/validate.mjs
-```
-
-**To add a robot:** create `agents/<name>.md` with `name:` (kebab-case, matching the filename), `color:`,
-`model:`, a `description:` containing the literal phrase `use PROACTIVELY` (this string drives
-auto-delegation — without it the robot sits idle forever), and `disallowedTools:` including `Agent`
-(robots must not spawn robots; Otto mediates every handoff). Then give it a row in `otto-foreman.md`'s
-roster table and at least one skill — the validator rejects a robot with no skills, because a department
-without tools is a costume.
-
-**To add a skill:** create `skills/<name>/SKILL.md` with `model:` and a `**Home robot:**` line naming the
-crew member that owns it. Every skill answers to a robot, even when the human drives it.
-
-**Never add a hook that the persona depends on.** The one shipped hook (`otto-trace.mjs`) is best-effort
-by design, because `node` is not guaranteed on a user's machine. Anything load-bearing belongs in Otto's
-system prompt (`agents/otto-foreman.md`), which is enforced by `settings.json → agent` and cannot be
-evicted by compaction. The validator rejects new files in `hooks/`.
+This repo is the source of truth — `agents/`, `skills/`, `commands/`, `hooks/` are exactly what installs,
+byte for byte. `node scripts/validate.mjs` runs the same gates CI does: every robot needs the literal
+phrase `use PROACTIVELY` in its description (that string drives auto-delegation) and at least one skill (a
+department with no tools is a costume); every skill names the robot that owns it. See `CHANGELOG.md` for
+what shipped and why.
 
 ## Legacy install (single file)
 
-`RobotInc.md` is still here and still works as a plain `~/.claude/CLAUDE.md` seed. It carries the persona,
-the interview, and the philosophy — but on this path the crew is generated by the model rather than
-installed, which is exactly the drift the plugin exists to eliminate. **Prefer the plugin.**
+`RobotInc.md` still works as a plain `~/.claude/CLAUDE.md` seed if you can't install plugins — same
+persona, same interview. On that path the crew is generated by the model rather than installed, which is
+the exact drift the plugin exists to eliminate. Prefer the plugin.
 
 ```bash
 mkdir -p ~/.claude && curl -fsSL \
