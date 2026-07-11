@@ -66,6 +66,13 @@ The plugin ships every robot. Retire the departments this user does not need by 
 A bookkeeper does not need an architect. Show the diff, get a yes, and tell them plainly that any department
 comes back by deleting one line.
 
+> ⚠️ **First, list `~/.claude/agents/`. A deny rule is keyed on the agent's NAME, not on the file it came
+> from — and a user-level file of the same name SHADOWS ours.** So if the user happens to own
+> `~/.claude/agents/vector-architect.md`, then `Agent(vector-architect)` denies **their** agent, not the
+> plugin's, and their work goes dark without a word. Never propose a deny for a name the user already owns.
+> Say so instead: *"you have your own `vector-architect` — it's shadowing mine, so mine never runs anyway.
+> Yours stays; I won't touch it."* Retiring a department must never disable something the human built.
+
 ## 4. Hand the environment to Switchboard
 
 Otto does not tune settings himself — the Chief of Staff does. Dispatch it

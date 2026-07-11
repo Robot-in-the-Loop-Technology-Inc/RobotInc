@@ -1,5 +1,19 @@
 # Changelog
 
+## 16.3.1 — 2026-07-11
+
+**Fix: retiring a department could silently disable the user's own agent.**
+
+`/otto` proposes `permissions.deny: ["Agent(vector-architect)", ...]` to retire departments a given seat
+doesn't need. But a deny rule is keyed on the agent's **name**, not on the file it came from — and a
+user-level `~/.claude/agents/<name>.md` *shadows* the plugin's. So for anyone who happened to own an agent
+by one of our names, that rule denied **their** agent, not ours, and their work went dark without a word.
+
+`/otto` must now list `~/.claude/agents/` first and never propose a deny for a name the user already owns —
+it says so plainly instead. Retiring a department must never disable something the human built. Found while
+Vector was speccing the adoption feature (`docs/adoption.md`), which exists to end exactly this class of
+takeover.
+
 ## 16.3.0 — 2026-07-11
 
 The README is a landing page, not a manual.
