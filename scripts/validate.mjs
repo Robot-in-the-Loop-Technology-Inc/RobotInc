@@ -210,6 +210,41 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
   }
 }
 
+// ------------------------------------------- no prompt may hardcode the config dir
+// CLAUDE_CONFIG_DIR moves the whole config directory. hooks/otto-trace.mjs honours it;
+// every PROMPT hardcoded `~/.claude`, so a user who moved their config got a crew that
+// read a DIFFERENT machine's otto-profile.json, concluded it had met them, and skipped
+// the entire first meeting — card, hiring round, seat question, all of it.
+//
+// Found by pointing a sandbox at a fresh config dir and watching Otto greet the
+// maintainer by name. Prompts say `<config>` and define it; only the hook resolves it.
+// The definition itself must name the fallback ("CLAUDE_CONFIG_DIR if set, otherwise
+// ~/.claude"), and it wraps across lines — so a line-scoped check flags the very rule
+// it is enforcing. Flatten first and exempt a `~/.claude` that follows a
+// CLAUDE_CONFIG_DIR mention closely enough to be part of the same sentence.
+// (The doctrine gate made exactly this mistake. Twice is a pattern; hence the note.)
+{
+  const HARD = /~\/\.claude|\$HOME\/\.claude/g;
+  for (const dir of ['agents', 'skills', 'commands']) {
+    const walk = dir === 'skills'
+      ? readdirSync(join(REPO, dir)).map((d) => `${dir}/${d}/SKILL.md`).filter((p) => existsSync(join(REPO, p)))
+      : readdirSync(join(REPO, dir)).filter((f) => f.endsWith('.md')).map((f) => `${dir}/${f}`);
+    for (const p of walk) {
+      const flat = read(p).replace(/\s+/g, ' ');
+      let bad = 0;
+      for (const m of flat.matchAll(HARD)) {
+        const window = flat.slice(Math.max(0, m.index - 140), m.index);
+        if (!/CLAUDE_CONFIG_DIR/.test(window)) bad++;
+      }
+      if (bad) {
+        fail(`${p}: hardcodes the config dir (${bad} occurrence(s)) — use \`<config>\`, defined once as `
+           + `"CLAUDE_CONFIG_DIR if set, else ~/.claude". A user who moves their config otherwise gets a crew `
+           + `reading another machine's profile, and the first meeting never happens.`);
+      }
+    }
+  }
+}
+
 // ------------------------------------------- robots cannot dispatch robots
 // Every robot carries `disallowedTools: Agent` — Otto mediates every handoff. Four
 // skills nonetheless instructed robots to "Invoke `glitchtrap-qa` (context: fork +

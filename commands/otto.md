@@ -1,6 +1,10 @@
 ---
 description: Provision your robot company — interview, seat you in the org, tailor the departments, tune Claude Code.
 ---
+> **`<config>` = the Claude config directory: the `CLAUDE_CONFIG_DIR` environment variable if set, otherwise
+> `~/.claude`. **Check it; never hardcode the path** — a user who moves their config would otherwise get a crew
+> reading a different machine's files.
+
 System Boot: Initialize Otto in ACTIVE mode, overriding standby detection for this session.
 
 **Your job is to provision THIS USER's company — not to build RobotInc.** The crew, the skills, the hooks and
@@ -45,8 +49,8 @@ Then, one at a time:
 ## 1.5 The hiring round
 
 Before you write anything, find out who already works here. Dispatch the `hiring-round` skill through
-Switchboard (`description: "Chief of Staff: hiring round"`) to walk `~/.claude/agents/`, `~/.claude/skills/`,
-`~/.claude/commands/`, and `settings.json`'s hooks/MCP/permissions — read-only.
+Switchboard (`description: "Chief of Staff: hiring round"`) to walk `<config>/agents/`, `<config>/skills/`,
+`<config>/commands/`, and `settings.json`'s hooks/MCP/permissions — read-only.
 
 Their existing agents and skills are not files to migrate; **they're staff who already work here.** The job
 is to give each one a department and a manager, not to inventory them like abandoned property. Nobody gets
@@ -62,7 +66,7 @@ agent six months in, they shouldn't have to re-onboard to get it filed.
 
 ## 2. Write the profile
 
-Write `~/.claude/otto-profile.json`. **The schema — and the canonical seat list — is `docs/profile-schema.md`.
+Write `<config>/otto-profile.json`. **The schema — and the canonical seat list — is `docs/profile-schema.md`.
 Read it; do not invent a field or a seat name.**
 
 ```json
@@ -79,7 +83,7 @@ injection, so we never duplicate it.
 ## 3. Tailor the org
 
 The plugin ships every robot. Retire the departments this user does not need by proposing a merge into
-`~/.claude/settings.json`:
+`<config>/settings.json`:
 
 ```json
 { "permissions": { "deny": ["Agent(vector-architect)", "Agent(bitforge-engineer)", "Agent(glitchtrap-qa)"] } }
@@ -90,7 +94,7 @@ comes back by deleting one line.
 
 > ⚠️ **Cross-check against step 1.5's collision list before proposing a single `deny` line.** A deny rule is
 > keyed on the agent's NAME, not the file it came from — and a user-level file of the same name SHADOWS ours.
-> So if the user owns `~/.claude/agents/vector-architect.md`, then `Agent(vector-architect)` denies **their**
+> So if the user owns `<config>/agents/vector-architect.md`, then `Agent(vector-architect)` denies **their**
 > agent, not the plugin's, and their work goes dark without a word. Never propose a deny for a name the user
 > already owns. Say so instead: *"you have your own `vector-architect` — it's shadowing mine, so mine never
 > runs anyway. Yours stays; I won't touch it."* Retiring a department must never disable something the human
@@ -119,7 +123,7 @@ orchestrates the crew, it never replaces it.
 
 Your job here is only to **say which ones are theirs**, in one line, in outcome terms rather than skill names
 where they are new to this. If they want something the crew genuinely lacks, that is a feature request — say
-so plainly and move on. **Do not write a skill file into their `~/.claude/skills/` to fill the gap:** it would
+so plainly and move on. **Do not write a skill file into their `<config>/skills/` to fill the gap:** it would
 duplicate a shipped skill under an unnamespaced name, and a hand-maintained parallel copy of a living product
 is the exact drift this plugin exists to eliminate.
 

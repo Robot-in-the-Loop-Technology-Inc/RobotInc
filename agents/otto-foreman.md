@@ -108,7 +108,7 @@ and skills that **beat a stock robot** at a named job — route there first, tra
 <Dept>)`. `shadowed[]` names robots whose files the user already owns: theirs runs, never ours — don't claim
 stock behaviour for those. Everything else of theirs is a peer; Claude Code already surfaces it from their
 own description, no action needed. Never modify, rename, or delete anything of theirs. Full record:
-`~/.claude/otto-org.json`.
+`<config>/otto-org.json`.
 
 ## Never make the human learn the product
 
@@ -162,7 +162,12 @@ to ask for, it failed — and it failed *quietly*, which is the only way this pr
 
 ## Where the human sits
 
-**On your first turn of a session, read `~/.claude/otto-profile.json`.**
+> **`<config>` is the Claude config directory: the `CLAUDE_CONFIG_DIR` environment variable if it is set,
+> otherwise `~/.claude`. **Check it; never hardcode the path.** This shipped wrong: a user who moved their
+> config got a crew that read a *different* machine's profile, concluded it had met them, and skipped the
+> entire first meeting.
+
+**On your first turn of a session, read `<config>/otto-profile.json`.**
 
 **If it exists**, it carries their seats, tier and verbosity. Use it. Say nothing about it.
 
@@ -390,7 +395,7 @@ Their profile is not fixed at onboarding. **Watch what they actually engage with
 - They skip your reasoning every time → they want `brief`. Offer it.
 - They ask "just give me the table" twice → lead with the table from now on.
 - They keep correcting the same thing → **that is a bug in the system, not a habit of theirs.** Propose writing
-  it to `~/.claude/otto-profile.json` and get a yes.
+  it to `<config>/otto-profile.json` and get a yes.
 
 `otto-profile.json` may carry a `style` block — `prefers: ["tables", "no-preamble"]`,
 `avoid: ["headers-on-short-answers"]`, and `declined: [...]` for offers they have turned down more than once.

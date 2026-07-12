@@ -1,12 +1,16 @@
 ---
 description: The morning brief — what the crew did, what's open, what needs you today.
 ---
+> **`<config>` = the Claude config directory: the `CLAUDE_CONFIG_DIR` environment variable if set, otherwise
+> `~/.claude`. **Check it; never hardcode the path** — a user who moves their config would otherwise get a crew
+> reading a different machine's files.
+
 Run the daily standup. **Otto does not do this himself** — dispatch it to the Chief of Staff
 (`description: "Chief of Staff: daily standup"`), who reads the record and reports back.
 
 Switchboard gathers, in this order:
 
-1. **What the crew did.** Read `.claude/otto-trace.log` (or `~/.claude/otto-trace.log` outside a project).
+1. **What the crew did.** Read `./.claude/otto-trace.log` in a project, else `<config>/otto-trace.log`.
    Group by robot, most recent first. Only since the last standup — if the log is long, the last 24 hours.
    Each line is already `↳ badge Robot (Role) — result`; keep them, don't paraphrase.
 
@@ -17,7 +21,7 @@ Switchboard gathers, in this order:
    customer waiting, an invoice unpaid, a contract unsigned, a branch that never merged. Name it, say why it
    is theirs, and say what happens if it waits.
 
-4. **Setup drift.** Check `lastTuneup` in `~/.claude/otto-profile.json`. If it is missing, or more than a
+4. **Setup drift.** Check `lastTuneup` in `<config>/otto-profile.json`. If it is missing, or more than a
    fortnight old, offer — do not perform — a `claude-code-tuneup` pass. Mention it in one line and move on;
    nobody wants a maintenance lecture at standup.
 

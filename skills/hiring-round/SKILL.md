@@ -7,6 +7,11 @@ model: sonnet
 > **Home robot:** 🤖 Switchboard (Chief of Staff). He already runs the user's Claude Code environment; the
 > payroll is part of it.
 
+> **`<config>` = the Claude config directory: the `CLAUDE_CONFIG_DIR` environment variable if set, otherwise
+> `~/.claude`. **Check it; never hardcode the path** — a user who moves their config would otherwise get a crew
+> reading a different machine's files.
+
+
 ## The frame
 
 The user's existing subagents, skills, commands and hooks are not files to migrate. **They're staff who
@@ -44,12 +49,12 @@ Don't re-derive what the platform already carries. Record only what it doesn't.
 
 `Glob`/`Read`, nothing else:
 
-- `~/.claude/agents/*.md` and `./.claude/agents/*.md` (project-level outranks user-level, which outranks
+- `<config>/agents/*.md` and `./.claude/agents/*.md` (project-level outranks user-level, which outranks
   plugin — check both)
-- `~/.claude/skills/*/SKILL.md`
-- `~/.claude/commands/*.md`
-- `~/.claude/settings.json` — `hooks`, `mcpServers`, `permissions`
-- other installed plugins (`~/.claude/plugins/`)
+- `<config>/skills/*/SKILL.md`
+- `<config>/commands/*.md`
+- `<config>/settings.json` — `hooks`, `mcpServers`, `permissions`
+- other installed plugins (`<config>/plugins/`)
 
 **Empty payroll is not a failure.** Most users have nothing here. One line —
 *"Nothing on the payroll yet — clean org chart, the crew's all yours."* — and move on. Skip straight to
@@ -134,7 +139,7 @@ model picks. That's *ambiguity* — one line, not an alarm: *"you and Holovox bo
 skill; want me to prefer yours?"*
 
 Agents are bare (`bitforge-engineer`, not `robotinc:bitforge-engineer`). A user-level
-`~/.claude/agents/bitforge-engineer.md` **replaces ours at that name, silently, with no warning from the
+`<config>/agents/bitforge-engineer.md` **replaces ours at that name, silently, with no warning from the
 platform.** If the user owns it, their file has been running — ours never has.
 
 **Say it plainly, don't dress it up:**
@@ -186,7 +191,7 @@ For a payroll of size N, this is at most three asks, never N: one yes on the cla
 
 ### 6. Persist — two files, split by how often they're read
 
-`~/.claude/otto-profile.json` gets a small `org` stanza — Otto reads this file on the first turn of *every*
+`<config>/otto-profile.json` gets a small `org` stanza — Otto reads this file on the first turn of *every*
 session, so every byte here is paid for forever:
 
 ```jsonc
@@ -209,12 +214,12 @@ session, so every byte here is paid for forever:
     { "robot": "bitforge-engineer", "servedBy": "user", "acknowledgedAt": "2026-07-12" }
   ],
 
-  "detail": "~/.claude/otto-org.json",
+  "detail": "<config>/otto-org.json",
   "overflow": 4                   // classified but not hot-indexed; look in detail
 }
 ```
 
-`~/.claude/otto-org.json` is the full personnel file — every asset, its fingerprint (size + mtime, so a
+`<config>/otto-org.json` is the full personnel file — every asset, its fingerprint (size + mtime, so a
 later edit is detectable), why it was filed where, and the collision record with its resolution and undo.
 Switchboard reads and writes it; Otto opens it only on request or when `revision` disagrees with the profile.
 Nobody pays for it at session start.
@@ -236,7 +241,7 @@ stock robot without telling the user their asset disappeared.
   enforced by any hook or permission gate — Switchboard holds `Write`/`Edit`/`Bash`, same as always, and this
   skill adds no new restriction. It's discipline, not a lock. The one real backstop is `fingerprint` (size +
   mtime) in `otto-org.json`, which makes loss *detectable and reportable* even though it isn't *preventable*.
-  Recommend the user keep `~/.claude/` in git — that's a real backstop, and it's theirs, not ours.
+  Recommend the user keep `<config>/` in git — that's a real backstop, and it's theirs, not ours.
 - **Never propose a `deny` for a name the user owns.** See step 3. This is the load-bearing rule; do not
   soften it.
 - **Nothing irreversible without consent.** Show the diff, get a yes, before any write — including the two

@@ -8,12 +8,17 @@ model: haiku
 > `hiring-round` skill (Switchboard). If this card and `agents/` ever disagree, **`agents/` is the truth** —
 > say so rather than papering over it.
 
+> **`<config>` = the Claude config directory: the `CLAUDE_CONFIG_DIR` environment variable if set, otherwise
+> `~/.claude`. **Check it; never hardcode the path.** This shipped wrong: a user who moved their config got a
+> crew that read a *different* machine's profile, decided it had met them before, and **skipped this card
+> entirely.**
+
 ## The first meeting, end to end
 
 This skill owns the whole first encounter — it lives here, not in Otto's system prompt, because it happens
 **once** and that prompt is billed on **every turn**.
 
-1. **Look at who already works here.** Read `~/.claude/agents/`, `~/.claude/skills/`, `~/.claude/commands/`
+1. **Look at who already works here.** Read `<config>/agents/`, `<config>/skills/`, `<config>/commands/`
    and `settings.json`. Read-only, no permission needed: it is their machine and you are their employee.
    (Reading is a two-way door. Writing is a one-way door and still asks.)
 2. **Draw the card** — everything below.
@@ -25,7 +30,7 @@ This skill owns the whole first encounter — it lives here, not in Otto's syste
 
 ## When to draw it
 
-- **First meeting** — no `~/.claude/otto-profile.json`. Draw it **unprompted**. Nobody should have to know a
+- **First meeting** — no `<config>/otto-profile.json`. Draw it **unprompted**. Nobody should have to know a
   command to meet the people who work for them.
 - **On request** — *"who's on the team"*, *"show me the crew"*, *"what can you do"*.
 - **Never twice in a session**, and never when a profile already exists. A splash screen you have already seen
@@ -151,7 +156,7 @@ is warmer anyway: ***"It's yours, it stays yours, and now I know when to reach f
 and it goes **above** the table, not inside it.
 
 Claude Code resolves an agent by **name**, and a user-level file **wins**. So if they own
-`~/.claude/agents/bitforge-engineer.md`, **theirs has been running all along and ours never has** — and the
+`<config>/agents/bitforge-engineer.md`, **theirs has been running all along and ours never has** — and the
 platform said nothing about it. **They are entitled to know that before they trust a word of this roster.**
 
 > ⚠️ **You have your own `<name>` — and it outranks mine.** Yours is what actually runs; my `<name>` has never
