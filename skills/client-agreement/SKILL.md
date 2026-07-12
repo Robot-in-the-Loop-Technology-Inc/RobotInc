@@ -1,6 +1,6 @@
 ---
 name: client-agreement
-description: Draft or tighten a client agreement / SOW that protects a solopreneur with no legal department and no leverage — scope, payment terms, kill fees, IP transfer, liability caps, termination. Use when the user (Legal hat) is about to send terms to a client, or a client sent terms first.
+description: Draft or review a client agreement or SOW — scope, payment terms, kill fee, IP transfer, liability cap, termination. Use when sending terms to a client, or a client sent terms first.
 model: sonnet
 ---
 

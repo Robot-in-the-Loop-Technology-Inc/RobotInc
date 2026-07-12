@@ -1,6 +1,6 @@
 ---
 name: inbox-triage
-description: Triage the inbox and calendar, draft the replies that can be drafted, and surface only what genuinely needs the human. Use when the user (Ops hat) is buried in email, has a backlog of follow-ups, or asks "what needs me today".
+description: Triage inbox and calendar, draft what can be drafted, surface only what needs the human. Use when buried in email or follow-ups, or on "what needs me today".
 model: sonnet
 ---
 

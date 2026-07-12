@@ -1,6 +1,6 @@
 ---
 name: landing-copy
-description: Write a landing page that converts — hero, benefit blocks, social proof scaffold, one CTA — grounded in what the product actually does. Use when the user (Marketing hat) needs a landing page, launch copy, or a value proposition.
+description: Landing page that converts — hero, benefit blocks, social proof, one CTA — grounded in what the product actually does. Use for a landing page, launch copy, or a value proposition.
 model: sonnet
 ---
 

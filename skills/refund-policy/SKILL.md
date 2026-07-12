@@ -1,6 +1,6 @@
 ---
 name: refund-policy
-description: Draft a refund policy that is fair, defensible, and cheap to administer, so each request stops being a fresh argument. Use when the user (Support hat) is fielding ad-hoc refund asks with no written policy, or Docket/Baudrate input is needed before one gets written.
+description: A refund policy that is fair, defensible and cheap to administer. Use when refund requests are being decided ad hoc with nothing written down.
 model: sonnet
 ---
 

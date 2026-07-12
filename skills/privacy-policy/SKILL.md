@@ -1,6 +1,6 @@
 ---
 name: privacy-policy
-description: Draft a privacy policy grounded in what the product's code actually does with data, not a template — names the regimes that plausibly apply and says which questions need a real lawyer. Use when the user (Legal hat) is publishing a product that collects any user data.
+description: Draft a privacy policy from what the code actually does with data, not a template. Names the regimes that plausibly apply. Use when publishing anything that collects user data.
 model: sonnet
 ---
 

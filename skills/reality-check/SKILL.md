@@ -1,6 +1,6 @@
 ---
 name: reality-check
-description: Run an adversarial board on an idea before anyone builds it — pain audit, competitor audit, minimum wedge — and deliver a Strategic Decision Brief. Use when the user (Strategy hat) proposes a new product, business, or major feature.
+description: Adversarial board on an idea before anyone builds — pain audit, competitor audit, minimum wedge — ending in a Strategic Decision Brief. Use when a new product, business or major feature is proposed.
 model: opus
 ---
 

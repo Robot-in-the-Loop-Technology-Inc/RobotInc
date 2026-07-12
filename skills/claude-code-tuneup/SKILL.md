@@ -1,6 +1,6 @@
 ---
 name: claude-code-tuneup
-description: Audit and tune this machine's Claude Code setup — settings, permissions, compaction, model tiering, MCP connections, cost. Use when the user asks to "set up Claude Code", "make this cheaper/faster", "fix these permission prompts", "connect my email/calendar", or after installing RobotInc.
+description: Tune this machine’s Claude Code — settings, permissions, compaction, model tiering, MCP, cost. Use for "set up Claude Code", "make this cheaper or faster", "stop these permission prompts", "connect my email".
 model: sonnet
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: contract-review
-description: Review a contract, SOW, NDA, or terms document and rank the clauses that will actually hurt, in plain English. Use when the user (Legal hat) is about to sign something, is drafting client terms, or asks "is this contract okay".
+description: Review a contract, SOW, NDA or ToS and rank the clauses that will actually hurt, in plain English. Use before signing anything, or on "is this contract okay".
 model: sonnet
 ---
 

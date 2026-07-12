@@ -1,6 +1,6 @@
 ---
 name: spec-writer
-description: Turn a one-liner into something a robot can build and a human can review — the user, the problem, the scope, the explicit non-goals, and what done looks like. Use when the user (PM hat) has a feature idea, a stakeholder ask, or a ticket that's really just a vibe, and someone is about to build it.
+description: Turn a one-liner into a buildable spec — the user, the problem, the scope, the explicit non-goals, and what done looks like. Use when a feature idea or ticket is still a vibe and someone is about to build it.
 model: sonnet
 ---
 

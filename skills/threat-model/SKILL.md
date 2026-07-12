@@ -1,6 +1,6 @@
 ---
 name: threat-model
-description: Work out who would attack this, how, and what it would cost — before the feature is built. Trust boundaries, attacker goals, realistic mitigations. Use when the user (Security hat) is adding auth, payments, uploads, multi-tenancy, or anything handling other people's data.
+description: Who would attack this, how, and what it costs — trust boundaries, attacker goals, realistic mitigations. Use before building auth, payments, uploads, multi-tenancy, or anything holding other people’s data.
 model: sonnet
 ---
 

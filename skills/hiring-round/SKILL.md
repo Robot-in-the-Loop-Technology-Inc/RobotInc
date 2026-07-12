@@ -1,6 +1,6 @@
 ---
 name: hiring-round
-description: Walk the user's existing agents, skills, commands, hooks and MCP servers and give each a department, a manager, and work — instead of ignoring them or silently getting shadowed by them. Use at first `/otto` run, or any time the user says "run the hiring round again" / "I added some agents" / "why isn't my db-migrator being used".
+description: File the user’s existing agents, skills, commands, hooks and MCP servers under the right robot, and catch name collisions. Use at the first meeting, on "I added some agents", or "why is my own agent not being used".
 model: sonnet
 ---
 

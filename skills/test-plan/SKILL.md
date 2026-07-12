@@ -1,6 +1,6 @@
 ---
 name: test-plan
-description: Decide what to test and why before writing a single assertion — happy path, edge cases, failure modes, and what deliberately goes untested. Use when the user (QA hat) has a feature to cover, a release to gate, or asks "is this tested enough".
+description: Decide what to test and why — happy path, boundaries, failure modes, and what deliberately goes untested. Use before writing tests, or on "is this tested enough".
 model: sonnet
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: comms-draft
-description: Draft an outbound message — a customer update, release note, changelog post, Slack announcement, investor email, status report — sourced from documents, commits or notes that actually exist. Use when the user has something to TELL people and nobody asked them first. Drafts only; never sends.
+description: Draft outbound comms — customer update, release note, changelog, Slack announcement, investor email, status report — sourced from real documents. Use when they have something to TELL people. Drafts only; never sends.
 model: sonnet
 ---
 

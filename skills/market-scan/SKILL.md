@@ -1,6 +1,6 @@
 ---
 name: market-scan
-description: Map who else is doing this, what they charge, who they target, and what's dead — with every claim sourced. Use when the user needs a competitor landscape, market sizing, pricing comparison, or "am I the first to do this".
+description: Who else does this, what they charge, who they target, what is dead — every claim sourced. Use for a competitor landscape, market sizing, pricing comparison, or "has someone already built this".
 model: sonnet
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: dep-audit
-description: Audit dependencies, licences and secret hygiene before shipping — known vulnerabilities with upgrade paths, copyleft conflicts, and anything credential-shaped that escaped into the repo. Use when the user (Security hat) adds packages, touches auth or payments, or is about to ship.
+description: Audit dependencies, licences and secret hygiene — vulnerabilities with upgrade paths, copyleft conflicts, credentials in the repo. Use when adding packages, touching auth or payments, or shipping.
 model: sonnet
 ---
 

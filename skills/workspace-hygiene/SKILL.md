@@ -1,6 +1,6 @@
 ---
 name: workspace-hygiene
-description: Review and tidy the workspace — dead scratch files, abandoned drafts, stale spec folders, output-final-v3.md. Use when the user asks to clean up, organise, or review a folder; when a project feels cluttered; or when a build leaves debris behind. Proposes, never deletes. Learns the user's filing conventions instead of imposing its own.
+description: Tidy the workspace — dead scratch files, abandoned drafts, stale spec folders, output-final-v3.md. Use on "clean up", "organise this folder", or when a build leaves debris. Proposes; never deletes.
 model: sonnet
 ---
 

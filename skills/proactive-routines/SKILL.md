@@ -1,6 +1,6 @@
 ---
 name: proactive-routines
-description: Turn recurring work into a routine that runs on its own — a schedule or an event trigger — so the crew acts like a teammate instead of waiting to be asked. Use when the human keeps doing the same thing by hand, wants something monitored (Slack, news, CI, a competitor, an inbox), needs a periodic review or a recurring reminder, or asks how to make the robots more autonomous.
+description: Turn recurring work into a scheduled or event-triggered routine. Use when the same thing keeps being done by hand, when something needs monitoring (Slack, CI, an inbox, a competitor), or on "make this run on its own". Drafts, never sends.
 model: sonnet
 ---
 

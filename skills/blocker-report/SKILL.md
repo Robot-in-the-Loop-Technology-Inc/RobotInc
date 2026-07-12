@@ -1,6 +1,6 @@
 ---
 name: blocker-report
-description: An honest read on what is stuck and why — no softened statuses. Use when a build has slowed, you need to know what is actually blocking progress, or a task status is unclear.
+description: An honest read on what is stuck and why, with no softened statuses. Use when a build has slowed, a task status is unclear, or nobody can say what is blocking progress.
 model: haiku
 ---
 

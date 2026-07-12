@@ -1,6 +1,6 @@
 ---
 name: nda-draft
-description: Draft or review a mutual NDA short enough to actually get signed, and flag traps — an unbounded confidentiality definition, no end date, a non-compete smuggled inside. Use when the user (Legal hat) needs to protect a conversation before sharing details with a client, contractor, or investor.
+description: Draft or review a mutual NDA and flag the traps — unbounded confidentiality, no end date, a non-compete smuggled inside. Use before sharing anything confidential with a client, contractor or investor.
 model: sonnet
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: user-stories
-description: Write user stories that name who wants this, the job they're actually hiring it for, and how we'll know it worked — not just what they asked for. Use when the user (PM hat) needs to turn a persona or a feature ask into something Bitforge can build against and Glitchtrap can verify.
+description: User stories that name who wants this, the job they are hiring it for, and how we will know it worked. Use to turn a persona or feature ask into something buildable and verifiable.
 model: sonnet
 ---
 

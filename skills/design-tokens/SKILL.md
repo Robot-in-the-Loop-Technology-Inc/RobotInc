@@ -1,6 +1,6 @@
 ---
 name: design-tokens
-description: Establish a small, coherent design system — colour, type scale, spacing, radius, elevation — as real tokens the code uses, so the product stops looking assembled from parts. Use when the user (Design hat) is starting a UI, or has one that drifted.
+description: Build a design system as real tokens — colour, type scale, spacing, radius, elevation. Use when starting a UI, or when one has drifted into nine greys.
 model: sonnet
 ---
 

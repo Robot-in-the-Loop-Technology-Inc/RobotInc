@@ -1,6 +1,6 @@
 ---
 name: prioritize
-description: Turn a pile of ideas, tasks or requests into a ranked, defensible order — impact vs effort, with the reasoning visible. Use when the user (PM hat) has more to do than time, asks "what should I do first", or needs a roadmap.
+description: Rank a pile of work defensibly — impact, effort, confidence — and name what is NOT being done. Use on more-to-do-than-time, or "what should I do first".
 model: sonnet
 ---
 

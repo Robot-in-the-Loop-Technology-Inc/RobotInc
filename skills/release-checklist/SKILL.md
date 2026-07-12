@@ -1,6 +1,6 @@
 ---
 name: release-checklist
-description: What must be true before this ships — verified, reversible, and human-knowable undo. Use when you are about to merge, deploy, or push anything to production, or release to users.
+description: What must be true before this ships — verified, reversible, and the human knows the undo. Use before any merge, deploy, publish, or release to users.
 model: haiku
 ---
 

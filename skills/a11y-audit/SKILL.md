@@ -1,6 +1,6 @@
 ---
 name: a11y-audit
-description: Audit an interface for real accessibility failures — keyboard traps, missing labels, contrast, focus order, screen-reader semantics — ranked by who is actually locked out. Use when the user (Design hat) is shipping UI, or asks whether it's accessible.
+description: Accessibility audit — keyboard traps, focus order, labels, contrast, screen-reader semantics. Use when shipping UI, or asked whether it is accessible.
 model: sonnet
 ---
 

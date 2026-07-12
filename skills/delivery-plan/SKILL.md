@@ -1,6 +1,6 @@
 ---
 name: delivery-plan
-description: Turn an agreed roadmap or spec into a sequenced delivery plan — atomic tasks, dependencies, the critical path, and an honest read on what is blocked. Use when work is about to start and nobody has said in what order, or when a build has stalled and it is not clear why.
+description: Sequence an agreed spec into atomic tasks, dependencies and a critical path. Use when work is about to start and nobody has said in what order, or when a build has stalled.
 model: haiku
 ---
 

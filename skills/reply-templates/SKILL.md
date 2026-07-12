@@ -1,6 +1,6 @@
 ---
 name: reply-templates
-description: Build a small library of reusable support replies written in the human's own voice, for the recurring shapes of ticket — bug report, refund ask, feature request you won't build, the angry one, the "how do I…". Use when the user (Support hat) keeps typing the same reply from scratch, or wants a starting point that doesn't read corporate.
+description: Reusable support replies in the human’s own voice — the bug report, the refund ask, the feature you will not build, the angry one. Use when the same reply keeps being retyped from scratch.
 model: sonnet
 ---
 

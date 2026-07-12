@@ -1,6 +1,6 @@
 ---
 name: document-studio
-description: Produce a real document in the format the user actually needs — brief, report, one-pager, spec, export. Use when they ask for a deliverable as a file (PDF, Word, Excel, slides, HTML, CSV, Markdown) rather than a chat answer. Honest about which formats can be made natively and which need a tool that may not be installed.
+description: Produce a real document file — brief, report, one-pager, export. Use when they want a deliverable as a PDF, Word, Excel, slides, HTML, CSV or Markdown file rather than a chat answer.
 model: sonnet
 ---
 

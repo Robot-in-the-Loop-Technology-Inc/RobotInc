@@ -1,6 +1,6 @@
 ---
 name: adr-writer
-description: Capture an architectural decision as a short, dated record — the context, the options, the choice, and what would reverse it. Use when the user (Architecture hat) makes a call that future-them will otherwise have to reverse-engineer from the code.
+description: Record an architectural decision — context, options, choice, and what would reverse it. Use after an expensive-to-change call: a database, a framework, an auth model, build-vs-buy.
 model: sonnet
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: schema-design
-description: Design a type-safe data model and API surface before any code exists — entities, relationships, constraints, indexes, routes, error cases. Use when the user (Architecture hat) is adding a feature with a data model, a new service, or an API.
+description: Design the data model and API surface before code exists — entities, relationships, constraints, indexes, routes, error cases. Use for a new feature with a data model, a new service, or an API.
 model: opus
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: stuck-loop
-description: Break a troubleshooting loop that is not converging. Use when the same error survives two fix attempts, when a fix keeps producing a new failure of the same class, when the human restates the same problem a third time, or when they are visibly frustrated. Escalates by changing WHO is looking and HOW, never by trying harder.
+description: Break a troubleshooting loop that is not converging. Use when the same error survives two fixes, each fix spawns a new failure, the problem is restated a third time, or the human is visibly frustrated. Changes WHO is looking; never tries harder.
 model: sonnet
 ---
 

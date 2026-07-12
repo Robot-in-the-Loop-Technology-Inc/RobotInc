@@ -1,6 +1,6 @@
 ---
 name: roadmap
-description: Sequence what gets built over time and in what order it matters — the minimum wedge that delivers value today, then the rest, with an explicit list of what we are NOT doing yet. Use when the user (PM hat) has a vision or backlog spanning weeks or months and needs to know what's first, not just what's next.
+description: What ships first, second, and what waits — the minimum wedge, then the rest, with an explicit not-doing list. Use for a vision or backlog spanning weeks or months.
 model: sonnet
 ---
 

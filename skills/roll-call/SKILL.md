@@ -1,6 +1,6 @@
 ---
 name: roll-call
-description: Draw the robot.inc company card — the wordmark, the whole crew, the user's own hired staff, and the seat question. Use on the FIRST meeting with a human (no otto-profile.json), or when they ask "who works here", "show me the crew", "what can you do", or want to see the org chart.
+description: Draw the robot.inc company card — the crew, the user’s own hired staff, and the seat question. Use at the FIRST meeting (no otto-profile.json), or on "who works here", "show me the crew", "what can you do".
 model: haiku
 ---
 

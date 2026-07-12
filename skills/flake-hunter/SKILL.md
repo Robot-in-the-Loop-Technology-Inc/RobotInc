@@ -1,6 +1,6 @@
 ---
 name: flake-hunter
-description: Track down a test that passes and fails without the code changing — isolate the shared state, the clock, the ordering, or the race — and fix it properly instead of retrying it. Use when the user (QA hat) has a flaky test or a CI suite nobody trusts.
+description: Fix a test that passes and fails without the code changing — shared state, the clock, ordering, a race. Use on a flaky test or a CI suite nobody trusts. Never add a retry.
 model: sonnet
 ---
 

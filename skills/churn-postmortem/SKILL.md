@@ -1,6 +1,6 @@
 ---
 name: churn-postmortem
-description: Find out honestly why a customer left and turn it into something the product can act on — distinguishing a broken promise from a customer who was never the right fit. Use when the user (Support hat) has a cancellation, a churned account, or a cluster of churn to understand.
+description: Why a customer actually left — a broken promise, or never the right fit. Use on a cancellation, a churned account, or a cluster of churn.
 model: sonnet
 ---
 

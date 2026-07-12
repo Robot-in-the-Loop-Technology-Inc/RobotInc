@@ -1,6 +1,6 @@
 ---
 name: scaffold-service
-description: Scaffold a new module/service with a clean structure and tests wired in. Use when the user (Engineer hat) wants to stand up a new feature module, endpoint, package, or service from scratch. Routes the spec to Vector, test authoring to Glitchtrap, and a dep/secret audit to Cipherplate.
+description: Scaffold a new module, service, endpoint or package with tests wired in. Use on "stand up a new service", "new feature module", "spin up an endpoint".
 model: sonnet
 ---
 

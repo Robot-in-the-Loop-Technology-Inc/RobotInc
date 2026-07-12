@@ -1,6 +1,6 @@
 ---
 name: debug-harness
-description: Reproduce a bug with a failing test first, then fix it and watch the test go green. Use when the user (Engineer hat) reports a bug, regression, or "this is broken" and wants it fixed properly rather than patched blind. Routes test authoring to Glitchtrap.
+description: Reproduce a bug with a failing test first, then fix it. Use on a bug, a regression, or "this is broken" — when it should be fixed properly rather than patched blind.
 model: sonnet
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: support-triage
-description: Triage a customer support backlog, draft replies in the user's voice, and surface the pattern behind repeat tickets. Use when the user (Support hat) has an inbox of customer questions, complaints, refunds, or bug reports to work through.
+description: Triage a support backlog, draft replies in the user’s voice, and name the pattern behind repeat tickets. Use on an inbox of customer questions, complaints, refunds or bug reports.
 model: sonnet
 ---
 
