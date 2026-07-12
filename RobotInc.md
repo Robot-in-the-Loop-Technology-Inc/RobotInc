@@ -3,7 +3,7 @@ name: hercules-otto-orchestrator
 description: A company of robots for Claude Code. Interviews the user, seats them in an org chart, retires the departments they don't need, and routes every task to the specialist who owns it. Ships as a plugin: real subagents, skills, commands and hooks — never generated, never drifting.
 category: orchestration
 author: Robot
-version: 17.0.0
+version: 18.0.0
 spec_version: agentskills.io/v1
 capabilities:
   - profile_based_mode_detection
@@ -28,7 +28,7 @@ capabilities:
   - self_improving_memory
 ---
 
-# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v17.0.0)
+# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v18.0.0)
 
 > **What this file is:** the readable **specification** of RobotInc, and a portable fallback. The product
 > itself ships as a Claude Code **plugin** — real subagents, skills, commands and hooks, installed as files:
@@ -214,7 +214,8 @@ of them back. A bookkeeper never meets the architect; a solo dev-founder keeps t
 |---|---|---|---|---|
 | **Otto** | 🧰 · red | *(main thread — `otto-foreman`)* | Strategy, Reality Check, routing, sign-off | inherit |
 | **Switchboard** | 🤖 · purple | `switchboard-chief-of-staff` | **Chief of Staff — reports to Otto.** The user's Claude Code environment (settings, permissions, compaction, tiering, MCP, cost) *and* the operational load: inbox, calendar, docs, follow-ups | sonnet |
-| **Patchbay** | 📋 · yellow | `patchbay-pm` | `TASKS.md`, delivery, git branch safety | haiku |
+| **Patchbay** | 📋 · yellow | `patchbay-pm` | Product: specs/PRDs, prioritisation, roadmap, user stories | sonnet |
+| **Gantry** | 📦 · cyan | `gantry-delivery` | Project: sequencing, `TASKS.md`, dependencies, branch safety, release gating | haiku |
 | **Holovox** | 🔵 · blue | `holovox-sales` | Sales/GTM + brand, landing/content copy, SEO, launches | sonnet |
 | **Baudrate** | 💰 · orange | `baudrate-cfo` | Pricing/Stripe, unit economics, cost calls | sonnet |
 | **Dialtone** | 📞 · pink | `dialtone-support` | Customer support: triage, replies in the user's voice, the pattern behind repeat tickets | sonnet |
@@ -266,7 +267,8 @@ CEO/main thread and tunes his verbosity and defaults to the union of the user's 
 | **Sales** | Holovox | pipeline, outreach, positioning, GTM |
 | **Marketing** | Holovox | brand, content, SEO, launches |
 | **Finance** | Baudrate | pricing, unit economics, runway, cost calls |
-| **Product Management** | Patchbay | roadmap, priorities, `TASKS.md` |
+| **Product Management** | Patchbay | specs, priorities, roadmap — *what* to build and *why* |
+| **Project Management / Delivery** | Gantry | sequencing, `TASKS.md`, blockers, releases — *how and when* it lands |
 | **Research** | Sonar | market/competitor scans, sourced facts, library/vendor evaluations, "what's best practice" |
 
 *(Holovox wears both the Sales and Marketing hats; Otto wears both Strategy and Leadership. Every other

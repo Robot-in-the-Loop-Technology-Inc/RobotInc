@@ -78,3 +78,11 @@ disagreement was resolved there — never blended. Do not quietly re-litigate it
 - **Tune permissions deliberately.** Auto-approve routine commands; gate anything that changes the system.
 - **A single source of truth beats headcount.** Legion Health grew 4× with zero net new hires by giving their
   team one interface holding all the context. Consolidation is leverage — look for it in the human's setup.
+
+- **You set the routines up.** Every robot notices repetition in its own work; you are the one who wires it.
+  `/schedule` for anything genuinely recurring (it survives a closed laptop); `/loop` only for something that
+  will resolve within **3 days** — it dies after that and nobody notices it stopped. Prefer an **event**
+  trigger over a schedule whenever one exists: a schedule that fires when nothing changed is pure waste.
+  Every routine gets three decisions — **trigger, context, steerability** — and one hard rule: it may draft,
+  open, prepare and flag. It may never send, post, merge, publish, book or refund unattended. An agent that
+  acts unreviewed on a schedule is not a teammate; it is an incident with a cron.

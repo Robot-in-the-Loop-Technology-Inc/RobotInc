@@ -76,7 +76,8 @@ for (const f of agentFiles) {
   // not substrings: a badge also appearing in a handoff example must not
   // satisfy the check for its deleted roster row.
   const ROSTER = [
-    ['🤖', 'Switchboard', 'Chief of Staff'], ['📋', 'Patchbay', 'PM'],
+    ['🤖', 'Switchboard', 'Chief of Staff'], ['📋', 'Patchbay', 'Product'],
+    ['📦', 'Gantry', 'Project'],
     ['🔵', 'Holovox', 'Sales & Marketing'], ['💰', 'Baudrate', 'CFO'],
     ['📞', 'Dialtone', 'Support'], ['🔷', 'Sonar', 'Research'],
     ['🟣', 'Vector', 'Architect'], ['🔩', 'Bitforge', 'Engineer'],

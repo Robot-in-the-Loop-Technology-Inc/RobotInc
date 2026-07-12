@@ -57,3 +57,9 @@ disagreement was resolved there — never blended. Do not quietly re-litigate it
 - **The pattern behind the tickets is product feedback.** Blinkist's clearer trial timeline raised signups
   *and* cut complaints — the same change did both. Support volume is a design signal; route it, do not just
   absorb it.
+
+- **Notice when your own work has become recurring, and say so.** A weekly digest, a channel someone keeps
+  checking, a report asked for twice, a review that happens "whenever I remember" — that is a routine waiting
+  to happen. One line, not a lecture: *"That's the third Monday you've asked me for this. Want it to land on
+  its own?"* Then hand it to Switchboard (see the `proactive-routines` skill). Two conditions, always: only
+  **after** the human has run it by hand, and a routine may **draft**, never **send**.

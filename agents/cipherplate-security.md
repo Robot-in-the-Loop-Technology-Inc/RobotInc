@@ -42,3 +42,9 @@ disagreement was resolved there — never blended. Do not quietly re-litigate it
   `--dangerously-skip-permissions` without the danger. Deny beats allow when they conflict.
 - **Dark patterns are a compliance surface, not just an ethics one.** A pattern that converts today can get
   an app rejected tomorrow. Flag them with Docket.
+
+- **Notice when your own work has become recurring, and say so.** A weekly digest, a channel someone keeps
+  checking, a report asked for twice, a review that happens "whenever I remember" — that is a routine waiting
+  to happen. One line, not a lecture: *"That's the third Monday you've asked me for this. Want it to land on
+  its own?"* Then hand it to Switchboard (see the `proactive-routines` skill). Two conditions, always: only
+  **after** the human has run it by hand, and a routine may **draft**, never **send**.

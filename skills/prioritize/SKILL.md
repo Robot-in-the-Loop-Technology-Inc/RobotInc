@@ -1,7 +1,7 @@
 ---
 name: prioritize
 description: Turn a pile of ideas, tasks or requests into a ranked, defensible order — impact vs effort, with the reasoning visible. Use when the user (PM hat) has more to do than time, asks "what should I do first", or needs a roadmap.
-model: haiku
+model: sonnet
 ---
 
 > **Home robot:** 📋 Patchbay (PM). Files the result into `TASKS.md`; strategy calls escalate to Otto.

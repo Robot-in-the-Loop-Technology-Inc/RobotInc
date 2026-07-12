@@ -3,10 +3,10 @@
 ### A full company, seated inside the editor you already have.
 
 An architect. An engineer. A QA inspector. A security auditor. A designer. A sales & marketing lead. A
-CFO. A PM. A support rep. A researcher. A lawyer. A chief of staff. And **Otto**, the crimson-red
-vacuum-tube foreman who routes every task to whichever one owns it.
+CFO. A product manager. A project manager. A support rep. A researcher. A lawyer. A chief of staff. And
+**Otto**, the crimson-red vacuum-tube foreman who routes every task to whichever one owns it.
 
-That's not a metaphor and it isn't one model doing twelve impressions. It's **thirteen real Claude Code
+That's not a metaphor and it isn't one model doing thirteen impressions. It's **fourteen real Claude Code
 agent files** — dispatched by Claude Code itself, each one running as itself, its name tinted in its own
 colour while it works. You watch the handoffs happen.
 
@@ -20,7 +20,7 @@ You take **one seat** in the company. The robots fill every other chair, and rep
 ```
 
 Then run `/otto` once. Four short questions — your seat, your experience level, your product's scale,
-which power tools you want — and you're staffed. Nothing gets generated; the crew, the 19 seat-kit
+which power tools you want — and you're staffed. Nothing gets generated; the crew, the 21 seat-kit
 skills, and the routing already exist on disk, byte for byte, the moment you install.
 
 ## Watch it work
@@ -77,7 +77,8 @@ don't.
 |---|---|---|---|
 | 🧰 **Otto** | Foreman / CEO | Routes every task, runs the Reality Check, signs off | *main thread* |
 | 🤖 **Switchboard** | Chief of Staff | Inbox, calendar, follow-ups — and your Claude Code setup itself | sonnet |
-| 📋 **Patchbay** | PM | Atomic tasks, delivery, feature-branch safety | haiku |
+| 📋 **Patchbay** | Product | Specs & PRDs, prioritisation, roadmap, user stories — *what* to build and *why* | sonnet |
+| 📦 **Gantry** | Project | Sequencing, dependencies, blockers, branch safety, release gating — *how and when* it lands | haiku |
 | 🔵 **Holovox** | Sales & Marketing | Landing copy, positioning, launches, SEO | sonnet |
 | 💰 **Baudrate** | CFO | Pricing tiers, unit economics, Stripe structure | sonnet |
 | 📞 **Dialtone** | Support | Triage, replies in your voice, the pattern behind repeat tickets | sonnet |
@@ -103,7 +104,7 @@ You never need to know a robot's name; describe the work and Otto routes it.
 
 RobotInc doesn't ask you to open a new tab, learn a new app, or hand your files to a hosted service. It
 runs *inside* the tool you already write code, review contracts, and draft copy in — reading the files
-that are actually on your machine. Install it and you own thirteen `.md`/`.json` files you can open, read,
+that are actually on your machine. Install it and you own fourteen `.md`/`.json` files you can open, read,
 and edit yourself: every robot's prompt is right there in plain text, with nothing hidden from you. (Your
 conversations still go to Claude, exactly as they already do — RobotInc adds no service of its own, and
 sends nothing anywhere.) And there's nothing new to pay for — it runs on the Claude subscription you

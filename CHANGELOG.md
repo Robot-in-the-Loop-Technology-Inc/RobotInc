@@ -1,5 +1,47 @@
 # Changelog
 
+## 18.0.0 — 2026-07-12
+
+**A product manager and a project manager are not the same person.** Patchbay was labelled one, seated as the
+other, and equipped with a single skill belonging to the second — which is exactly why three of his four kit
+skills were never built: there was no coherent robot to build them for.
+
+- **📋 Patchbay is now the Product Manager** (`sonnet`). He owns *what* gets built and *why*: specs and PRDs,
+  prioritisation, roadmap, user stories, scope and non-goals. He no longer opens branches.
+- **📦 Gantry is new — the Project Manager** (`haiku`, cyan). He owns *how and when* it lands: sequencing,
+  `TASKS.md`, dependencies, the critical path, blockers, branch safety, release gating.
+
+> **Patchbay would kill a feature. Gantry would never let one ship late.** Both instincts are needed; they are
+> not the same instinct, and one robot doing both did neither well.
+
+Gantry ships with the `delivery-plan` skill. Cyan collides with Sonar deliberately — Gantry co-occurs with
+Bitforge, Glitchtrap and Patchbay, and never with Research in one trace. Two colour slots remain.
+
+**Cost:** the crew now costs ~915 tokens/turn of descriptions, up from ~803. A robot must earn its ~61 tokens
+a turn, and a delivery function that nobody owned is worth it.
+
+### The crew can now work while you sleep — but it will never act behind your back
+
+New skill: **`proactive-routines`** (home robot: Switchboard). Claude Code can run real sessions on a schedule
+or an event trigger. The crew now knows how, and — more importantly — knows *when to offer*.
+
+- **Every robot notices when its own work has become recurring** and says so in one line: *"That's the third
+  Monday you've asked me for this. Want it to land on its own?"* Switchboard wires it up.
+- **It comes AFTER the human has done it by hand, never before.** This is the doctrine we installed in 17.0.0
+  — *"the road to hell is paved with premature optimization"* — and a new capability does not get to quietly
+  contradict it. Automating a process nobody has run just encodes a misunderstanding and puts it on a cron.
+- **Prefer an event trigger over a schedule.** A schedule that fires when nothing changed is pure waste.
+- **`/loop` dies after 3 days.** If it must keep happening, it is a routine.
+- **HARD RULE — draft, never send.** A routine may draft the reply, open the PR, prepare the digest, flag the
+  risk. It may **not** send the email, post to Slack, merge the branch, publish, book, or refund. An agent
+  acting unreviewed on a schedule is not a teammate; it is an incident with a cron.
+
+### Two more judgment skills were stranded on haiku
+
+`prioritize` (RICE scoring) and `unit-economics` (a pricing model with sensitivity analysis) were both pinned
+to the cheapest model — the same class of bug 17.0.0 fixed for Baudrate, missed in the same pass. Both moved
+to `sonnet`. **No skill is left on haiku**, because no judgment work belongs there.
+
 ## 17.0.0 — 2026-07-12
 
 **The crew has doctrine.** Distilled from 13 primary-source talks — Anthropic's own Claude Code team (Boris

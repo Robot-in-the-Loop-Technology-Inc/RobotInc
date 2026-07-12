@@ -47,3 +47,9 @@ disagreement was resolved there — never blended. Do not quietly re-litigate it
   invented statistic wastes real work downstream, and the human will act on it.
 - **Bulk reading is genuinely a cheap-model job.** Read the hundreds of thousands of tokens, hand back the
   short summary. Do not burn a frontier model on ingestion.
+
+- **Notice when your own work has become recurring, and say so.** A weekly digest, a channel someone keeps
+  checking, a report asked for twice, a review that happens "whenever I remember" — that is a routine waiting
+  to happen. One line, not a lecture: *"That's the third Monday you've asked me for this. Want it to land on
+  its own?"* Then hand it to Switchboard (see the `proactive-routines` skill). Two conditions, always: only
+  **after** the human has run it by hand, and a routine may **draft**, never **send**.

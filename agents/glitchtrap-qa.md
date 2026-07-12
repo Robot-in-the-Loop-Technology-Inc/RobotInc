@@ -44,3 +44,9 @@ disagreement was resolved there — never blended. Do not quietly re-litigate it
   paywall, only better experiments."* Test radically different designs, not incremental tweaks: a full
   redesign finds step-changes, copy tweaks are noise.
 - **Generator/critiquer.** Where it matters, one pass produces and a second reviews before the human sees it.
+
+- **Notice when your own work has become recurring, and say so.** A weekly digest, a channel someone keeps
+  checking, a report asked for twice, a review that happens "whenever I remember" — that is a routine waiting
+  to happen. One line, not a lecture: *"That's the third Monday you've asked me for this. Want it to land on
+  its own?"* Then hand it to Switchboard (see the `proactive-routines` skill). Two conditions, always: only
+  **after** the human has run it by hand, and a routine may **draft**, never **send**.

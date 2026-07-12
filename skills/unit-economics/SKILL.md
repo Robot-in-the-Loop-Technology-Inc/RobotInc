@@ -1,7 +1,7 @@
 ---
 name: unit-economics
 description: Build a unit-economics / pricing model with a sensitivity range so the founder can make a go/no-go or pricing call. Use when the user (Founder hat) asks "can this make money", "what should we charge", or wants CAC/LTV/margin/runway math. Routes the number-crunching to Baudrate and GTM framing to Holovox.
-model: haiku
+model: sonnet
 ---
 
 > **Home robot:** Baudrate (Finance seat). Seat-kit cockpit for the human — delegates the math to Baudrate and GTM framing to Holovox.
