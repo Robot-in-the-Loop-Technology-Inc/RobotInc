@@ -1,5 +1,66 @@
 # Changelog
 
+## 21.3.0 — 2026-07-12
+
+**Thrash raises the gear. Effort does not.**
+
+Scale (21.2.0) reads the size of the ask **at the start**. But a company's real intelligence shows up when
+something is *not working* — and until now, a stuck RobotInc would keep sending the same robot back in with the
+same context, forever, until the human gave up.
+
+**A company does not fix a stuck problem by asking the stuck person to try harder. It changes who is looking.**
+
+**Three failed fixes is not an effort problem. It is a diagnosis problem** — nobody fails three times at
+something they understand. So the gear now goes up **on its own**, on evidence:
+
+| The trigger | Why it counts |
+|---|---|
+| **The same symptom survives two fixes** | Two is a coincidence. Three is a pattern, and a pattern means the model of the problem is wrong. |
+| **Each fix spawns a new failure of the same class** | Whack-a-mole is the signature of a cause nobody has found — you are moving it, not killing it. |
+| **The human states the same problem a third time** | They are not repeating themselves for fun. |
+| **Their tone changes** | **Frustration is data, and it arrives before the metric does.** |
+
+New skill — **`stuck-loop`** (🧰 Otto), which carries the ladder. It loads only when a loop is actually stuck,
+so it costs nothing on a turn that is going fine:
+
+1. **Stop adding effort.** The stuck robot's context is now full of failed hypotheses and it will anchor on
+   them. **Its next turn is worth less than its last one.**
+2. **Fresh eyes, fresh context.** A different robot gets **the symptom and the ruled-out list — never the failed
+   reasoning.** *This is the whole trick.* Hand over the thinking that produced three wrong answers and you have
+   not brought in fresh eyes — **you have transplanted the anchor.**
+3. **Reproduce before you fix.** Three failed fixes almost always means **nobody has verified anything** — *a
+   painter wearing a blindfold.* Glitchtrap writes the **failing test first.** If it cannot be reproduced, *that
+   is the finding.*
+4. **Question the level.** Vector: is this a bug, or is the design producing it? Three fixes that each spawn a
+   new failure is **architecture talking.**
+5. **Stop the line.** Revert to green. Bring the human what is known, what is ruled out, and two ways forward.
+   **Sunk cost is not a plan.**
+
+**And the cord hangs on both ends.** All thirteen robots gained two rules — one for being stuck, one for seeing
+someone else stuck:
+
+- **When you are stuck, say so — do not grind.** Hand back the symptom and what you ruled out, *not* the
+  reasoning that got you there. *"I am stuck, and here is what it is not"* beats quietly burning an afternoon.
+- **You can stop the line.** See the crew heading somewhere wrong — a bad plan, a false assumption, work that
+  will be undone — and say so **upward, immediately, even outside your department.** Unwinding a finished
+  mistake costs more than interrupting a live one. **A crew where only the foreman may pull the cord ships
+  things nobody believed in.**
+
+**What this deliberately does not do.** It does not repeal **Scale** — escalation is triggered by *observed
+thrash*, never by a topic that merely sounds hard; do not convene the floor for a question that has not failed
+yet. And it does not repeal **Tempo**: a stuck problem behind a one-way door is still behind a one-way door.
+**Frustration never unlocks a deploy.** The urge to *"just push it and see"* is strongest precisely here, which
+is what the gate is for.
+
+**And it is cheaper, not dearer.** Escalation looks like more robots. But **the human is already paying for the
+thrash** — and the fifth failed attempt costs more than the fresh pair of eyes that would have ended it at the
+third.
+
+Recorded in `docs/doctrine.md` §1 as a whole-crew rule, derived from *correct early, not politely* (C, E) —
+turned on the crew's own failure rather than on a robot's drift.
+
+*Also: the README had claimed "33 seat-kit skills" since v20 while the tree carried 34. Now 35, and true.*
+
 ## 21.2.1 — 2026-07-12
 
 **A question is work. It gets routed like work.**

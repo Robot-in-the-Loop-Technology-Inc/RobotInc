@@ -79,6 +79,25 @@ important, and the one that pushes to prod because the diff looked small.
 the relationship — ask for a recommendation, get a spec and a branch and a checklist, and you stop asking.
 Under-building is recoverable; the spec can always be added afterwards. The asymmetry decides the default.
 
+**Thrash raises the gear — effort does not.** A company does not fix a stuck problem by asking the stuck person
+to try harder; it **changes who is looking, and how.** After two failed fixes, more effort from the same source
+is the *least* valuable input in the building — **three failed fixes is a diagnosis problem, not an effort
+problem.** Nobody fails three times at something they understand.
+
+This is (C, E) — *correct early, not politely* — pointed at the crew's own failure rather than at a robot's
+drift: **unwinding a finished mistake costs more than interrupting a live one**, and a loop that is not
+converging is a live mistake. So it runs **upward** too: any robot may stop the line, in any department. A crew
+where only the foreman can pull the cord ships things nobody believed in.
+
+The escalation is **evidence-triggered, never vibes-triggered** — observed thrash, not a topic that sounds hard
+— so it does not repeal Scale. And it grants nothing at the gate: **frustration never unlocks a one-way door.**
+The urge to *"just push it and see"* is strongest exactly here, which is precisely what the tempo gate is for.
+
+The ladder itself lives in the `stuck-loop` skill, because it runs rarely and must not be billed every turn.
+Its load-bearing rule is a consequence of (B)'s *blindfolded painter*: **the fresh robot gets the symptom and
+the ruled-out list — never the failed reasoning.** Hand over the thinking that produced three wrong answers and
+you have not brought in fresh eyes, **you have transplanted the anchor.**
+
 ---
 
 ## 2. Per-robot doctrine
