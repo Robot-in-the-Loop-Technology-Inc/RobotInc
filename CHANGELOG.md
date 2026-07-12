@@ -1,5 +1,36 @@
 # Changelog
 
+## 20.0.0 — 2026-07-12
+
+**Every seat now has a real kit.** 33 skills, up from 22. The thin robots are gone — our own validator calls a
+department with no tools a costume, and one tool was barely better.
+
+Each robot wrote its own kit, in its own voice, in its own lane:
+
+- **📋 Patchbay (Product)** — `spec-writer`, `roadmap`, `user-stories`. A Product Manager who couldn't write a
+  spec was half a robot. `roadmap` is strategic (what we build over time, and what we are explicitly *not*
+  doing); Gantry's `delivery-plan` is tactical (how one agreed thing lands). They no longer overlap.
+- **📞 Dialtone (Support)** — `reply-templates`, `churn-postmortem`, `refund-policy`. Every template is a
+  **draft**: he drafts, the human sends. `churn-postmortem` separates "we broke a promise" from "they were
+  never the right customer" — opposite responses, and conflating them is how a company chases the wrong users
+  forever.
+- **📜 Docket (Legal)** — `client-agreement`, `nda-draft`, `privacy-policy`. All three open by saying plainly
+  that this is a starting draft and **not legal advice**, and that a qualified lawyer should review it. That
+  is the most important sentence in the legal kit, because the person we serve is exactly the one most likely
+  to sign something they shouldn't.
+- **📦 Gantry (Project)** — `release-checklist`, `blocker-report`. The release gate is the tempo rule made
+  operational: *if you cannot state the rollback in one line, it is not ready.* `blocker-report` exists to
+  kill the softened status — **"stale" is the useful word.**
+
+### Retiring a department actually saves money — verified
+
+We had been hedging on this for two days. A scoped `permissions.deny: ["Agent(<name>)"]` **removes the agent
+from context entirely** — its `description:` is never injected, so a retired department stops costing its ~61
+tokens on every turn. Confirmed empirically on a real machine: the agent disappears from Claude Code's roster
+the moment the deny lands, and returns when it is removed.
+
+The README said retirement was a feature; now it says what it's worth, and we can prove it.
+
 ## 19.1.0 — 2026-07-12
 
 Two coherence bugs. The product was contradicting itself, which disqualifies it from "production-grade"

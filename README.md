@@ -95,7 +95,11 @@ end to end, and just reports the outcome.
 The robot sitting in your seat becomes a **co-pilot** — it proposes two or three options and waits for
 your call. Every seat you *didn't* take runs on **autopilot**: it acts on routine work and only
 interrupts you for a genuine fork or risk. A bookkeeper reviewing a contract never meets the architect —
-`/otto` retires the departments a given seat doesn't need, and one line brings any of them back.
+`/otto` retires the departments a given seat doesn't need, and one line brings any of them back. Retiring is
+not cosmetic: a `permissions.deny` on an agent **removes it from context entirely**, so a retired department
+stops costing you its ~61 tokens on every turn. A bookkeeper never meets the architect, and never pays for
+him either. (Verified on a real machine — the agent disappears from Claude Code's roster the moment the deny
+lands, and returns when it's removed.)
 
 ## Not just for people who write code
 
