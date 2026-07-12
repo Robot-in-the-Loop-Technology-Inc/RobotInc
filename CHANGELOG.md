@@ -136,9 +136,13 @@ Each robot's name is still tinted in its own `color:` while it runs — red Otto
 purple Vector — which is how you see who is working.
 
 **Upgrading from 16.0.x/16.1.0:** the plugin's *identity* changed, so auto-update cannot carry you
-across it. Uninstall the old one and install the new:
+across it.
+
+**Refresh the marketplace first.** Your cached catalog still lists a plugin called `otto`; until it is
+re-read from GitHub, `install robotinc@robotinc` has nothing to match and fails silently.
 
 ```
+/plugin marketplace update robotinc
 /plugin uninstall otto@robotinc
 /plugin install robotinc@robotinc
 /reload-plugins
