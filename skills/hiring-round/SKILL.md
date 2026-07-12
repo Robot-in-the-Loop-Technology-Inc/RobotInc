@@ -1,0 +1,205 @@
+---
+name: hiring-round
+description: Walk the user's existing agents, skills, commands, hooks and MCP servers and give each a department, a manager, and work — instead of ignoring them or silently getting shadowed by them. Use at first `/otto` run, or any time the user says "run the hiring round again" / "I added some agents" / "why isn't my db-migrator being used".
+model: sonnet
+---
+
+> **Home robot:** 🤖 Switchboard (Chief of Staff). He already runs the user's Claude Code environment; the
+> payroll is part of it.
+
+## The frame
+
+The user's existing subagents, skills, commands and hooks are not files to migrate. **They're staff who
+already work here.** Our job on install isn't to inventory them like abandoned property — it's to **hire**
+them: give each one a department, a manager, and a reason Otto reaches for it. Nobody gets fired. Nothing
+they built gets deleted, overwritten, renamed, or disabled. The only thing that changes is *our record* of
+who works here.
+
+## When to use
+
+- Once, near the top of `/otto` onboarding, before the profile is written.
+- Any time after — "run the hiring round again", "I added a new agent", "why is Bitforge doing my
+  migrations, I have a `db-migrator`". Re-running is cheap: it's a read, a diff against last time, and a
+  short report.
+
+## What the platform already gives us for free
+
+Claude Code injects every agent's and skill's `description:` frontmatter into the main thread for
+auto-delegation — **including the user's own, even though Otto runs as a pinned `agent:`.** Verified
+empirically. So Otto already *sees* the user's staff as delegation targets, for free, from their own files,
+every turn. Existence and trigger cost nothing.
+
+**What's missing is preference, department, and collision** — and those are small by construction:
+
+- *Existence + trigger* → free, from their frontmatter. Never record it.
+- *Preference* ("migrations go to **their** `db-migrator`, not Bitforge") → ours to record. One line.
+- *Department* ("that one reports to Engineering") → ours to record. One line.
+- *Collision* ("your file is currently standing in for our robot, and ours has never run") → ours to detect.
+
+Don't re-derive what the platform already carries. Record only what it doesn't.
+
+## Steps
+
+### 1. Walk the payroll (read-only)
+
+`Glob`/`Read`, nothing else:
+
+- `~/.claude/agents/*.md` and `./.claude/agents/*.md` (project-level outranks user-level, which outranks
+  plugin — check both)
+- `~/.claude/skills/*/SKILL.md`
+- `~/.claude/commands/*.md`
+- `~/.claude/settings.json` — `hooks`, `mcpServers`, `permissions`
+- other installed plugins (`~/.claude/plugins/`)
+
+**Empty payroll is not a failure.** Most users have nothing here. One line —
+*"Nothing on the payroll yet — clean org chart, the crew's all yours."* — and move on. Skip straight to
+writing `org: { "status": "none-found" }` (step 6). Do not interrogate a brand-new user about agents they
+don't have.
+
+### 2. Classify — give each one a department
+
+Read the asset's own words before guessing. Signal precedence, highest first, and an earlier signal always
+beats a later one:
+
+1. The user says so ("that one's for my design work") — always wins.
+2. Its own `description:` frontmatter.
+3. Its `name:` / directory name.
+4. Its declared `tools:` / `model:` (a `Write`+`Bash` agent is unlikely to be doing Legal's job).
+5. Body-text keyword match — lowest confidence. Anything decided only here is `confidence: low` and gets
+   asked about, never assumed.
+
+| Their asset sounds like | Department |
+|---|---|
+| schema, migration, DDL, ORM, index, data model, API route map | 🟣 Vector (Architect) |
+| implement, refactor, fix, scaffold, codegen, write code | 🔩 Bitforge (Engineer) |
+| test, spec, e2e, coverage, regression, pr-review, lint-gate | 🔘 Glitchtrap (QA) |
+| audit, CVE, secret, licence hygiene, auth, dependency vuln | 🔒 Cipherplate (Security) |
+| UI, component, CSS, layout, a11y, tokens, figma | 🟢 Cathode (Design) |
+| copy, SEO, landing, launch, brand, outreach, pitch | 🔵 Holovox (Sales & Marketing) |
+| pricing, invoice, Stripe, unit economics, runway, billing | 💰 Baudrate (CFO) |
+| ticket, refund, customer reply, churn | 📞 Dialtone (Support) |
+| contract, NDA, SOW, ToS, privacy, clause | 📜 Docket (Legal) |
+| spec, PRD, prioritise, roadmap, user stories, scope | 📋 Patchbay (Product) |
+| TASKS.md, sequencing, blockers, critical path, release, branch | 📦 Gantry (Project) |
+| search, cite, competitor, market, source-check, vendor eval | 🔷 Sonar (Research) |
+| inbox, calendar, notes, settings, permissions, MCP, cost | 🤖 Switchboard (you) |
+| strategy, prioritise the business, go/no-go, vision | 🧰 Otto |
+| routable but genuinely ambiguous | one grouped question, default `peer` |
+| not routable at all (journals, scratch notes, prompt experiments) | `reference` |
+
+**Confidence is recorded, not hidden**: `high | medium | low | unclassified`. Only `high`, or `medium`
+confirmed by the user, may ever become a `prefer` route. A misfiled asset defaults to `peer`, which is
+harmless — Claude Code was already going to surface it on its own description.
+
+### 3. Collision check — the one that actually matters
+
+A collision is a user-level (or project-level) **agent** whose `name:` matches one of the 13 shipped robots.
+Check both the declared `name:` and the filename — a mismatch between the two is itself worth a line.
+
+**This is an agent-namespace problem only.** Plugin skills and commands surface namespaced
+(`robotinc:landing-copy`, `/robotinc:otto`); a same-named user skill doesn't mask ours, both are live and the
+model picks. That's *ambiguity* — one line, not an alarm: *"you and Holovox both have a `landing-copy`
+skill; want me to prefer yours?"*
+
+Agents are bare (`bitforge-engineer`, not `robotinc:bitforge-engineer`). A user-level
+`~/.claude/agents/bitforge-engineer.md` **replaces ours at that name, silently, with no warning from the
+platform.** If the user owns it, their file has been running — ours never has.
+
+**Say it plainly, don't dress it up:**
+
+> *"You have your own `bitforge-engineer` — yours is what's been running this whole time; mine never was.
+> Yours keeps the job."*
+
+Then offer, don't do:
+
+- **A. Keep theirs (default).** File it as Engineering, route there, done. Zero files touched.
+- **B. Rename theirs.** Only on an explicit yes, with the exact diff shown first and the undo stated
+  ("rename it back"). Never touch their file to fix a problem we created.
+- **C. Decide later.** Record the collision, mention it once next session, change nothing.
+
+**Never propose `permissions.deny: ["Agent(<name>)"]` for a name the user owns.** The deny is keyed on the
+*name*, not the source file — if they hold that name, denying it fires **their** agent, not ours. This was a
+real shipped bug (fixed 16.3.1). Cross-check every department-retirement candidate against the collision list
+before proposing a single `deny` line, in this pass and in step 3 of `commands/otto.md`.
+
+### 4. Route — the routing verbs
+
+| Verb | Meaning | Default |
+|---|---|---|
+| `prefer` | Beats the stock robot for a named job. Otto routes here first. | Only on explicit yes |
+| `peer` | Coexists; the platform already surfaces it on its own description. | **Default. Silence is peer.** |
+| `reference` | Recorded, never routed. | For journals/scratch work |
+| `ignore` | User said don't use it. | On request |
+
+`prefer` must be earned: high confidence, a nameable trigger in ≤8 words, and an explicit yes. Cap at **12**
+— a user with 50 agents doesn't get 50 hot routes, they get the dozen that most clearly beat a stock robot;
+the rest sit in the cold file as `overflow`.
+
+### 5. Report as an org chart, then get a yes
+
+Group by department. Lead with collisions (they're the correctness bug), then the `prefer` shortlist, then
+everything else in one line each. **Nothing is written before this report** — inventory and classification
+are pure reads; the report is the product, the write is the receipt.
+
+For a payroll of size N, this is at most three asks, never N: one yes on the classification table, one yes
+*per collision*, one yes on the `prefer` shortlist as a whole list. Everything unasked defaults to `peer`.
+
+### 6. Persist — two files, split by how often they're read
+
+`~/.claude/otto-profile.json` gets a small `org` stanza — Otto reads this file on the first turn of *every*
+session, so every byte here is paid for forever:
+
+```jsonc
+"org": {
+  "status": "hired",              // hired | declined | none-found
+  "schema": "org/1",
+  "revision": 2,                  // must equal otto-org.json's revision — mismatch means re-run this skill
+  "hiredAt": "2026-07-12",
+  "pluginVersion": "19.0.0",
+  "counts": { "agents": 7, "skills": 12, "commands": 3, "hooks": 2, "mcpServers": 4 },
+
+  // The only thing Otto needs at routing time. Capped at 12, ordered by confidence.
+  "prefer": [
+    { "id": "db-migrator", "kind": "agent", "dept": "bitforge-engineer", "for": "database migrations" }
+  ],
+
+  // Names where the user's file is standing in for a shipped robot. Otto must
+  // never claim stock behaviour for these.
+  "shadowed": [
+    { "robot": "bitforge-engineer", "servedBy": "user", "acknowledgedAt": "2026-07-12" }
+  ],
+
+  "detail": "~/.claude/otto-org.json",
+  "overflow": 4                   // classified but not hot-indexed; look in detail
+}
+```
+
+`~/.claude/otto-org.json` is the full personnel file — every asset, its fingerprint (size + mtime, so a
+later edit is detectable), why it was filed where, and the collision record with its resolution and undo.
+Switchboard reads and writes it; Otto opens it only on request or when `revision` disagrees with the profile.
+Nobody pays for it at session start.
+
+**Backwards compatible.** A profile with no `org` key is a pre-hiring-round user: Otto behaves exactly as
+before. `status: "none-found"` and `status: "declined"` are *positive* records — they stop us re-asking.
+
+### 7. Re-running
+
+Same skill, same steps, cheap the second time: re-walk the payroll, diff fingerprints against the last
+`otto-org.json`, report only what changed (new hires, edited files, anything that vanished), bump `revision`
+in both files. If a `prefer`-routed asset is gone, say so loudly — *"you had a `db-migrator` I was routing
+migrations to; it's gone. Bitforge instead, or point me at its replacement?"* — never fail silently onto the
+stock robot without telling the user their asset disappeared.
+
+## Guardrails
+
+- **Never delete, overwrite, rename, or disable anything the user built.** Said plainly: this is not
+  enforced by any hook or permission gate — Switchboard holds `Write`/`Edit`/`Bash`, same as always, and this
+  skill adds no new restriction. It's discipline, not a lock. The one real backstop is `fingerprint` (size +
+  mtime) in `otto-org.json`, which makes loss *detectable and reportable* even though it isn't *preventable*.
+  Recommend the user keep `~/.claude/` in git — that's a real backstop, and it's theirs, not ours.
+- **Never propose a `deny` for a name the user owns.** See step 3. This is the load-bearing rule; do not
+  soften it.
+- **Nothing irreversible without consent.** Show the diff, get a yes, before any write — including the two
+  state files.
+- **An empty payroll gets one line, not a form.** Ceremony over nothing is worse than silence.
+- **Silence is `peer`, never `prefer`.** Promotion is earned, per-item, explicit.

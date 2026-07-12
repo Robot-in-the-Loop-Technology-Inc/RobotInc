@@ -1,5 +1,52 @@
 # Changelog
 
+## 19.0.0 — 2026-07-12
+
+**Installing RobotInc used to be a takeover.** We shipped 13 robots and 21 skills and said nothing about the
+crew the user already built — their `db-migrator`, their `seo-checker`, all still on disk, all invisible to
+Otto, some of it silently *shadowing* ours with no warning from the platform. This release ends that.
+
+### The hiring round
+
+New skill: **`hiring-round`** (home robot: 🤖 Switchboard). Near the top of `/otto`, and any time after on
+request ("run the hiring round again"), it walks `~/.claude/agents/`, `~/.claude/skills/`,
+`~/.claude/commands/`, and `settings.json`'s hooks/MCP/permissions — read-only — and gives every asset it
+finds a department, a manager, and (if it earns one) a reason Otto reaches for it first.
+
+**The frame is the product:** the user's existing agents and skills are not files to migrate, they're staff
+who already work here. Nobody gets fired. Nothing of theirs is deleted, overwritten, renamed, or disabled —
+the only thing that changes is *our record* of who works here.
+
+- **Verified, not assumed.** Claude Code injects a user-level agent's `description:` frontmatter into the
+  main thread even when the main thread is a pinned `agent:` (`otto-foreman`) — confirmed empirically on a
+  real machine. That means existence and trigger are already free, every turn, from the user's own files.
+  We record only what the platform doesn't already carry: **preference**, **department**, and **collision**.
+  A `prefer[]` list capped at 12, ordered by confidence — not a full roster dump.
+- **Collisions are named, not hidden.** A user-level `~/.claude/agents/bitforge-engineer.md` silently wins
+  over ours, with no warning from the platform — theirs has been running, ours never has. We say so plainly
+  and default to `adopt-in-place`: their file keeps the job, zero files touched, rename only on an explicit
+  yes with the diff shown first.
+- **The department-retirement bug this closes.** `/otto`'s existing `permissions.deny: Agent(<name>)` step
+  now cross-checks every candidate against the collision list first. The deny is keyed on the *name*, not
+  the source file — proposing it for a name the user owns would have fired **their** agent to make room for
+  ours. Fixed in the same pass that made it visible.
+- **An empty payroll is not a failure.** Most users have nothing here. One line — *"nothing on the payroll
+  yet, the crew's all yours"* — and onboarding moves on. No interrogation of a clean slate.
+- **Two files, split by how often they're read.** `otto-profile.json` (read every session start) gets a
+  small `org` stanza — status, counts, the capped `prefer`/`shadowed` lists. The full personnel record,
+  fingerprints and all, lives in `~/.claude/otto-org.json`, opened only on request or when it drifts from
+  the hot copy.
+- **Zero new runtime dependencies.** No hook, no script — `node` isn't guaranteed on a user's machine, which
+  is why the old brief hook was removed. The inventory is an agent reading the filesystem at `/otto` time.
+- **Disciplined, not enforced — said plainly in the skill.** "Never touch the user's files" is not backed by
+  a permission gate; Switchboard still holds `Write`/`Edit`/`Bash`. The real backstop is a fingerprint (size
+  + mtime) on every hired asset, which makes loss *detectable and reportable*, not *prevented* — and a
+  standing recommendation to keep `~/.claude/` in git, which is the user's backstop, not ours.
+
+Otto's per-turn system prompt grows by one short section — `prefer[]`/`shadowed[]` routing and the `🧩 <id>
+(hired · Dept)` trace form — the rest of the cost lives in the skill body, paid only when the hiring round
+actually runs.
+
 ## 18.0.0 — 2026-07-12
 
 **A product manager and a project manager are not the same person.** Patchbay was labelled one, seated as the

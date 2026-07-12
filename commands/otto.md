@@ -40,6 +40,24 @@ Then, one at a time:
 5. **Which power tools would actually help?** Offer the 3–4 seat-kit skills for their seat(s). Build the ones
    they pick; add the rest just-in-time.
 
+## 1.5 The hiring round
+
+Before you write anything, find out who already works here. Dispatch the `hiring-round` skill through
+Switchboard (`description: "Chief of Staff: hiring round"`) to walk `~/.claude/agents/`, `~/.claude/skills/`,
+`~/.claude/commands/`, and `settings.json`'s hooks/MCP/permissions — read-only.
+
+Their existing agents and skills are not files to migrate; **they're staff who already work here.** The job
+is to give each one a department and a manager, not to inventory them like abandoned property. Nobody gets
+fired, nothing of theirs gets touched — only *our record* of who works here changes.
+
+Switchboard reports back as an org chart (or, for most first-time users, one line: *"nothing on the payroll
+yet — clean org chart, the crew's all yours"*) and flags any **collision** — a user-level agent sharing a
+name with one of ours, which silently wins and means ours has never run. Get a yes before anything is
+written. Fold the result into step 7's roll call and into the profile below.
+
+**Re-runnable, any time:** "run the hiring round again" invokes the same skill directly — someone adds an
+agent six months in, they shouldn't have to re-onboard to get it filed.
+
 ## 2. Write the profile
 
 Write `~/.claude/otto-profile.json`:
@@ -50,6 +68,10 @@ Write `~/.claude/otto-profile.json`:
 
 `verbosity` is `brief` | `balanced` | `thorough`. Otto reads this file at the start of each session, so
 *"be brief from now on"* is a one-field edit — never a rebuild.
+
+If step 1.5 found anything, it adds a small `org` stanza here (schema in the `hiring-round` skill) — capped
+and cheap, because it records only preference, department, and collisions; existence is already free from
+the platform's own frontmatter injection.
 
 Otto reads the seats from here to set the co-pilot rule, and states the tier when he dispatches a robot.
 Re-seating later is a one-field edit — never a rebuild. Say *"re-read my profile"* to apply it mid-session.
@@ -66,12 +88,13 @@ The plugin ships every robot. Retire the departments this user does not need by 
 A bookkeeper does not need an architect. Show the diff, get a yes, and tell them plainly that any department
 comes back by deleting one line.
 
-> ⚠️ **First, list `~/.claude/agents/`. A deny rule is keyed on the agent's NAME, not on the file it came
-> from — and a user-level file of the same name SHADOWS ours.** So if the user happens to own
-> `~/.claude/agents/vector-architect.md`, then `Agent(vector-architect)` denies **their** agent, not the
-> plugin's, and their work goes dark without a word. Never propose a deny for a name the user already owns.
-> Say so instead: *"you have your own `vector-architect` — it's shadowing mine, so mine never runs anyway.
-> Yours stays; I won't touch it."* Retiring a department must never disable something the human built.
+> ⚠️ **Cross-check against step 1.5's collision list before proposing a single `deny` line.** A deny rule is
+> keyed on the agent's NAME, not the file it came from — and a user-level file of the same name SHADOWS ours.
+> So if the user owns `~/.claude/agents/vector-architect.md`, then `Agent(vector-architect)` denies **their**
+> agent, not the plugin's, and their work goes dark without a word. Never propose a deny for a name the user
+> already owns. Say so instead: *"you have your own `vector-architect` — it's shadowing mine, so mine never
+> runs anyway. Yours stays; I won't touch it."* Retiring a department must never disable something the human
+> built.
 
 ## 4. Hand the environment to Switchboard
 
@@ -105,9 +128,11 @@ they agree to write files. Someone who just wants help managing their week does 
 
 ## 7. Roll call — introduce the crew
 
-The user has just hired a company. Let them meet it. Each **active** robot gets **one line, in its own voice**,
-saying what it will handle for this person specifically — not a job description. Retired departments are named
-in a single closing line, not introduced.
+The user has just hired a company — and, per step 1.5, may already have staff on the books. Let them meet the
+whole thing. Each **active** robot gets **one line, in its own voice**, saying what it will handle for this
+person specifically — not a job description. Retired departments are named in a single closing line, not
+introduced. If the hiring round found `prefer`-routed assets, name them standing in the org chart too, in
+their own department's slot:
 
     ↳ 🧰 Otto — I keep the strategy and route the work. Ask me for anything; I'll find whose desk it is.
     ↳ 🤖 Switchboard (Chief of Staff) — Setup's tuned, Gmail's connected. Your inbox is next.
@@ -116,6 +141,7 @@ in a single closing line, not introduced.
     ↳ 💰 Baudrate (CFO) — I'll tell you what it costs. You won't always like it.
     ↳ 📞 Dialtone (Support) — Send me the angry ones. I draft; you send.
     ↳ 🔷 Sonar (Research) — I don't guess. I'll bring the source.
+    ↳ 🧩 db-migrator (hired · Engineering) — yours; I'll route migrations here, not to Bitforge.
 
     Engineering and Design are retired for now — say the word and they're back.
 

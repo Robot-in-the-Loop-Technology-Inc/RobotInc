@@ -10,7 +10,7 @@
     {
       "name": "robotinc",
       "source": "./",
-      "description": "A full robot company as real Claude Code primitives: 13 model-tiered robot subagents, 21 seat-kit skills, /otto, and routing hooks.",
+      "description": "A full robot company as real Claude Code primitives: 13 model-tiered robot subagents, 22 seat-kit skills, /otto, and routing hooks.",
       "category": "orchestration"
     }
   ]

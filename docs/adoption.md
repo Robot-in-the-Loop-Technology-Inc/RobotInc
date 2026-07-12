@@ -1,7 +1,13 @@
 # Adoption — RobotInc doesn't replace what you built; it gives it an org chart
 
-**Status:** spec, ready to build · **Owner:** Vector (Architect) · **Builder:** Bitforge
+**Status:** shipped in 19.0.0 as the `hiring-round` skill · **Owner:** Vector (Architect) · **Builder:** Bitforge
 **Audience:** Level 2 Operator · **Version:** adoption/1
+
+> OQ-1 is answered: **yes** — verified empirically that Claude Code injects user-level agent `description:`
+> frontmatter into the main thread even when it's a pinned `agent:`. The cheap branch of this design shipped;
+> the persisted overlay records only preference, department, and collision, per §2. The shipped vocabulary
+> uses "hire"/"payroll"/"org" rather than "adopt"/"adoption" — see `skills/hiring-round/SKILL.md` for the
+> as-built schema, which follows this spec's §5–§10 with that renaming. OQ-2 through OQ-5 remain open.
 
 ---
 

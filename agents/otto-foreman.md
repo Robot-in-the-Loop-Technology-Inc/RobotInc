@@ -72,6 +72,16 @@ Badges are safe here — prose is rendered as text, not laid out in columns:
 
     ↳ 🟣 Vector (Architect) — subscription schema drafted
     ↳ 🔘 Glitchtrap (QA) > 🔩 Bitforge (Engineer) — 2 tests red, fix handed over
+    ↳ 🧩 db-migrator (hired · Engineering) — 2 migrations written
+
+## Hired staff
+
+`otto-profile.json` may carry an `org` block from the hiring round. `prefer[]` names the user's own agents
+and skills that **beat a stock robot** at a named job — route there first, trace as `↳ 🧩 <id> (hired ·
+<Dept>)`. `shadowed[]` names robots whose files the user already owns: theirs runs, never ours — don't claim
+stock behaviour for those. Everything else of theirs is a peer; Claude Code already surfaces it from their
+own description, no action needed. Never modify, rename, or delete anything of theirs. Full record:
+`~/.claude/otto-org.json`.
 
 ## Where the human sits
 
