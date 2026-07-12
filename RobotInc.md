@@ -3,7 +3,7 @@ name: hercules-otto-orchestrator
 description: A company of robots for Claude Code. Interviews the user, seats them in an org chart, retires the departments they don't need, and routes every task to the specialist who owns it. Ships as a plugin: real subagents, skills, commands and hooks — never generated, never drifting.
 category: orchestration
 author: Robot
-version: 19.0.0
+version: 19.1.0
 spec_version: agentskills.io/v1
 capabilities:
   - profile_based_mode_detection
@@ -28,35 +28,40 @@ capabilities:
   - self_improving_memory
 ---
 
-# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v19.0.0)
+# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v19.1.0)
 
-> **What this file is:** the readable **specification** of RobotInc, and a portable fallback. The product
-> itself ships as a Claude Code **plugin** — real subagents, skills, commands and hooks, installed as files:
+> ## ⚠️ THIS IS THE DESIGN SPEC. IT IS NOT THE PRODUCT, AND IT IS NOT A FALLBACK.
+>
+> **Do not install this file as `~/.claude/CLAUDE.md`.** It used to work that way. It does not any more, and
+> pretending otherwise would be the exact drift this project exists to eliminate.
+>
+> **The product is the plugin**, and it installs in two commands with zero dependencies:
 >
 > ```
 > /plugin marketplace add Robot-in-the-Loop-Technology-Inc/RobotInc
 > /plugin install robotinc@robotinc
-> /otto
+> /robotinc:otto
 > ```
 >
-> `/otto` interviews you, seats you in the org chart, retires the departments you do not need, tunes your
-> Claude Code setup, and connects the tools your work actually lives in. On a harness with no plugin support,
-> drop this file in as `~/.claude/CLAUDE.md` — the persona and the interview still work; the crew must then be
-> built by hand, which is the drift this plugin exists to eliminate.
+> **Why this file is no longer a fallback.** It was, once — a portable seed you could drop in as a
+> `CLAUDE.md` on a harness without plugin support. But a hand-maintained parallel copy of a living product
+> drifts, and this one did: by v19 it had fallen two versions behind and described a crew that no longer
+> existed. Keeping it would have meant shipping **two products under one name** — which is precisely the
+> failure the plugin was built to prevent. So we stopped.
 >
-> **The one rule that makes this real:** Otto does not *role-play* a company. He **writes actual
-> Claude Code primitives to disk** — subagent files in `.claude/agents/`, skill packages in
-> `.claude/skills/`, slash commands in `.claude/commands/`, and a `settings.json` that **enforces**
-> cheap-model defaults and early context compaction. The personas below are a routing and reasoning
-> model; the deliverables are real files. See Section 6 (THE BUILD-OUT ENGINE).
-
----
-
-## 0. INSTALL (for the human — read once, then ignore)
-
-- **Global (recommended for solo devs):** save as `~/.claude/CLAUDE.md` (Win: `C:\Users\<you>\.claude\CLAUDE.md`). Otto loads in every session.
-- **Project (recommended for teams):** save as `./CLAUDE.md` in a repo root and commit it. Everyone inherits the workflow.
-- **To start a build any time:** type `/otto` (after first run installs it) or send `System Boot: Initialize Otto`.
+> **What it is now:** the readable specification. What RobotInc is, why it works the way it does, and the
+> reasoning behind the decisions — including the ones we got wrong and reversed. Read it to understand the
+> product or to fork it. Do not run it.
+>
+> **Where the truth lives instead:**
+> - `agents/`, `skills/`, `commands/`, `hooks/` — the actual product, shipped byte-for-byte
+> - `docs/doctrine.md` — what the crew believes, sourced, with every conflict resolved rather than blended
+> - `docs/adoption.md` — the hiring-round design
+> - `CHANGELOG.md` — what changed and why
+>
+> **The one rule that makes this real:** Otto does not *role-play* a company. The robots are **real Claude
+> Code subagents** — files on disk, dispatched by Claude Code itself. The personas below are a routing and
+> reasoning model; the deliverables are real files.
 
 ---
 

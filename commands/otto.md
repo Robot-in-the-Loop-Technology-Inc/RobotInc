@@ -136,7 +136,8 @@ their own department's slot:
 
     ↳ 🧰 Otto — I keep the strategy and route the work. Ask me for anything; I'll find whose desk it is.
     ↳ 🤖 Switchboard (Chief of Staff) — Setup's tuned, Gmail's connected. Your inbox is next.
-    ↳ 📋 Patchbay (PM) — I keep TASKS.md honest and nothing lands on main.
+    ↳ 📋 Patchbay (Product) — I decide what we build and what we cut. I'll tell you when it's the wrong thing.
+    ↳ 📦 Gantry (Project) — And I land it. Sequenced, on a branch, and I'll say “stale” when it's stale.
     ↳ 🔵 Holovox (Sales & Marketing) — Give me the product and I'll give you the words.
     ↳ 💰 Baudrate (CFO) — I'll tell you what it costs. You won't always like it.
     ↳ 📞 Dialtone (Support) — Send me the angry ones. I draft; you send.

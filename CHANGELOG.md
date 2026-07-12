@@ -1,5 +1,26 @@
 # Changelog
 
+## 19.1.0 — 2026-07-12
+
+Two coherence bugs. The product was contradicting itself, which disqualifies it from "production-grade"
+regardless of how cleanly it installs.
+
+**The roll call introduced a crew that wasn't the crew.** `/otto` never learned Gantry exists, so every new
+user's first minute would meet twelve robots and silently skip the thirteenth. Worse, Patchbay's line still
+read *"I keep TASKS.md honest and nothing lands on main"* — which is **Gantry's** job now. A new user met a
+Product Manager introducing himself as a project manager, and never met the project manager at all. Both
+fixed.
+
+**The seed is demoted: it is the spec, not a fallback.** `RobotInc.md` had drifted two versions behind — zero
+mentions of the doctrine, tempo, or routines — while the README still promised it worked as a
+`~/.claude/CLAUDE.md` seed with *"same persona, same interview."* That was false, and it meant shipping **two
+products under one name** — the exact drift the plugin was built to eliminate.
+
+So we stopped pretending. `RobotInc.md` now says plainly, at the top, that it is the **design spec** and must
+not be installed. The README's "Legacy install" section is gone. There is one product and one path to it. The
+spec keeps its real job: explaining what RobotInc is, why it works this way, and the reasoning behind the
+decisions — including the ones we got wrong and reversed.
+
 ## 19.0.0 — 2026-07-12
 
 **Installing RobotInc used to be a takeover.** We shipped 13 robots and 21 skills and said nothing about the
