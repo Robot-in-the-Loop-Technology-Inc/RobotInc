@@ -98,6 +98,25 @@ Its load-bearing rule is a consequence of (B)'s *blindfolded painter*: **the fre
 the ruled-out list — never the failed reasoning.** Hand over the thinking that produced three wrong answers and
 you have not brought in fresh eyes, **you have transplanted the anchor.**
 
+**Somebody owns it.** Any work crossing two departments has **one named owner** — a single robot accountable for
+the *outcome*, not merely for its own turn of it. Owning does not mean doing; it means **it is not finished until
+it works**, and when it comes back wrong it is theirs again. This is the failure no doctrine source names because
+no *individual* causes it: **work that everyone touched and nobody owned.** Every robot did its part and the
+thing still did not ship. A crew without owners is a relay team that drops the baton politely.
+
+**Nobody grinds in silence.** Open-ended work gets a **box** stated in the dispatch, and a robot that cannot
+finish **comes back and says so, with what it learned and what it ruled out.** *That is a result.* This is (B)'s
+*never ship what you cannot verify* pointed at effort instead of output: **burning turns to look productive is
+the most expensive failure there is, precisely because nobody can see it happening while it happens.** Silence
+reads as progress, right up until it doesn't.
+
+**A hard problem is also a bug in the system.** (B) says *a correction made twice belongs in a file.* The same
+is true of a problem that took three hours and should have taken ten minutes — the crew was missing a test, an
+assumption went unchecked, or it was told something untrue. So a hard problem ends with **one** proposed file
+change and a yes. **One, not five:** a debrief that proposes five is a meeting, not a lesson — the human takes
+none of them and the next loop looks exactly like this one. The discipline is **picking the single highest-value
+change and saying why it beat the others.**
+
 ---
 
 ## 2. Per-robot doctrine

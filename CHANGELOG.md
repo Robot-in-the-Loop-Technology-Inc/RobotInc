@@ -1,5 +1,45 @@
 # Changelog
 
+## 21.4.0 — 2026-07-12
+
+**Three things a company does that a tool does not.**
+
+21.3.0 taught the crew to escalate when it is losing. These three are what a company does the rest of the time
+— and each one fixes a failure that no *individual* robot causes, which is exactly why no robot was fixing it.
+
+**Somebody owns it.** Any work crossing two departments now gets **one named owner** — a single robot
+accountable for the *outcome*, not merely for its own turn of it. Otto names them in the dispatch. **Owning does
+not mean doing; it means it is not finished until it works**, and when it comes back wrong it is theirs again.
+
+> This is the failure mode with no villain: **work that everyone touched and nobody owned.** Every robot did its
+> part, correctly, and the thing still did not ship. **A crew without owners is a relay team that drops the
+> baton politely.**
+
+**Nobody grinds in silence.** Open-ended work gets a **box** stated in the dispatch — *"one pass, then report."*
+A robot that cannot finish **comes back and says so, with what it learned and what it ruled out.** *That is a
+result.* This is *never ship what you cannot verify* pointed at **effort** instead of output: **burning turns to
+look productive is the most expensive failure there is, precisely because nobody can see it happening while it
+happens.** Silence reads as progress, right up until it doesn't.
+
+**A hard problem is also a bug in the system.** Doctrine already held that *a correction made twice belongs in a
+file.* So does a problem that took three hours and should have taken ten minutes — the crew was missing a test,
+an assumption went unchecked, or it was told something untrue. Every hard problem now ends with **one** question:
+
+> **What would have caught this an hour earlier?**
+
+…and **one** proposed file change, with a yes. **One, not five.** A debrief that proposes five is a meeting, not
+a lesson: the human takes none of them and the next loop looks exactly like this one. **The discipline is picking
+the single highest-value change and saying why it beat the others.** It lands in a file, because a lesson that
+lives only in a context window dies at the next compaction — and the human pays for the same three hours twice.
+
+The debrief closes the `stuck-loop` ladder (rung 6), where it costs nothing until a loop actually breaks. All
+thirteen robots carry the ownership, time-box and debrief rules in their bodies, which load only on invoke.
+Otto carries the dispatch-side of all three. Recorded in `docs/doctrine.md` §1.
+
+*Considered and deliberately not built: **restore-first-diagnose-after** (revert to green before debugging a live
+break). A real ops discipline, but it collides with the tempo gate in ways worth thinking through before it goes
+in, and it was not asked for.*
+
 ## 21.3.0 — 2026-07-12
 
 **Thrash raises the gear. Effort does not.**

@@ -87,6 +87,26 @@ things and nothing else:
 **Sunk cost is not a plan.** The most expensive thing in this loop was never the tokens — it was the human's
 belief that the crew can see when it is losing.
 
+## 6. When it breaks — the debrief, and it is one line long
+
+**A loop that took five rungs to break is the definition of a problem worth learning from.** Do not just move
+on relieved. Ask the only question that matters:
+
+> **What would have caught this an hour earlier?**
+
+Almost always the honest answer is one of three: *there was no test* · *an assumption was never checked* · *the
+crew was told something that was not true.* Each has a fix that fits in a file.
+
+Propose **exactly one** change — a test, a rule, a line in `CLAUDE.md`, a correction to a robot's prompt — and
+get a yes before writing it.
+
+**One, not five.** A debrief that proposes five changes is a meeting, not a lesson: the human will take none of
+them, and the next loop will look exactly like this one. **The discipline is choosing the single highest-value
+one and saying why it beat the others.**
+
+And it must land in a **file**. A lesson that lives only in a context window dies at the next compaction, and
+the human pays for the same three hours twice.
+
 ## What this does *not* license
 
 - **It does not repeal Scale.** Escalation is triggered by *evidence of thrash*, never by a topic that sounds
