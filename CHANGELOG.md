@@ -1,5 +1,44 @@
 # Changelog
 
+## 21.1.0 — 2026-07-12
+
+**You always know who is talking.**
+
+A substantial result — a brief, a review, a plan, findings — now arrives under the robot's own badge:
+
+```
+---
+**🔩 Bitforge · Engineer**
+
+Middleware and config landed on `feature/rate-limit`. Four tests added, all green.
+One thing: the limiter is in-memory, so it resets on deploy. Fine now, wrong at two instances.
+
+---
+```
+
+**A short result still gets a one-line trace and nothing more.** Ceremony around three sentences is noise, and
+noise teaches a human to skim you. The block earns its rules only when there is something worth reading
+between them.
+
+**Why not a coloured box?** We tried. A terminal gives model output exactly two colours — red and green, via a
+`diff` fence — and ANSI escapes print literally. Six of the eight robot colours cannot be rendered at all, so
+Cipherplate and Cathode would get beautiful boxes and Vector would get nothing. And a fixed-width box shatters
+the moment a line wraps. **The badge is the colour channel** — 🔩 is orange, 🟣 purple, 🔷 cyan — and it
+survives every terminal width. Boring, and it works.
+
+**The robots now write for you, not for Otto.** Their words are relayed unchanged, so they lead with the
+answer instead of filing a memo upward.
+
+**And the line that governs all of it:** *a beautiful block full of jargon they will not read is a failure with
+good posture.* The point is that the human understands it, acts on it, and wants to come back.
+
+### Paid for it out of its own pocket
+
+Otto's prompt is billed on **every turn**, so attribution made it heavier. Auditing it found the **seat →
+co-pilot table restating the crew table directly above it** — a seat's name *is* the robot's role
+(Engineering → the Engineer → Bitforge), and Otto already holds the roster and the live agent list. Collapsed
+to one line: **~200 tokens back, on every turn, forever.** Net cost of this release: roughly zero.
+
 ## 21.0.0 — 2026-07-12
 
 **The house style.** The crew knew *what* to say. It did not know *how to lay it out.*
