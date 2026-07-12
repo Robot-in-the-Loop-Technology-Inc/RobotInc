@@ -1,5 +1,35 @@
 # Changelog
 
+## 22.3.1 — 2026-07-12
+
+**Two overclaims in yesterday's card, caught before anyone read them.**
+
+**1. MCP servers are not owned by a robot.** 22.3.0 put hooks and MCP under *"NOW REPORTS TO → 🤖
+Switchboard"*, which reads as exclusive ownership. **It isn't.** **Every robot inherits every MCP server** —
+none of them declare a `tools:` allowlist, because one would *blind* them. A user's GitHub server is not
+Switchboard's private tool: **Bitforge uses it, Sonar uses it, the whole floor uses it.** Switchboard
+*administers the connection*. The column is now **FILED UNDER**, and MCP rows read
+`🤖 Switchboard · Ops (admin — every robot uses it)`.
+
+**2. "Your tool is now an employee of Bitforge" is a nice line and a slight lie.**
+
+**Their agents and skills already worked** — Claude Code auto-delegates from **their own** `description:`
+frontmatter, every turn, for free, and did so before this plugin existed. **We did not make their tool work,
+and filing it does not make it work better.** Implying otherwise gets caught **the first time the tool behaves
+exactly as it always did** — and then the whole org chart is worthless to them.
+
+So both `roll-call` and `hiring-round` now state what filing actually does, and it is exactly three things:
+
+| | What actually changes |
+|---|---|
+| **`prefer`** | Otto reaches for **their** tool first for a named job. **The only one that changes behaviour** — and only with an explicit yes. |
+| **Department** | They can *see* who owns what. **A record, not a rewiring.** |
+| **Collision** | We tell them their file has been shadowing our robot. **Detection, not a change.** |
+
+**The honest version is the warmer one anyway:**
+
+> ***"It's yours, it stays yours, and now I know when to reach for it."***
+
 ## 22.3.0 — 2026-07-12
 
 **"I've filed your people, and I haven't touched one of them" — said as a sentence, and then shown.**

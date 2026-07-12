@@ -87,14 +87,37 @@ beats a later one:
 | routable but genuinely ambiguous | one grouped question, default `peer` |
 | not routable at all (journals, scratch notes, prompt experiments) | `reference` |
 
-**Hooks, MCP servers and `settings.json` entries always file under 🤖 Switchboard.** They are the *environment*,
-and the environment is the Chief of Staff's department. **Do not strain to give a hook a department it does not
-have** — a `PreToolUse` guard is not "Engineering" because it happens to fire on `Edit`.
+**Hooks, MCP servers and `settings.json` entries file under 🤖 Switchboard — as *admin*, not as owner.** They
+are the environment, and the environment is the Chief of Staff's department to **manage**. **Do not strain to
+give a hook a department it does not have** — a `PreToolUse` guard is not "Engineering" because it happens to
+fire on `Edit`.
+
+> ⚠️ **And never imply a robot owns an MCP server exclusively.** **Every robot inherits every MCP server** —
+> none of them declare a `tools:` allowlist, because one would blind them. A user's GitHub server is not
+> Switchboard's private tool: Bitforge uses it, Sonar uses it, the whole floor uses it. Switchboard
+> *administers the connection*. Mark it `admin` and move on.
 
 **Record the `kind` alongside the department** — `agent | skill | command | hook | mcp`. The human is not
-looking at an inventory, they are looking at **their own org chart**, and *"a skill of mine now reports to
+looking at an inventory, they are looking at **their own org chart**, and *"a skill of mine is filed under
 Marketing"* only makes sense if they can see that it is a skill. Otto's card renders this column; it cannot
 invent it.
+
+### Say what filing actually does — nothing more
+
+**Their agents and skills already worked, and they will behave identically after we file them.** Claude Code
+auto-delegates from **their own** `description:` frontmatter, every turn, for free — that was true before this
+plugin existed. **We did not make their tool work, and filing it does not make it work better.**
+
+**If the report implies otherwise, they catch us the first time the tool behaves exactly as it always did** —
+and then the rest of the org chart is worthless to them. Three things change, and only three:
+
+| | What actually changes |
+|---|---|
+| **`prefer`** | Otto reaches for **their** tool first for a named job. **The only one that changes behaviour** — and only with an explicit yes. |
+| **Department** | They can *see* who owns what. A record, not a rewiring. |
+| **Collision** | We tell them their file has been shadowing our robot. Detection, not a change. |
+
+The honest line is also the better one: ***"It's yours, it stays yours, and now I know when to reach for it."***
 
 **Confidence is recorded, not hidden**: `high | medium | low | unclassified`. Only `high`, or `medium`
 confirmed by the user, may ever become a `prefer` route. A misfiled asset defaults to `peer`, which is

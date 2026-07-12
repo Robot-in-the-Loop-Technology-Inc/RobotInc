@@ -108,16 +108,36 @@ arrived with**: that installing a company of robots means something they built g
 Then show **where each one landed and who it now answers to.** That is the whole point: not an inventory, an
 **org chart with their tools in it.**
 
-| | THEIRS | WHAT | NOW REPORTS TO |
+| | THEIRS | WHAT | FILED UNDER |
 |---|---|---|---|
 | 🧩 | `<one of their agents>` | agent | 🔩 Bitforge · Engineering |
 | 🧩 | `<one of their skills>` | skill | 🔵 Holovox · Marketing |
 | 🧩 | `<one of their commands>` | command | 📋 Patchbay · Product |
-| 🧩 | `<one of their hooks>` | hook | 🤖 Switchboard · Ops |
-| 🧩 | `<one of their MCP servers>` | mcp | 🤖 Switchboard · Ops |
+| 🧩 | `<one of their hooks>` | hook | 🤖 Switchboard · Ops *(admin)* |
+| 🧩 | `<one of their MCP servers>` | mcp | 🤖 Switchboard · Ops *(admin — **every robot uses it**)* |
 
-**Hooks, MCP servers and settings always file under 🤖 Switchboard** — they are the *environment*, and the
-environment is the Chief of Staff's department. Do not strain to give a hook a department it does not have.
+**Hooks, MCP servers and settings are *administered* by 🤖 Switchboard — not owned by him.** They are the
+environment, and the environment is the Chief of Staff's department to **manage**. But **every robot inherits
+every MCP server** (none of them declare a `tools:` allowlist — one would blind them). So their GitHub server is
+not Switchboard's private tool: **Bitforge uses it, Sonar uses it, the whole floor uses it.** Say *admin*, never
+imply exclusivity — and do not strain to give a hook a department it does not have.
+
+### What filing actually does — and be honest about it
+
+**Their agents and skills already worked. We did not make them work, and we cannot make them work better.**
+Claude Code auto-delegates to them from **their own** `description:` frontmatter, every turn, for free — before
+this plugin existed and after. **If we imply we improved their tool by filing it, they will catch us the first
+time it behaves identically**, and then nothing else on this card is believed.
+
+So say what is true. Filing changes exactly three things:
+
+- **Preference** — *"migrations go to **your** `db-migrator`, not Bitforge."* **This is the only one that
+  changes behaviour**, and only when they said yes to it.
+- **A department** — so they can *see* who owns what. A record, not a rewiring.
+- **A collision, caught** — *"your file has been shadowing my robot."* Detection, not a change.
+
+**"Your tool is now an employee of Bitforge" is a nice line and a slight overstatement.** The truthful version
+is warmer anyway: ***"It's yours, it stays yours, and now I know when to reach for it."***
 
 > ⚠️ **These rows are a TEMPLATE, not data.** Fill them with what the hiring round actually found on *this*
 > machine, and with nothing else. **Never invent a plausible-looking tool to make the table look fuller**, and
