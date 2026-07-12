@@ -23,6 +23,44 @@ Then run `/otto` once. Four short questions — your seat, your experience level
 which power tools you want — and you're staffed. Nothing gets generated; the crew, the 21 seat-kit
 skills, and the routing already exist on disk, byte for byte, the moment you install.
 
+### Staying up to date
+
+Turn auto-update on once and you inherit every improvement we ship, hands-free: `/plugin` → **Marketplaces**
+→ **robotinc** → **Enable auto-update**. Claude Code refreshes the catalog, updates the plugin, and prompts
+you to `/reload-plugins` when a new version lands.
+
+Or update by hand: `/plugin marketplace update robotinc`
+
+Your `~/.claude/otto-profile.json` — seat, tier, verbosity — is yours. It lives outside the plugin and
+survives every update untouched.
+
+> **Upgrading from `otto@robotinc`?** The plugin was renamed in 16.2.0, and a rename is the one thing
+> auto-update cannot carry across. **Refresh the marketplace first** — your cached catalog still lists the
+> old name, so installing the new one matches nothing and fails quietly:
+>
+> ```
+> /plugin marketplace update robotinc
+> /plugin uninstall otto@robotinc
+> /plugin install robotinc@robotinc
+> /reload-plugins
+> ```
+
+### Install it for a whole team
+
+Commit this to a repo's `.claude/settings.json`. Everyone who opens the folder and trusts it is prompted to
+install the crew — and inherits updates automatically. No commands to remember, no README to follow:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "robotinc": {
+      "source": { "source": "github", "repo": "Robot-in-the-Loop-Technology-Inc/RobotInc" },
+      "autoUpdate": true
+    }
+  }
+}
+```
+
 ## Watch it work
 
 Ask for something ordinary and cross-functional — *"add rate limiting to the telemetry endpoint"* — and
