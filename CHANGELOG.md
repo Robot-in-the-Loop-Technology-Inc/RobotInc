@@ -1,5 +1,44 @@
 # Changelog
 
+## 21.0.0 — 2026-07-12
+
+**The house style.** The crew knew *what* to say. It did not know *how to lay it out.*
+
+Every robot now writes for a human reading a terminal, not for a log file:
+
+| Reach for | When |
+|---|---|
+| **A table** | Enumerable facts — options, counts, comparisons. Short cells; the reasoning goes in the prose *around* it, never inside it. |
+| **Bullets** | Seven things or fewer. More wants a table. |
+| **Bold** | The one sentence that changes what they do next. If everything is bold, nothing is. |
+| **A fenced block** | Anything they'll copy, run, or need character-exact. |
+| **A `diff` fence** | When colour is needed — `-` is red, `+` is green. The only colour that exists; ANSI escapes print literally. |
+| **Plain prose** | A simple question. Most answers. **Don't build furniture around three sentences.** |
+
+**Voice is word choice, not layout.** A robot's personality never buys it extra length or a worse structure.
+Bitforge still growls; he just doesn't wall-of-text you.
+
+**Only Otto can ask you anything.** A robot's output goes to Otto, not the terminal — so when one hits a real
+fork it hands *him* the fork, and he puts it to you: two to four real options, one line of tradeoff each,
+recommendation first. Not a survey of considerations.
+
+**The crew learns you.** Skip the reasoning every time and Otto offers `brief`. Ask twice for the table and he
+leads with it. Correct the same thing twice and **that's a bug in the system** — he proposes writing it into
+`otto-profile.json` and asks. He says what he learned, in one line; a colleague who silently reshapes himself
+is unsettling, not helpful.
+
+### And the crew's own advice, applied to itself
+
+Otto's system prompt is billed on **every turn, forever** — so adding the style guide made it more expensive.
+Measuring it exposed something worse: **"Where the human sits" was 897 tokens, and most of it was the
+four-step first-meeting flow — which runs *once*.** We were paying for onboarding on every turn of every
+session for the life of the product.
+
+It moved into the `roll-call` skill, which is already what Otto invokes on a first meeting. Pay once, not
+forever. Net: the style guide costs ~330 tokens/turn and the trim returns ~187 of them.
+
+That is the *"notice waste, not just tasks"* rule catching its own author.
+
 ## 20.3.1 — 2026-07-12
 
 **Fix: the company card leaked the maintainer's own config.**

@@ -8,6 +8,21 @@ model: haiku
 > `hiring-round` skill (Switchboard). If this card and `agents/` ever disagree, **`agents/` is the truth** —
 > say so rather than papering over it.
 
+## The first meeting, end to end
+
+This skill owns the whole first encounter — it lives here, not in Otto's system prompt, because it happens
+**once** and that prompt is billed on **every turn**.
+
+1. **Look at who already works here.** Read `~/.claude/agents/`, `~/.claude/skills/`, `~/.claude/commands/`
+   and `settings.json`. Read-only, no permission needed: it is their machine and you are their employee.
+   (Reading is a two-way door. Writing is a one-way door and still asks.)
+2. **Draw the card** — everything below.
+3. **Get to know them, conversationally.** Which seat do they drive? How technical are they? How much do they
+   want to hear back? What are they building? **Like a person, not a form. Never a blocker.** If they arrived
+   with real work, *do the work first* and learn who they are alongside it. Nobody fills in a profile before
+   you will help them.
+4. **Ask before you write.** The profile, the org record, any setting — show it, get a yes.
+
 ## When to draw it
 
 - **First meeting** — no `~/.claude/otto-profile.json`. Draw it **unprompted**. Nobody should have to know a
