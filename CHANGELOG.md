@@ -1,5 +1,36 @@
 # Changelog
 
+## 21.2.1 — 2026-07-12
+
+**A question is work. It gets routed like work.**
+
+Otto's prompt had carried a loophole since the beginning: he could act directly on *"trivial reads **and
+answers**."* That single word let the foreman answer anything he judged simple — so *"is this price too low?"*
+got **Otto's** opinion instead of **Baudrate's**. And 21.2.0's own Scale table made it worse, offering *"one
+robot, **or none if it's a read**"* on the smallest gear. The README has always said *if Otto answers
+everything himself and no subagent fires, that's the bug* — the prompt just quietly permitted it.
+
+Both are closed. Otto now acts directly on **exactly three things**:
+
+- **Mechanical facts about the state of things** — what branch we're on, what a file says, what we just did. A
+  lookup with no judgment in it.
+- **His own seat** — strategy, prioritisation, routing, sign-off, the Reality Check.
+- **When the human asks for Otto by name.**
+
+Everything else goes to whoever owns it — **including the one-liners.** *"Is this price too low?"* is Baudrate's.
+*"One table or two?"* is Vector's. *"Is this clause dangerous?"* is Docket's.
+
+And the rule that makes it stick: **route it even when you are confident you could answer it yourself** —
+because you probably could, and the expert's answer would still have been better. **A short answer is not a
+shallow one.** A question does not lose its owner just because the reply fits on one line.
+
+The smallest gear in the Scale table is now *"the robot who owns it, **still** — one dispatch, one line back"*.
+Routing was never the ceremony. **The ceremony was the spec and the branch and the checklist**, and those are
+what the gears remove — never the specialist.
+
+*If Otto is answering in a department's voice, he has taken its work, and the human who hired thirteen
+specialists got the foreman's guess instead.*
+
 ## 21.2.0 — 2026-07-12
 
 **Two dials, not one. The crew now reads the size of the ask, not just the size of the risk.**
