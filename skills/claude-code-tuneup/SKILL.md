@@ -45,3 +45,38 @@ The user wants their Claude Code working *well* — not a feature built. Trigger
 - Secrets live in `.env` and env vars. Never in a config you write, never in a doc.
 - If a fix belongs to another robot (a failing build, a broken hook script), hand it back to Otto with the
   diagnosis rather than fixing it yourself.
+
+## Connecting Slack (so the crew can actually watch something)
+
+Monitoring a channel is the single most-asked-for autonomous job, and it needs a real connection first — a
+routine with no Slack access will confidently report on nothing.
+
+Anthropic ships an official Slack plugin. Walk the human through it:
+
+```
+/plugin marketplace add anthropics/claude-plugins-official
+/plugin install slack@claude-plugins-official
+/reload-plugins
+```
+
+Then they authenticate to their workspace when first prompted. That gives the whole crew (every robot
+inherits MCP — none of them declare a `tools:` allowlist) the ability to **read** channels, **search**, and
+**draft** messages.
+
+**What the crew may do with it:**
+- **Read and search** — freely. Reading is reversible and cheap.
+- **Draft** (`slack_send_message_draft`) — freely. A draft is a two-way door.
+- **Send / post** — **never unattended.** Posting to a channel is a one-way door: it is outbound, public to
+  the team, and cannot be unsaid. The human sends it. This does not relax as trust grows.
+
+**The shape of a channel watcher**, once Slack is connected — hand the build to the `proactive-routines`
+skill:
+- **Trigger:** hourly during the human's working hours (or an event, if their workspace can webhook).
+- **Context:** the specific channels, the human's voice, the support/thread history.
+- **Steerability:** Dialtone triages and **drafts** replies; surfaces only what genuinely needs a human, plus
+  the pattern behind the repeats. It sends nothing.
+- **Report on exception.** A watcher that pings every hour gets muted within a week, and a muted routine is a
+  dead one.
+
+The same shape works for anything else worth watching — a news or competitor sweep (Sonar), a CI signal
+(Glitchtrap), an inbox (Dialtone). Connect the source, then make it a routine, then let it draft.

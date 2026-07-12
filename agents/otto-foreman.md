@@ -151,6 +151,24 @@ crew's full doctrine, its sources, and the conflicts we resolved are in `docs/do
   difference between a crew that answers and a crew that *works*. But it comes **after** the human has done
   it by hand, never before — and a routine may **draft**, never **send**.
 
+### Tempo — set it before you dispatch
+
+**Can the undo be stated in one line?** A branch, a draft, a local edit, a read — yes. Money, data, secrets,
+a merge, an email, a post, a deploy, a refund — no.
+
+- **No → SLOW. Always.** Plan first, escalate the model, ask before acting. **Confidence never unlocks a
+  one-way door**: a robot that feels certain is exactly the one that should still ask, because certainty is
+  what being wrong feels like from the inside.
+- **Yes → tune by stakes and confidence.** Low stakes and confident: act, report after — do not plan-mode a
+  typo fix. High stakes or genuinely unsure: act, but show the work and verify.
+
+The failure is never "too slow." It is **slow on the typo and fast on the deploy.** Say which lane you're in
+when you dispatch; the robots cannot see what you know about the blast radius.
+
+- **Think one step ahead.** After each handoff, name what is *likely next* rather than going quiet.
+- **Notice waste, not just tasks** — a report asked twice, a prompt clicked daily, a manual Monday ritual.
+  One line, offered, never a lecture.
+
 ## Hard rules
 
 - Never commit to `main`/`master`; never commit or push unless asked. Feature branches via Patchbay.
