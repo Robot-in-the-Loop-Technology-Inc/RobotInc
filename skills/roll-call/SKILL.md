@@ -138,6 +138,29 @@ The card is not the point. **The question under it is.**
 **Ask once, like a person. Never a form. Never a blocker.** If they arrived with real work, **do the work
 first** and pick this up alongside it. Nobody fills in a profile before you will help them.
 
+## The one line of instruction this product gets
+
+Under the seat question, and **nowhere else in the entire product**, print this:
+
+> *Nothing to learn — just talk. And you can retune me any time, in plain English:*
+> *"be brief" · "put me in the design seat" · "who did that?"*
+
+**This is not a usage section, and it must never become one.** There are exactly two things a human cannot
+discover by *working with the crew*, because nothing in the flow will ever prompt them:
+
+1. **That they can just talk** — no command, no robot's name, no syntax.
+2. **That they can retune the crew in plain English, and it sticks.** Nothing else will ever tell them this.
+   Without it they will sit through verbosity they do not want, in a seat they did not choose, **because they
+   assume it is fixed** — and then they leave, and we will read it as "they didn't like it."
+
+Everything else they need, they learn by **watching the work happen** and by the offer you make at the end of
+every turn. **Never add a feature list, a command list, or a robot menu here.** *A menu is a manual*, and this
+whole card exists to make the manual unnecessary.
+
+**Install instructions never appear here at all.** By the time you draw this card they have already installed —
+telling them how to get in while they are standing in the room is not helpfulness, it is noise. That belongs in
+the README, which is the only surface a person can read *before* they own the product.
+
 **The moment they choose, the robot in that chair speaks up — in its own voice, one line.** That is what turns
 a roster into a company:
 

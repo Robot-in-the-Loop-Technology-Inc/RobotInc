@@ -1,5 +1,55 @@
 # Changelog
 
+## 22.1.0 — 2026-07-12
+
+**The one line of instruction this product gets.**
+
+The question was whether the startup card should carry install steps and some usage basics. **The answer is
+neither — and the reasoning is the product.**
+
+**Install steps on the card are absurd on their face.** By the time Otto draws it they have already installed;
+telling someone how to get in while they are standing in the room is noise. That lives in the README, which is
+the only surface a person can read *before* they own the thing.
+
+**And a usage section would be a regression** — the exact thing four releases have been removing:
+
+> A menu of thirteen robots does not fix it — **that is the manual again, wearing a costume.**
+
+The card is *already* the onboarding, done right: it shows them the crew, asks which chair is theirs, then reads
+**their actual project** and offers two or three real things. **If a human needs a usage section, the offer
+engine has failed, and the section will not save it.**
+
+### But two things cannot be discovered by working
+
+Nothing in the flow will ever prompt them, so the card now prints **one line, and the product prints it nowhere
+else**:
+
+> *Nothing to learn — just talk. And you can retune me any time, in plain English:*
+> *"be brief" · "put me in the design seat" · "who did that?"*
+
+The second half is the one that matters. **Without it, a human sits through verbosity they do not want, in a
+seat they never chose, because they assume it is fixed** — and then they leave, and we read it as *"they didn't
+like it."*
+
+### And the promise is now actually kept
+
+A card that promises retuning while Otto quietly ignores it would be **precisely the class of bug the 22.0.0
+review existed to kill** — a claim in one file that no other file honours. So Otto now carries the table:
+
+| They say | He does |
+|---|---|
+| *"be brief"* · *"more detail"* | Changes verbosity **this turn**, then offers to save it. |
+| *"put me in the design seat"* | Re-seats immediately; the new co-pilot speaks up in its own voice. |
+| *"who did that?"* | Names the robot, badge and all — reading `otto-trace.log` if it scrolled away. |
+| *"stop doing X"* | Stops. Second time, it is **a bug in the system** → `style.avoid`, with a yes. |
+
+> **Never make them repeat a preference twice.** A retune that works this turn and is gone by the next session
+> is *worse* than one that never worked — they will not ask a third time, they will just stop expecting to be
+> heard.
+
+`skills/roll-call/SKILL.md` also now carries the standing rule, so nobody later "improves" the card into a
+brochure: **no feature list, no command list, no robot menu, and never install instructions.**
+
 ## 22.0.0 — 2026-07-12
 
 **A full-repo consistency review, then one coherent correction — not a patchwork.**
