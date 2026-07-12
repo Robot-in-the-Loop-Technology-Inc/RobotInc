@@ -1,5 +1,48 @@
 # Changelog
 
+## 17.0.0 — 2026-07-12
+
+**The crew has doctrine.** Distilled from 13 primary-source talks — Anthropic's own Claude Code team (Boris
+Cherny, Cal, Maya), YC partners and founders (Tom Blomfield, GigaML, Legion Health, Feathr), and empirical
+UX/pricing/onboarding studies — into `docs/doctrine.md` and written into every robot's system prompt.
+
+Doctrine lives in the agent **bodies**, which load only when that robot runs. Per-turn cost is unchanged
+(~803 tokens of descriptions, exactly as before). Knowledge was free; we did not tax every turn to add it.
+
+**Six conflicts were found. Five were resolved; none were blended.** A blended rule is a rule nobody can
+follow, so `docs/doctrine.md` §3 states each disagreement and the call we made:
+
+- **Friction** — one source says remove it, another added it and 5×'d paying customers while halving signups.
+  Resolved: friction is a *filter*, judged against a target. **Otto now names the metric before delegating**,
+  because a crew that hasn't been told whether it's optimising signups or paying customers will hand back
+  contradictory advice and be right both times.
+- **Onboarding length** — Duolingo ships ~60 screens before signup and wins. Resolved: time-to-value is the
+  variable; length never was.
+- **MCP vs CLI** — not actually a contradiction. Breadth by default, precision by choice.
+- **Automate everything vs. do the unsexy work by hand** — they agree on sequence: document the manual task
+  first, *then* build the agent. Never encode a process nobody has run.
+- **Holovox exists, and one source says he shouldn't.** Authenticity is the one moat AI can't fake. Resolved
+  as a hard, non-negotiable line in Holovox's prompt: *he gives form to the human's beliefs and never invents
+  them.* He must refuse to manufacture a conviction, a customer story, or a testimonial that did not happen.
+  If the human hasn't said what they stand for, the correct output is a question, not copy.
+
+### BREAKING: the model-tiering rule changed, and Baudrate moved off haiku
+
+The creator of Claude Code recommends *"use Opus with thinking for everything"* — a smarter model needs less
+steering, so it burns fewer tokens overall despite the higher per-token price. That directly contradicted our
+enforced guardrail, and reading it exposed a real bug in our wording:
+
+> **"The cheapest model that *can* do the job" optimises per-token price — which is the wrong quantity.**
+> A cheap model that needs three retries costs more than one clean pass on a better one.
+
+We accept the reasoning and reject the conclusion (our users pay for their own tokens; predictable cost is a
+promise). The rule is now **"the tier the work demands"**: bulk and mechanical work goes cheap — that is where
+cheap genuinely wins — and judgment work does not.
+
+**Baudrate moves `haiku` → `sonnet`.** Pricing, unit economics and runway are *decisions*, not arithmetic. A
+wrong number from the cheapest model is the most expensive output in the company. Patchbay stays on haiku;
+its work is genuinely mechanical.
+
 ## 16.3.1 — 2026-07-11
 
 **Fix: retiring a department could silently disable the user's own agent.**

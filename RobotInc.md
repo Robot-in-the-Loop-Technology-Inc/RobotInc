@@ -3,7 +3,7 @@ name: hercules-otto-orchestrator
 description: A company of robots for Claude Code. Interviews the user, seats them in an org chart, retires the departments they don't need, and routes every task to the specialist who owns it. Ships as a plugin: real subagents, skills, commands and hooks — never generated, never drifting.
 category: orchestration
 author: Robot
-version: 16.3.1
+version: 17.0.0
 spec_version: agentskills.io/v1
 capabilities:
   - profile_based_mode_detection
@@ -28,7 +28,7 @@ capabilities:
   - self_improving_memory
 ---
 
-# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v16.3.1)
+# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v17.0.0)
 
 > **What this file is:** the readable **specification** of RobotInc, and a portable fallback. The product
 > itself ships as a Claude Code **plugin** — real subagents, skills, commands and hooks, installed as files:
@@ -216,7 +216,7 @@ of them back. A bookkeeper never meets the architect; a solo dev-founder keeps t
 | **Switchboard** | 🤖 · purple | `switchboard-chief-of-staff` | **Chief of Staff — reports to Otto.** The user's Claude Code environment (settings, permissions, compaction, tiering, MCP, cost) *and* the operational load: inbox, calendar, docs, follow-ups | sonnet |
 | **Patchbay** | 📋 · yellow | `patchbay-pm` | `TASKS.md`, delivery, git branch safety | haiku |
 | **Holovox** | 🔵 · blue | `holovox-sales` | Sales/GTM + brand, landing/content copy, SEO, launches | sonnet |
-| **Baudrate** | 💰 · orange | `baudrate-cfo` | Pricing/Stripe, unit economics, cost calls | haiku |
+| **Baudrate** | 💰 · orange | `baudrate-cfo` | Pricing/Stripe, unit economics, cost calls | sonnet |
 | **Dialtone** | 📞 · pink | `dialtone-support` | Customer support: triage, replies in the user's voice, the pattern behind repeat tickets | sonnet |
 | **Sonar** | 🔷 · cyan | `sonar-research` | Web research, competitor/market scans, sourced fact-finding | sonnet |
 
@@ -462,8 +462,8 @@ artifacts in the **global** tier, product-specific ones in the **project** tier.
 ### 6a. Generate the crew as REAL subagents → `.claude/agents/<name>.md`
 
 Only create the agents the user/project needs. Each file is real and invocable via the Task/Agent tool.
-**Always set `model:`** to the cheapest model that can do the job (Section 8 policy) — this is the primary
-cost enforcement.
+**Always set `model:`** to the tier the work actually demands (Section 8 policy) — bulk and mechanical work
+goes cheap; judgment work does not. This is the primary cost enforcement.
 
 ```markdown
 ---
@@ -522,7 +522,8 @@ Rules for generated subagents:
   where `Agent` is sometimes force-allowed despite `disallowedTools`. Treat the denial as best-effort, and keep
   each robot's system prompt saying it hands results back to Otto rather than dispatching a peer.
 - `model`: **required** — set per the Model Tiering Policy (Section 8): `haiku` / `sonnet` / `opus`. Default to
-  the cheapest tier; only Vector and Otto-level work earns `opus`.
+  the tier the work demands (Section 8) — bulk/mechanical goes cheap, judgment does not; only Vector and
+  Otto-level work earns `opus`.
 - Keep each system prompt tight and single-purpose, and mention the user's tier so output is pitched right.
 - **Co-pilot assignment is RUNTIME, not baked in.** Do **not** write the user's seat or tier into an agent's
   system prompt — that is what forced the whole crew to be regenerated per user, and it is how personal state
@@ -773,12 +774,26 @@ Otto distinguishes **real enforcement** (a hook/config/frontmatter field actuall
 
   | Model | Runs | Assigned to |
   |---|---|---|
-  | **haiku** (cheap) | reads, formatting, test runs, file moves, status updates, cost math, boilerplate integration steps | Baudrate, Patchbay, QA test-runs, boilerplate skills |
-  | **sonnet** (mid) | features, refactors, debugging, design, tests, GTM copy, security audits | Bitforge, Glitchtrap, Cathode, Holovox, Cipherplate; session default |
+  | **haiku** (cheap) | **bulk token ingestion** (read 200k, return a summary), formatting, file moves, status updates, test *runs*, boilerplate integration steps | Patchbay, QA test-runs, boilerplate skills |
+  | **sonnet** (mid) | features, refactors, debugging, design, tests, GTM copy, security audits, **pricing and unit economics** | Bitforge, Glitchtrap, Cathode, Holovox, Cipherplate, Baudrate; session default |
   | **opus** (premium) | Reality Check, high-risk architecture, strategy, final sign-off | Otto (main thread), Vector |
 
-  **Downshift rule:** default to the cheapest model that can do the job; escalate to opus only for the Reality
-  Check, architecture, or a genuinely stuck debug loop — then drop back down. Never leave the whole session on opus.
+  **The rule is "the tier the work demands" — NOT "the cheapest model that can do the job."** That older
+  wording optimised *per-token price*, which is the wrong quantity. A cheap model that needs three retries
+  costs more than one clean pass on a better one, and it costs the human their attention as well. Boris
+  Cherny, who created Claude Code, puts it bluntly: a smarter model *"is often cheaper than using a smaller,
+  less intelligent model even though the per-token cost for that model is lower"* — because it needs less
+  steering. We do not follow that all the way to "opus for everything" (our users pay for their own tokens,
+  and predictable cost is a promise we make), but we accept the underlying point and price work by **total
+  cost, including the redo.**
+
+  So: **bulk and mechanical work goes cheap — that is where cheap genuinely wins.** Reading a hundred
+  thousand tokens to produce a summary is the ideal haiku job. **Judgment work does not go cheap.** This is
+  why Baudrate moved off haiku: pricing, unit economics and runway are *decisions*, not arithmetic, and a
+  wrong number from the cheapest model is the most expensive output in the company.
+
+  **Escalate** to opus for the Reality Check, architecture, or a genuinely stuck problem — then drop back
+  down. Never leave the whole session on opus by accident.
 
 - **Early context compaction (enforced):** `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (Section 6e) makes auto-compaction
   fire before the limit (recommended 75%) — a real env var, not a habit. Paired with the `PreCompact` and

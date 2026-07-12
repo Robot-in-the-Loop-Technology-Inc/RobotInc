@@ -79,7 +79,7 @@ don't.
 | 🤖 **Switchboard** | Chief of Staff | Inbox, calendar, follow-ups — and your Claude Code setup itself | sonnet |
 | 📋 **Patchbay** | PM | Atomic tasks, delivery, feature-branch safety | haiku |
 | 🔵 **Holovox** | Sales & Marketing | Landing copy, positioning, launches, SEO | sonnet |
-| 💰 **Baudrate** | CFO | Pricing tiers, unit economics, Stripe structure | haiku |
+| 💰 **Baudrate** | CFO | Pricing tiers, unit economics, Stripe structure | sonnet |
 | 📞 **Dialtone** | Support | Triage, replies in your voice, the pattern behind repeat tickets | sonnet |
 | 🔷 **Sonar** | Research | Sourced facts — competitor scans, vendor evaluations, "what's current best practice" | sonnet |
 
@@ -94,9 +94,10 @@ don't.
 | 🟢 **Cathode** | Design | Responsive, accessible UI — multiple layout options, not one guess | sonnet |
 | 📜 **Docket** | Legal | Contracts, SOWs, NDAs, ToS — the clauses that actually hurt | sonnet |
 
-Every robot is pinned to the *cheapest* model that can do its job — real `model:` frontmatter, not a
-setting you have to remember to check. You never need to know a robot's name; describe the work and Otto
-routes it.
+Every robot is pinned to **the tier its work actually demands** — real `model:` frontmatter, not a setting
+you have to remember to check. Bulk and mechanical work runs cheap, because that is where cheap genuinely
+wins. Judgment work does not, because a cheap model that needs three retries costs more than one clean pass.
+You never need to know a robot's name; describe the work and Otto routes it.
 
 ## Why here, and not somewhere else
 
