@@ -1,5 +1,48 @@
 # Changelog
 
+## 22.4.0 — 2026-07-12
+
+**Two jobs assigned to robots that cannot physically do them.**
+
+Audited the tiering and compaction machinery rather than assuming it still held. **Model tiering came out
+perfect** — all fourteen pins real, and correct per doctrine §3.2: **haiku** for Gantry (sequencing, status —
+mechanical, where cheap genuinely wins), **sonnet** for the eleven judgment robots **including Baudrate**,
+**opus** for Vector, and **`inherit`** for Otto so he never overrides the user's own session model.
+
+But two *instructions* were impossible.
+
+### "Escalate the model" — Otto cannot do that either
+
+22.0.0 stripped this from all thirteen robots: a robot's `model:` is **pinned frontmatter it cannot change**.
+**I gave Otto a pass, assuming he could. He can't.** He is `model: inherit` — he runs at *their* session model
+and has no more power to switch it than anyone else. The claim sat in the **per-turn prompt**, which is the
+worst place for a false one.
+
+> **"Escalate" means route, not switch.** The hard call goes to the robot **already pinned high** — 🟣 Vector
+> runs opus. And if the work genuinely needs more than the session is giving it, **say so plainly and let them
+> decide.** Never imply you quietly upgraded yourself.
+
+**Escalation by routing is the whole point of the tiering.** Nothing switches; work *moves* to where the right
+model already is.
+
+### Compaction — Gantry was told to watch something invisible to him
+
+He owned *"compaction hygiene: when context grows long, flag it."* **He is a subagent. He has his own context
+window and no view of the main thread's.** *"Context is getting long"* is a judgment he **cannot make** and an
+action he **cannot take** — and he was pinned to haiku while nominally responsible for it.
+
+**It's Otto's, and only Otto's**, because he is the only one who can see the window he is in:
+
+- **Auto-compaction at ~75%** stays real and enforced — a genuine `settings.json` value Switchboard writes.
+- **The timing beyond that is Otto's**: propose `/compact` at a **task boundary, never mid-task**, with a
+  three-line preservation note — seat and tier · active branch · the decisions expensive to rediscover.
+- **Compaction is a handoff, not a bin-empty.** Write the note as though handing the work to someone who was not
+  here — **because after the squeeze, that is exactly what happens.**
+
+Gantry keeps the half that *is* his and that he can actually do: **`TASKS.md` is how the next session knows
+where it stands**, so he writes it as though the session is about to end mid-task. *"Write the file that
+survives; leave the timing to him."*
+
 ## 22.3.1 — 2026-07-12
 
 **Two overclaims in yesterday's card, caught before anyone read them.**
