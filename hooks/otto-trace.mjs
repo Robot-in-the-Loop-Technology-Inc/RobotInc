@@ -32,10 +32,18 @@ import { homedir } from 'node:os';
 // `description` for the same reason; see agents/otto-foreman.md.
 // This file must contain no U+FE0F; scripts/validate.mjs enforces it.
 // [badge, name, company role]. Otto 🧰 is the main thread and never appears here.
+//
+// This map MUST hold every delegate robot in agents/, with the same badge and
+// role as Otto's roster table. It fell out of sync once: Gantry shipped and was
+// never added here, so every one of his runs logged as an anonymous 🤍 outsider
+// — and /standup reads this log, so the crew's own morning brief misreported
+// him. scripts/validate.mjs now cross-checks this map against agents/ and
+// against Otto's roster, so the next hire cannot be forgotten in silence.
 const ROBOTS = {
   // core — always active
   'switchboard-chief-of-staff': ['🤖', 'Switchboard', 'Chief of Staff'],
-  'patchbay-pm': ['📋', 'Patchbay', 'PM'],
+  'patchbay-pm': ['📋', 'Patchbay', 'Product'],
+  'gantry-delivery': ['📦', 'Gantry', 'Project'],
   'holovox-sales': ['🔵', 'Holovox', 'Sales & Marketing'],
   'baudrate-cfo': ['💰', 'Baudrate', 'CFO'],
   'dialtone-support': ['📞', 'Dialtone', 'Support'],

@@ -20,14 +20,15 @@ the robots run everything else.
 
 Then, one at a time:
 
-1. **What do you actually do, day to day?** Map the answer to one or more **seats**. Infer; never quiz them on
-   titles. "I do the books" → Finance. "I run a consultancy" → Strategy + Ops. "Solo founder who codes" →
-   Strategy + Engineering. Say up front that hats are flexible and changeable any time.
+1. **What do you actually do, day to day?** Map the answer to one or more **seats** from the canonical list in
+   `docs/profile-schema.md` — **never invent a seat name.** Infer; never quiz them on titles. *"I do the books"*
+   → Finance. *"I run a consultancy"* → Strategy / Leadership + Ops / Admin. *"Solo founder who codes"* →
+   Strategy / Leadership + Engineering. Say up front that hats are flexible and changeable any time.
 2. **Have you written code or used a terminal before — or is this new to you?** Map to a **tier**, independent
    of seat:
-   - *Level 1 — Visionary:* physical metaphors, every command written out, signups walked through click by click.
-   - *Level 2 — Operator:* standard terms, architectural tradeoffs, quick conceptual checks.
-   - *Level 3 — Hacker:* no metaphors, strictly-typed, direct execution inside approved boundaries.
+   - *Visionary* — physical metaphors, every command written out, signups walked through click by click.
+   - *Operator* — standard terms, architectural tradeoffs, quick conceptual checks.
+   - *Hacker* — no metaphors, strictly-typed, direct execution inside approved boundaries.
 3. **How much do you want to hear back?** Independent of tier — a beginner may want the full reasoning, an
    expert may want three words. **Never infer verbosity from experience level.** Offer:
    - *Brief* — the answer in a sentence or three. Trace lines for handoffs, nothing else.
@@ -37,8 +38,9 @@ Then, one at a time:
    Say plainly that they can change it any time — *"be brief"*, *"give me the full reasoning"* — and it sticks.
 4. **Are you running a business, building something, or managing your own work?** Tunes how much of the org is
    active, and whether a Reality Check is even relevant.
-5. **Which power tools would actually help?** Offer the 3–4 seat-kit skills for their seat(s). Build the ones
-   they pick; add the rest just-in-time.
+5. **Show them the power tools they already have.** Name the 3–4 seat-kit skills that ship for their seat(s) —
+   *"you're in Legal, so you've already got contract review, a client agreement drafter, an NDA drafter and a
+   privacy policy."* **Nothing is built here. They already exist on disk.** This is a tour, not a build step.
 
 ## 1.5 The hiring round
 
@@ -60,21 +62,19 @@ agent six months in, they shouldn't have to re-onboard to get it filed.
 
 ## 2. Write the profile
 
-Write `~/.claude/otto-profile.json`:
+Write `~/.claude/otto-profile.json`. **The schema — and the canonical seat list — is `docs/profile-schema.md`.
+Read it; do not invent a field or a seat name.**
 
 ```json
-{ "seats": ["Finance", "Ops"], "tier": "Level 2 — Operator", "verbosity": "balanced", "scale": "small business" }
+{ "seats": ["Finance", "Ops / Admin"], "tier": "Operator", "verbosity": "balanced", "scale": "business" }
 ```
 
-`verbosity` is `brief` | `balanced` | `thorough`. Otto reads this file at the start of each session, so
-*"be brief from now on"* is a one-field edit — never a rebuild.
+Otto reads this file on the first turn of every session, so *"be brief from now on"* is a one-field edit,
+never a rebuild. Re-seating later is the same. Say *"re-read my profile"* to apply it mid-session.
 
-If step 1.5 found anything, it adds a small `org` stanza here (schema in the `hiring-round` skill) — capped
-and cheap, because it records only preference, department, and collisions; existence is already free from
-the platform's own frontmatter injection.
-
-Otto reads the seats from here to set the co-pilot rule, and states the tier when he dispatches a robot.
-Re-seating later is a one-field edit — never a rebuild. Say *"re-read my profile"* to apply it mid-session.
+If step 1.5 found anything, it adds a small `org` stanza — capped and cheap, because it records only
+preference, department, and collisions. Existence is already free from the platform's own frontmatter
+injection, so we never duplicate it.
 
 ## 3. Tailor the org
 
@@ -111,11 +111,17 @@ This is the user's first handoff. Let them watch it:
     ↳ 🧰 Otto — seat set: Finance + Ops · tier: Operator · 3 departments retired
     ↳ 🤖 Switchboard (Chief of Staff) > 🧰 Otto — compaction at 75%, Gmail + Calendar connected
 
-## 5. Build the seat kit
+## 5. The seat kit — already installed, nothing to build
 
-Create only the skills they picked, in `~/.claude/skills/`. A seat-kit skill is a **cockpit for the human's
-seat** that routes the work outside that seat to the owning robot — it orchestrates the crew, it never
-replaces it. File every skill under its home robot.
+**Do not create any skills.** Every seat-kit skill ships with the plugin, on disk, byte for byte. A seat-kit
+skill is a **cockpit for the human's seat** that routes the work outside that seat to the owning robot — it
+orchestrates the crew, it never replaces it.
+
+Your job here is only to **say which ones are theirs**, in one line, in outcome terms rather than skill names
+where they are new to this. If they want something the crew genuinely lacks, that is a feature request — say
+so plainly and move on. **Do not write a skill file into their `~/.claude/skills/` to fill the gap:** it would
+duplicate a shipped skill under an unnamespaced name, and a hand-maintained parallel copy of a living product
+is the exact drift this plugin exists to eliminate.
 
 ## 6. Reality Check — only if they are building something
 

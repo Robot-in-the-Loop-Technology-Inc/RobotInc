@@ -35,16 +35,16 @@ unwritten one.
    - Platform constraints: app-store and payment-processor rules often set a floor or ceiling here that isn't
      optional. Docket needs to check this before anything is published.
 
-3. **Hand the cost side to Baudrate.** What does the current refund rate actually cost, and does the proposed
-   policy change that materially? Baudrate frames this as an estimate with assumptions, not a promise:
-   > Invoke `baudrate-cfo` (Task/Agent tool, or a step with `context: fork` + `agent: baudrate-cfo`) with the
-   > refund history and the proposed policy shape; ask for the cost delta and whether it's material.
+3. **The cost side is Baudrate's.** What does the current refund rate actually cost, and does the proposed
+   policy change it materially? He frames it as an estimate with assumptions, never a promise:
+   > **Hand back to Otto** with the refund history and the proposed policy shape, and ask him to put
+   > **💰 Baudrate** on the cost delta and whether it is material.
 
-4. **Hand the legal and compliance side to Docket.** The exact wording, the platform-compliance line (app
-   store / payment processor refund rules), and anything that becomes a legal commitment the moment it's
-   published are Docket's call, not this skill's:
-   > Invoke `docket-legal` (Task/Agent tool, or a step with `context: fork` + `agent: docket-legal`) with the
-   > policy shape from step 2 for the binding language.
+4. **The legal and compliance side is Docket's.** The exact wording, the platform-compliance line (app store
+   and payment-processor refund rules), and anything that becomes a legal commitment the moment it is
+   published are his call, not this skill's:
+   > **Hand back to Otto** with the policy shape from step 2 and ask him to put **📜 Docket** on the binding
+   > language.
 
 5. **Draft the customer-facing version in plain language**, short enough that a support reply can quote it
    directly. If the policy needs a sentence of legalese to be safe, put the legalese in the ToS and keep the

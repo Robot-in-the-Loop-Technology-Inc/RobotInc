@@ -4,7 +4,9 @@ description: Scaffold a new module/service with a clean structure and tests wire
 model: sonnet
 ---
 
-> **Home robot:** Bitforge (Engineering seat). Seat-kit cockpit for the human — delegates all non-seat work to the crew (spec→Vector, tests→Glitchtrap, audit→Cipherplate).
+> **Home robot:** 🔩 Bitforge (Engineer). Seat-kit cockpit for the human. **Robots cannot dispatch robots —
+> Otto mediates every handoff.** So "delegate" here means *hand back to Otto with what he needs to dispatch*:
+> spec → 🟣 Vector, tests → 🔘 Glitchtrap, audit → 🔒 Cipherplate.
 
 ## When to use
 The user is wearing the **Engineer hat** and wants to create a new module, service, endpoint, package,
@@ -17,18 +19,17 @@ This is a **cockpit for the human's build hat** — it produces the scaffold the
 ## Steps
 1. **Confirm the shape.** One question if unclear: language/framework, where it lives, and the single
    responsibility of the module. Match existing project conventions — read a sibling module first.
-2. **Get the spec from Vector.** For anything with a data model or API surface, delegate the schema +
-   route map + boundaries to the architect before writing code:
-   > Invoke `vector-architect` (via the Task/Agent tool, or a skill step with `context: fork` +
-   > `agent: vector-architect`) with the module's responsibility. Wait for the spec.
+2. **Get the spec from Vector — before any code exists.** For anything with a data model or API surface:
+   > **Hand back to Otto** with the module's single responsibility and ask him to put **🟣 Vector** on the
+   > schema, route map and boundaries. Wait for the spec; do not design it yourself.
 3. **Write the scaffold** on a `feature/<module>` branch (never on main). Clean, modular, typed to the
    project's standard. Stub the public surface; leave `TODO(owner)` markers for real logic.
-4. **Hand tests to Glitchtrap.** Do NOT write the tests here — delegate:
-   > Invoke `glitchtrap-qa` (`context: fork` + `agent: glitchtrap-qa`) to write unit/route tests
-   > alongside the scaffold and run them. Regression-first if this replaces something.
-5. **Audit before done.** Delegate a dependency + secret-hygiene pass:
-   > Invoke `cipherplate-security` (`context: fork` + `agent: cipherplate-security`) if any new deps,
-   > auth, or secrets were introduced. Confirm nothing landed outside `.env`.
+4. **Tests are QA's.** Do **not** write them here:
+   > **Hand back to Otto** and ask him to put **🔘 Glitchtrap** on unit/route tests alongside the scaffold.
+   > Regression-first if this replaces something.
+5. **Audit before done.** If any new dependency, auth path, or secret was introduced:
+   > **Hand back to Otto** and ask him to put **🔒 Cipherplate** on a dependency + secret-hygiene pass.
+   > Confirm nothing landed outside `.env`.
 6. **Self-healing loop.** Run lint/typecheck/build; on error read logs → fix → re-run until clean.
 7. **Report.** Print a short "Built:" list — files created, the branch name, and how to run the tests.
 

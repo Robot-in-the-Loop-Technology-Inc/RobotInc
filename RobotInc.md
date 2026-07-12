@@ -1,9 +1,9 @@
 ---
-name: hercules-otto-orchestrator
-description: A company of robots for Claude Code. Interviews the user, seats them in an org chart, retires the departments they don't need, and routes every task to the specialist who owns it. Ships as a plugin: real subagents, skills, commands and hooks — never generated, never drifting.
+name: robotinc-spec
+description: The design specification for RobotInc — a company of robots for Claude Code. What it is, why it works the way it does, and the reasoning behind the decisions, including the ones we got wrong and reversed. NOT the product and NOT installable; the product is the plugin in agents/, skills/, commands/, hooks/.
 category: orchestration
-author: Robot
-version: 21.6.0
+author: Robot in the Loop Technology Inc
+version: 22.0.0
 spec_version: agentskills.io/v1
 capabilities:
   - profile_based_mode_detection
@@ -28,9 +28,12 @@ capabilities:
   - self_improving_memory
 ---
 
-# 🤖 ROBOTINC — A Company of Robots (v21.1.0)
+# 🤖 ROBOTINC — A Company of Robots
 
 *RobotInc is the company. Otto 🧰 is its foreman.*
+
+*(Version is the `version:` field above. It is not restated here — a number in two places is a number that
+will disagree with itself, and this file has done exactly that before.)*
 
 > ## ⚠️ THIS IS THE DESIGN SPEC. IT IS NOT THE PRODUCT, AND IT IS NOT A FALLBACK.
 >
@@ -64,6 +67,23 @@ capabilities:
 > **The one rule that makes this real:** Otto does not *role-play* a company. The robots are **real Claude
 > Code subagents** — files on disk, dispatched by Claude Code itself. The personas below are a routing and
 > reasoning model; the deliverables are real files.
+>
+> ---
+>
+> ### ⚠️ TWO RULES FOR ANYONE EDITING THIS FILE
+>
+> **1. The tree is the truth. This file explains *why*; it never restates *what*.**
+> Colours, model pins, badges, robot counts, the profile schema — those live in `agents/` and
+> `docs/profile-schema.md`, and a copy here is a copy that will rot. It already did: this file spent five
+> versions insisting Baudrate was pinned to haiku *after we deliberately moved him to sonnet* — and it said so
+> in two tables that disagreed with each other. **If you are about to add a table that duplicates the tree,
+> add a pointer instead.**
+>
+> **2. The imperative sections are HISTORY, not instructions.**
+> Sections 1, 2 and 6 are written as commands to an AI ("On the first turn of every session, do this…").
+> They are the record of how the single-file seed worked, kept because the reasoning is still useful.
+> **The plugin implements all of it. Nothing here is a thing to run**, and an AI reading this file should
+> treat every imperative below as past tense.
 
 ---
 
@@ -239,11 +259,17 @@ of them back. A bookkeeper never meets the architect; a solo dev-founder keeps t
 | **Cathode** | 🟢 · green | `cathode-design` | Responsive UI, shotgun layout options | sonnet |
 | **Docket** | 📜 · green | `docket-legal` | Contracts, SOWs, NDAs, ToS, privacy policy — the clauses that actually hurt | sonnet |
 
-> **Eight colours, twelve robots.** Collisions are unavoidable, so they are *chosen*: every core robot is
-> distinct, and each collision pairs robots that never share a trace (Switchboard/Vector, Baudrate/Bitforge,
-> Dialtone/Glitchtrap, Cathode/Docket, Otto/Cipherplate — Otto is the main thread and never renders as a
-> subagent name). Badges are emoji and unlimited, so they are always unique. Never pair two robots that
-> co-occur — Bitforge with Glitchtrap, or anything with Patchbay.
+> **Eight colours, thirteen robots — so collisions are arithmetic, not a choice.** Claude Code accepts exactly
+> `red|blue|green|yellow|purple|orange|pink|cyan`, and there is no override. Any assignment of 13 into 8
+> collides five times, and **every possible arrangement has pairs that will sometimes co-occur** — a pricing
+> spec handed to the engineer puts Baudrate and Bitforge in the same trace, however you shuffle it.
+>
+> **We used to claim the pairs "never share a trace." That was not true, and saying it was worse than the
+> collision.** What is true: we minimise co-occurrence where we can, and **the badge is the real identity
+> channel.** Badges are emoji, unlimited, and unique — 🔩 is *always* Bitforge whatever colour the terminal
+> tints his name. The live colour is a hint; the badge is the answer.
+>
+> *(The actual `color:` for each robot is the `color:` field in `agents/`. Rule 1 of this file: no copy here.)*
 
 > **Legal is not Security.** Cipherplate audits dependencies and secrets; Docket reads the contract you are
 > about to sign. They were one robot until v16 and it served neither audience: a solopreneur needs the
@@ -302,12 +328,20 @@ Rules for seating:
 
 ### 5b. Seat kits — role-specific augmentation skills
 
-Each seat ships with a menu of **augmentation skills** that make the *human* sharper at the function(s) they
-hold the pen on, while still delegating everything else to the crew. Otto offers these at onboarding (Beat 5);
-build the picked ones at first run, add the rest JIT. Every kit skill is model-tiered (Section 8) and — this is
-the point — **orchestrates the org**: it calls the autopilot robots for work outside the seat instead of doing
-it alone. The kit is a cockpit for the human's seat(s) with the controls wired to the rest of the robots; it
-does not bypass them.
+Each seat comes with **augmentation skills** that make the *human* sharper at the function they hold the pen
+on, while still delegating everything else to the crew. A kit skill is a **cockpit for the human's seat**: it
+routes the work *outside* that seat to the owning robot rather than doing it alone. It orchestrates the org; it
+never bypasses it.
+
+> ⚠️ **The table below is the original MENU CONCEPT, not an inventory. Most of these skills do not exist.**
+>
+> It dates from the era when `/otto` *generated* skills on demand, so the table listed everything one might
+> plausibly want. **Nothing is generated any more** — every skill that exists ships with the plugin, on disk.
+> **`skills/` is the only truthful list**; the count is in `README.md` and gated by the validator.
+>
+> Kept because the *shape* of the idea is still right (a cockpit per seat, wired to the crew). **Do not read a
+> row here as a promise.** A prompt that named a skill we do not ship went out to every user, on every turn,
+> for six versions — see `agents/sonar-research.md` and the gate in `scripts/validate.mjs` that now forbids it.
 
 | Seat | Candidate power tools (offer, let them pick) | Wires into the crew |
 |---|---|---|
@@ -375,9 +409,15 @@ badge lives in prose. Each robot is identified once, in the right place:
 
 3. **Otto's own work** — routing, strategy, the Reality Check, sign-off — is badged **🧰 Otto**.
 
-| 🧰 Otto | 🟣 Vector | 🔩 Bitforge | 🔘 Glitchtrap | 🔒 Cipherplate | 🟢 Cathode | 🔵 Holovox | 💰 Baudrate | 🟠 Patchbay | 🔷 Sonar |
-|---|---|---|---|---|---|---|---|---|---|
-| — | Architect | Engineer | QA | Security | Design | Sales & Marketing | CFO | PM | Research |
+**The badge/role map lives in exactly two places, and they are checked against each other:** the roster table
+in `agents/otto-foreman.md` (what Otto relays in prose) and the `ROBOTS` map in `hooks/otto-trace.mjs` (what
+the durable log records). `scripts/validate.mjs` asserts they agree, and that both cover every robot in
+`agents/`.
+
+**That gate exists because this failed exactly as you would predict.** Gantry shipped; nobody added him to the
+hook; every one of his runs logged as an anonymous `🤍 gantry-delivery` with no role — and `/standup` reads
+that log, so the crew's own morning brief quietly reported one of its members as a stranger. **A third copy of
+the map, here in the spec, is how that happens twice.** So there isn't one.
 
 > ⚠️ **The `description` is ASCII-only. No emoji, no arrows, no middots — nothing above U+007F.**
 > The TUI lays that string out column by column, and a glyph whose width the renderer miscounts desyncs the
@@ -493,24 +533,12 @@ Rules for generated subagents:
   string is what drives Claude Code's auto-delegation. An agent whose description lacks it will sit idle
   forever while the main thread quietly does its job — that is a **build defect**, not a style choice. Before
   declaring the crew built, grep every agent file for `PROACTIVELY` and regenerate any that lack it.
-- `color`: **required.** Claude Code colors the subagent's name in the task list and transcript, which is how
+- `color`: **required.** Claude Code tints the subagent's name in the task list and transcript, which is how
   the human sees at a glance *which robot is working*. The accepted set is exactly
-  `red|blue|green|yellow|purple|orange|pink|cyan` — **eight colors, and the crew has nine robots**, so one
-  collision is unavoidable. Put it on two robots that essentially never appear in the same trace (Glitchtrap
-  the QA and Baudrate the CFO), never on two that co-occur constantly (Bitforge and Glitchtrap, or anything
-  and Patchbay). Current palette:
-
-  | Robot | `color:` | Badge | Why |
-  |---|---|---|---|
-  | Vector | `purple` | 🟣 | canon plasma-purple |
-  | Bitforge | `orange` | 🔩 | forge glow; most-invoked robot, must be unmistakable |
-  | Glitchtrap | `pink` | 🔘 | playful menace |
-  | Cipherplate | `red` | 🔒 | alarm; canon bronze has no slot |
-  | Cathode | `green` | 🟢 | canon phosphorus-green |
-  | Holovox | `blue` | 🔵 | canon cobalt |
-  | Baudrate | `pink` | 💰 | **deliberate collision** with Glitchtrap — QA and CFO never co-occur |
-  | Patchbay | `yellow` | 🟠 | clockwork brass |
-  | Sonar | `cyan` | 🔷 | canon teal |
+  `red|blue|green|yellow|purple|orange|pink|cyan` — **eight colours, thirteen robots**, so five collisions are
+  arithmetic. Minimise co-occurrence where you can and let the **badge** carry identity (see §5). **The
+  authoritative assignment is the `color:` field in each file in `agents/` — this spec keeps no copy of it,
+  because the copy it used to keep drifted into disagreeing with itself.**
 
 - **Badges live in prose, never in `name` and never in a Task `description`.** `name` must be lowercase letters
   and hyphens only — no emoji, no capitals (it is also the `agent_type` that hooks receive). There is no `icon`,
@@ -781,11 +809,16 @@ Otto distinguishes **real enforcement** (a hook/config/frontmatter field actuall
 
   **Model Tiering Policy (the default):**
 
-  | Model | Runs | Assigned to |
-  |---|---|---|
-  | **haiku** (cheap) | **bulk token ingestion** (read 200k, return a summary), formatting, file moves, status updates, test *runs*, boilerplate integration steps | Patchbay, QA test-runs, boilerplate skills |
-  | **sonnet** (mid) | features, refactors, debugging, design, tests, GTM copy, security audits, **pricing and unit economics** | Bitforge, Glitchtrap, Cathode, Holovox, Cipherplate, Baudrate; session default |
-  | **opus** (premium) | Reality Check, high-risk architecture, strategy, final sign-off | Otto (main thread), Vector |
+  | Model | Runs |
+  |---|---|
+  | **haiku** (cheap) | **bulk token ingestion** (read 200k, return a summary), formatting, file moves, status updates, sequencing, test *runs*, boilerplate integration steps |
+  | **sonnet** (mid) | features, refactors, debugging, design, tests, GTM copy, security audits, **pricing and unit economics** |
+  | **opus** (premium) | Reality Check, high-risk architecture, strategy, final sign-off |
+
+  **Which robot runs which tier is the `model:` field in `agents/` — not a list here.** The list that used to
+  live here said *"haiku: Patchbay"* and *"Baudrate: haiku"* for five versions **after** Baudrate was
+  deliberately moved to sonnet by the very reasoning printed below it. Rule 1 of this file exists because of
+  that paragraph.
 
   **The rule is "the tier the work demands" — NOT "the cheapest model that can do the job."** That older
   wording optimised *per-token price*, which is the wrong quantity. A cheap model that needs three retries
@@ -869,17 +902,18 @@ in a `git merge`.*
 ## 10. PROACTIVE COORDINATION (two examples)
 
 **A solopreneur: "a client wants to sign me to a retainer."** Otto routes it, each handoff yielding a real
-artifact: 📜 Docket (sonnet) reads the agreement and ranks the clauses that hurt → 💰 Baudrate (haiku) checks
-the rate against her cost-per-hour and flags that the payment terms are net-60 → 🔷 Sonar (sonnet) sources
-what a non-compete of that scope is actually enforceable as in her state → 🤖 Switchboard (sonnet) drafts the
-reply and puts the counter-signature in her calendar. Nothing is sent, nothing is signed. She reads four
-lines and makes one decision.
+artifact: 📜 Docket reads the agreement and ranks the clauses that hurt → 💰 Baudrate checks the rate against
+her cost-per-hour and flags that the payment terms are net-60 → 🔷 Sonar sources what a non-compete of that
+scope is actually enforceable as in her state → 🤖 Switchboard drafts the reply and puts the counter-signature
+in her calendar. Nothing is sent, nothing is signed. She reads four lines and makes one decision.
 
-**A builder: "set up subscription billing."** 🔵 Holovox (sonnet) drafts pricing copy → 💰 Baudrate (haiku)
-structures the Stripe tiers and a real `stripe-integration` skill → 🟣 Vector (opus) writes the subscription
-schema → 🔩 Bitforge (sonnet) writes migrations and webhook routes on a feature branch → 🟢 Cathode (sonnet)
-styles the checkout → 🔘 Glitchtrap (sonnet) writes a webhook test → 🔒 Cipherplate (sonnet) audits
+**A builder: "set up subscription billing."** 🔵 Holovox drafts pricing copy → 💰 Baudrate structures the
+Stripe tiers → 🟣 Vector writes the subscription schema → 🔩 Bitforge writes migrations and webhook routes on a
+feature branch → 🟢 Cathode styles the checkout → 🔘 Glitchtrap writes a webhook test → 🔒 Cipherplate audits
 dependencies and confirms the secrets are in `.env`.
+
+*(No model tiers annotated here — see Rule 1. They are in `agents/`, and the version of this paragraph that
+did annotate them was wrong about Baudrate for five releases.)*
 
 In both cases: if the human occupies the seat, that robot proposes and waits for their call; every other
 robot acts and reports. **Each handoff yields files, not narration.**
@@ -905,10 +939,15 @@ to a protected section requires an explicit yes **and** a backup of the file fir
 - **Repeated corrections to a robot** — if the user keeps fixing the same thing in a robot's output, propose
   refining that agent's `.md` so the lesson sticks.
 
-**Where it persists (portable):**
-- If the host has a native memory system (e.g. Claude Code's memory), write learnings there.
-- Otherwise append one-line entries to `~/.claude/otto-learnings.md` (global) or `./.claude/otto-learnings.md`
-  (project-specific), and reference that file from `CLAUDE.md` so it loads each session.
+**Where it persists — one file, and it is not this one.**
+
+`~/.claude/otto-profile.json`, defined once in **`docs/profile-schema.md`**. Style preferences go in `style`
+(`prefers` / `avoid` / `declined`), their own staff in `org`, their filing conventions in `workspace`. Otto
+reads it on the first turn of every session.
+
+*(An earlier design here described a second memory file, `otto-learnings.md`, plus writes into the global
+`CLAUDE.md`. Neither ships. **Two memory systems described and one implemented is how a crew ends up looking
+for a preference in a file nobody writes** — the profile is the only one.)*
 
 **The loop — propose → confirm → persist:**
 1. Notice a durable preference, a repeated correction, or a recurring pattern.

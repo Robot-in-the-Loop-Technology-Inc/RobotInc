@@ -1,5 +1,119 @@
 # Changelog
 
+## 22.0.0 — 2026-07-12
+
+**A full-repo consistency review, then one coherent correction — not a patchwork.**
+
+Every file read in one pass first, findings logged, *nothing changed while reviewing.* The doctrine layer came
+out clean: Tempo, Scale, `stuck-loop`, ownership, draft-never-send and the offer engine agree across Otto, all
+thirteen robots, `docs/doctrine.md` and the skills. **What had rotted was the plumbing underneath** — and five
+of the findings were things a stranger hits in their first hour.
+
+### The lies we were shipping
+
+- **🔷 Sonar's description claimed it "owns the deep-research skill." We do not ship that skill.** It is a skill
+  on the *maintainer's* machine — the exact leak we gated in `roll-call` two releases ago, except **worse**: a
+  description is injected into every user's context on **every single turn**, not drawn once. Now `market-scan`,
+  which exists.
+- **💰 Baudrate still taught *"the cheapest model that does the job"*** — the rule doctrine §3.2 explicitly
+  **resolved against**. Switchboard got the fix in 21.5.0; **Baudrate, the robot whose own move off haiku *is*
+  the case study, never did.** A settled doctrine that only some of the crew was told is worse than none: it
+  produces confident, contradictory advice.
+- **`/otto` still generated skills into `~/.claude/skills/`** while the README promised *"Nothing gets
+  generated. There is no step two."* A fossil of the pre-plugin era that would have duplicated shipped skills
+  under unnamespaced names on the user's own machine.
+- **Otto's dispatch rule contradicted its own example two lines below it** — *"never include the agent's name"*,
+  followed by `"Glitchtrap > Bitforge: …"`. **The validator *required* that example, so CI was enforcing the
+  contradiction.** The rule now says what it always meant: lead with the role; a `From > To` handoff chain is
+  the one exception.
+- **📦 The trace hook did not know Gantry exists.** Every one of his runs logged as an anonymous `🤍` with no
+  role — and **`/standup` reads that log**, so the crew's own morning brief reported one of its members as a
+  stranger.
+
+### Things that could not work as written
+
+- **Four skills told robots to dispatch robots.** *"Invoke `glitchtrap-qa` (`context: fork` + `agent:`)"* — but
+  every robot carries `disallowedTools: Agent`, and `context: fork` is not a Claude Code mechanism at all. A
+  robot handed that instruction either errors or **quietly does the work itself**, which is precisely the
+  *"department with no tools is a costume"* failure. All four now hand back to Otto, who dispatches.
+- **`unit-economics` said Baudrate is "pinned to haiku, cheap."** He is sonnet, deliberately.
+- **Thirteen robots were told to "escalate the model."** A robot's model is pinned frontmatter — **it cannot
+  escalate itself.** Only Otto can, by dispatching a robot pinned higher. This violated the crew's own rule
+  against dressing a discipline up as a system; here it was worse, instructing a capability that does not exist.
+
+### The magic gap
+
+**`/standup` — arguably the most coworker-like thing we have — was reachable only by typing `/standup`.** Our
+own central bet is *"they cannot ask for what they do not know exists."* Otto now **offers** the brief, in one
+line, when there is genuinely something to report (trace entries since they were last here, or a stale
+`TASKS.md`). Silence when there isn't — an offer to summarise an empty day is worse than none.
+
+And **a "no" now survives the session.** Declining the same offer twice is not a mood, it is a preference:
+Otto proposes writing it to `style.declined`, with a yes, and stops. **A colleague who suggests the same thing
+every Monday is nagging, and a nag gets muted.**
+
+### One profile, one seat list
+
+`otto-profile.json` was written by five files that each invented their own vocabulary (`"Ops"` was a seat name
+nowhere else in the product). **`docs/profile-schema.md` now defines the whole file once**, including the
+canonical seat list, and everything else points at it instead of restating it.
+
+### The spec stopped lying
+
+`RobotInc.md` opened by calling itself **`hercules-otto-orchestrator`** — two renames stale. Its title said
+v21.1.0 while its frontmatter said 21.6.0. It carried a colour table for **nine** robots that contradicted its
+own colour note **250 lines away**, a model table still assigning Baudrate to haiku, and a §5b menu of ~26
+"power tools" **most of which do not exist.**
+
+The file whose own banner warns that a stale parallel copy is *"the exact failure the plugin exists to
+prevent"* had become exactly that. It now carries **two rules for anyone editing it**: *the tree is the truth —
+this file explains why, it never restates what*, and *the imperative sections are history, not instructions.*
+Four duplicated tables replaced by pointers.
+
+We also **stopped claiming the colour collisions "never share a trace."** With 13 robots and 8 colours,
+collisions are arithmetic, and **every** arrangement has pairs that co-occur — a pricing spec handed to the
+engineer puts Baudrate and Bitforge in one trace however you shuffle it. **The badge is the identity channel;
+the colour is a hint.** Saying otherwise was worse than the collision.
+
+### The gates — this is what makes it durable
+
+Four of the five P0s were **the same disease**: a robot changed and its copies didn't. So the fix is not the
+fixes; it is that **this class can no longer recur silently.** Six new gates in `scripts/validate.mjs`:
+
+1. **Hook roster ↔ `agents/`** — every robot present, with badge and role matching Otto's table.
+2. **No prompt may claim a skill we don't ship.**
+3. **Doctrine tripwire** — no prompt may teach *"the cheapest model that can do the job."*
+4. **`context: fork`** — forbidden in skills.
+5. **README skill count** — the README was never checked; only the manifests were.
+6. The count regex is **no longer pinned to the phrase "seat-kit"** — rewording the line to the truthful *"38
+   skills"* would otherwise have silently disarmed the check. *(And "seat-kit" was itself a small lie: nine of
+   the 38 are company skills, not seat kits.)*
+
+**Every gate was negative-tested — broken deliberately, confirmed to fire, reverted.** And the doctrine gate
+**failed its own first test**: line-scoped, while the phrase wraps across lines, so it missed a real violation
+*and* tripped on a legitimate rejection of the rule. Rewritten, retested, green.
+
+> **A gate that has never failed is not a gate.** The one written to catch drift was itself broken, and only
+> trying to break it revealed that.
+
+### Efficiency, measured honestly
+
+Otto's prompt: **4,056 → 4,006 words.** Descriptions: **550 → 535.** Switchboard's description went from a
+72-word run-on to 47 — cheaper *and* a better routing signal, because a router matches on signal and the signal
+was drowning.
+
+**That is a smaller saving than the review projected, and the reason is worth stating: the same release added
+four capabilities to Otto** (the standup offer, declined-offers, the schema pointer, the handoff exception) —
+about 350 words of new function against ~400 words of trims. **Net: slightly cheaper per turn, with four new
+behaviours.** Dressing that up as a big win would be exactly the kind of number this crew is built to refuse.
+
+### Also
+
+All thirteen robots now carry **their own badge** in their intro line and **their own name** in the attribution
+example (every one of them previously signed as *Bitforge*), and **their own** activity-trace examples rather
+than another robot's work. The duplicated "recurring work → routine" block was folded into the `Notice waste`
+bullet — it is now in all thirteen instead of five, and stated once.
+
 ## 21.6.0 — 2026-07-12
 
 **They cannot ask for what they do not know exists. So the crew offers.**

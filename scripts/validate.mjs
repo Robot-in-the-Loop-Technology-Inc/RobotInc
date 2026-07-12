@@ -104,6 +104,41 @@ for (const f of agentFiles) {
   if (VS16.test(otto)) fail(`agents/${MAIN_THREAD}: contains a U+FE0F variation-selector emoji — will garble terminals`);
 }
 
+// ------------------------------------------------ doctrine tripwire (all prompts)
+// §3.2 of docs/doctrine.md resolved this on 2026-07-12: the rule is "the tier the
+// work demands", NOT "the cheapest model that can do the job" — which optimises
+// per-token price and ignores the redo. The old wording survived in Switchboard
+// for four versions after the doctrine changed, and in Baudrate — the robot whose
+// own move off haiku IS the case study — for six. A settled doctrine that only
+// some of the crew was told is worse than no doctrine: it produces confident,
+// contradictory advice. docs/ may quote the dead rule; a prompt may not.
+// Quoting the dead rule in order to REJECT it is correct and we do it in several
+// places. Teaching it is the failure. So: find every occurrence, and require a
+// negation immediately before it. Whitespace is normalised first because the
+// phrase wraps across lines — a line-scoped check missed a real violation during
+// its own negative test, which is the whole argument for negative-testing a gate.
+{
+  const CHEAPEST = /cheapest model that (?:can do|does|could do) the job/gi;
+  // "…never \"the cheapest model…\"" is a rejection; "…recommend the cheapest model…" is not.
+  // The article and any quoting/emphasis may sit between the negation and the phrase.
+  const NEGATED = /(?:never|not|rather than|instead of|replaced)\s*["“'*]*\s*(?:the\s+)?["“'*]*\s*$/i;
+  for (const dir of ['agents', 'skills', 'commands']) {
+    const walk = dir === 'skills'
+      ? readdirSync(join(REPO, dir)).map((d) => `${dir}/${d}/SKILL.md`).filter((p) => existsSync(join(REPO, p)))
+      : readdirSync(join(REPO, dir)).filter((f) => f.endsWith('.md')).map((f) => `${dir}/${f}`);
+    for (const p of walk) {
+      const flat = read(p).replace(/\s+/g, ' ');
+      for (const m of flat.matchAll(CHEAPEST)) {
+        const before = flat.slice(Math.max(0, m.index - 24), m.index);
+        if (!NEGATED.test(before)) {
+          fail(`${p}: teaches "the cheapest model that can do the job" — doctrine §3.2 replaced it with `
+             + `"the tier the work demands" (a cheap model that needs three retries costs more than one clean pass)`);
+        }
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------- skills
 const skillDirs = readdirSync(join(REPO, 'skills')).filter((d) => existsSync(join(REPO, 'skills', d, 'SKILL.md')));
 // `switchboard-chief-of-staff.md` -> `Switchboard`; `otto-foreman.md` -> `Otto`.
@@ -152,6 +187,44 @@ for (const d of skillDirs) {
 const naked = ROBOTS.filter((r) => r !== 'Otto' && !owned.has(r));
 if (naked.length) fail(`robots with no skills (a department without tools is a costume): ${naked.join(', ')}`);
 
+// ------------------------------------------- no prompt may name a skill we don't ship
+// Sonar's description said "owns the deep-research skill" for six versions.
+// deep-research is a skill on the MAINTAINER's machine — so every user was told,
+// on every single turn, that the crew owned a tool it does not have. The roll-call
+// leak (below) was the same disease and got a gate; this one is worse, because a
+// description is injected into context every turn rather than drawn once.
+{
+  const SHIPPED = new Set(skillDirs);
+  // Skills we deliberately reference but do not ship — the user may own them, or
+  // they belong to another plugin. Naming one is fine; CLAIMING it is not.
+  const CLAIM = /\bowns? the `?([a-z][a-z0-9-]+)`? skill\b|\bSkills?: \*\*`([a-z][a-z0-9-]+)`\*\*/gi;
+  for (const f of agentFiles) {
+    const s = read(`agents/${f}`);
+    for (const m of s.matchAll(CLAIM)) {
+      const id = m[1] || m[2];
+      if (id && !SHIPPED.has(id)) {
+        fail(`agents/${f}: claims the "${id}" skill, which this plugin does not ship (skills/ has no ${id}/). `
+           + `A prompt may say the user might own such a tool; it may never claim one as ours.`);
+      }
+    }
+  }
+}
+
+// ------------------------------------------- robots cannot dispatch robots
+// Every robot carries `disallowedTools: Agent` — Otto mediates every handoff. Four
+// skills nonetheless instructed robots to "Invoke `glitchtrap-qa` (context: fork +
+// agent: ...)", which is impossible for a robot and is not Claude Code syntax at
+// all. A robot handed that instruction either errors or quietly does the work
+// itself, which is the exact "department with no tools is a costume" failure the
+// crew exists to prevent. The correct pattern is: hand back to Otto; he dispatches.
+for (const d of skillDirs) {
+  const s = read(`skills/${d}/SKILL.md`);
+  if (/context:\s*fork/.test(s)) {
+    fail(`skills/${d}: uses "context: fork" — not a Claude Code mechanism, and robots deny the Agent tool. `
+       + `Hand back to Otto and let him dispatch.`);
+  }
+}
+
 // ---------------------------------------------------------------- commands
 const commands = readdirSync(join(REPO, 'commands')).filter((f) => f.endsWith('.md'));
 for (const req of ['otto.md', 'standup.md']) {
@@ -174,6 +247,34 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   const hooks = JSON.parse(read('hooks/hooks.json'));
   const events = Object.keys(hooks.hooks || {});
   if (events.join() !== 'SubagentStop') fail(`hooks.json must wire ONLY SubagentStop (got: ${events.join(', ') || 'none'})`);
+
+  // The hook's ROBOTS map must know every delegate robot, with the SAME badge and
+  // role as Otto's roster. It didn't: Gantry shipped and was never added here, so
+  // every one of his runs logged as an anonymous "🤍 gantry-delivery" with no role
+  // — and /standup reads this log, so the crew's own morning brief reported one of
+  // its own members as a stranger. Nothing caught it, because nothing was looking.
+  const mapped = new Map(
+    [...trace.matchAll(/^\s*'([a-z-]+)':\s*\['(.+?)',\s*'(.+?)',\s*'(.+?)'\]/gm)]
+      .map((m) => [m[1], { badge: m[2], name: m[3], role: m[4] }])
+  );
+  const delegates = agentFiles.filter((f) => f !== MAIN_THREAD).map((f) => f.replace(/\.md$/, ''));
+  for (const d of delegates) {
+    if (!mapped.has(d)) {
+      fail(`hooks/otto-trace.mjs: no entry for "${d}" — its runs would log as an anonymous 🤍 with no role, and /standup reads that log`);
+    }
+  }
+  for (const k of mapped.keys()) {
+    if (!delegates.includes(k)) fail(`hooks/otto-trace.mjs: maps "${k}", which is not a robot in agents/`);
+  }
+  // Badge + role must agree with Otto's roster, or the live trace and the durable
+  // log disagree about who did the work.
+  const ottoSrc = read(`agents/${MAIN_THREAD}`);
+  for (const [id, { badge, name, role }] of mapped) {
+    const row = new RegExp(`\\|\\s*${badge}\\s*\\|\\s*${name}\\s*\\|\\s*${role.replace(/[&]/g, '\\$&')}\\s*\\|`);
+    if (!row.test(ottoSrc)) {
+      fail(`hooks/otto-trace.mjs: "${id}" is ${badge} ${name} (${role}), which is not a row in Otto's roster — the log and the live trace would disagree`);
+    }
+  }
 }
 
 // ------------------------------------------------- plugin default settings
@@ -206,16 +307,27 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   const entry = (market.plugins || []).find((p) => p.name === 'robotinc');
   if (!entry) fail('marketplace.json: no plugin entry named "robotinc"');
 
-  for (const [where, desc] of [['plugin.json', plugin.description], ['marketplace.json', entry?.description]]) {
+  // The README is checked too. Its skill count went stale for three versions
+  // ("33 seat-kit skills" against a tree of 34) because only the manifests were
+  // gated — and the README is the page a stranger actually reads. The skill regex
+  // is deliberately NOT pinned to the phrase "seat-kit": it was, and rewording the
+  // line to the truthful "38 skills" would have silently disarmed the check.
+  // ("seat-kit" was itself a lie — roll-call, hiring-round and stuck-loop are
+  // company skills, not seat kits.)
+  for (const [where, desc] of [
+    ['plugin.json', plugin.description],
+    ['marketplace.json', entry?.description],
+    ['README.md', read('README.md')],
+  ]) {
     if (!desc) continue;
     for (const m of desc.matchAll(/(\d+)[ -]robot/g)) {
-      if (Number(m[1]) !== robotCount) fail(`${where}: description says "${m[0]}" but the tree has ${robotCount} robots`);
+      if (Number(m[1]) !== robotCount) fail(`${where}: says "${m[0]}" but the tree has ${robotCount} robots`);
     }
     for (const m of desc.matchAll(/(\d+) (?:model-tiered robot )?subagents/g)) {
-      if (Number(m[1]) !== robotCount) fail(`${where}: description says "${m[0]}" but the tree has ${robotCount} robot subagents`);
+      if (Number(m[1]) !== robotCount) fail(`${where}: says "${m[0]}" but the tree has ${robotCount} robot subagents`);
     }
-    for (const m of desc.matchAll(/(\d+) seat-kit skills/g)) {
-      if (Number(m[1]) !== skillDirs.length) fail(`${where}: description says "${m[0]}" but the tree has ${skillDirs.length} skills`);
+    for (const m of desc.matchAll(/(\d+)(?: seat-kit)? skills/g)) {
+      if (Number(m[1]) !== skillDirs.length) fail(`${where}: says "${m[0]}" but the tree has ${skillDirs.length} skills`);
     }
   }
 
