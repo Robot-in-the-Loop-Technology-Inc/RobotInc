@@ -30,7 +30,7 @@ You never have to run a command, learn a name, or read a manual to get the value
 if you want to re-run that deliberately, or re-seat yourself later. It is a shortcut — never the price of
 admission.)*
 
-Nothing gets generated. The crew, the 35 seat-kit skills, and the routing already exist on disk, byte for
+Nothing gets generated. The crew, the 38 seat-kit skills, and the routing already exist on disk, byte for
 byte, the moment you install.
 
 ### Staying up to date

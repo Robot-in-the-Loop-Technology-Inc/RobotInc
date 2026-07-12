@@ -1,5 +1,93 @@
 # Changelog
 
+## 21.5.0 — 2026-07-12
+
+**Somebody sweeps up. And when it's broken now, we go back to green first.**
+
+### Restore first, diagnose after
+
+Held back in 21.4.0 pending the conflict check. **It doesn't conflict — it *is* the tempo rule, correctly
+applied**, and that resolution is what makes it safe to ship.
+
+**A revert is the most reversible action available**: its undo is one line — *re-apply the commit.* Fixing forward
+under pressure means shipping untested code through a one-way door with the clock running and everyone watching,
+which is exactly the state the gate exists to resist. **Restore-first is not "act fast." It is "get out of the
+one-way lane."**
+
+Two limits keep it honest, and neither is optional:
+
+- **The revert is still a deploy.** It still goes through the door — said out loud, still gets a yes.
+- **A revert restores code, not consequences.** It does not un-send the email, un-charge the card, or un-mangle
+  the row. **Announcing green while the data is still wrong is the worst lie this crew can tell.**
+
+Then diagnose **on the corpse, not the patient** — reproduce off the live path. In Otto and all thirteen robots.
+
+### The workspace, the documents, the comms — 🤖 Switchboard's third mandate
+
+**Every robot arrives, works in the files it was handed, and leaves. Nobody looked at the shape of the place.**
+Now the Chief of Staff does — which is the right hire, not a new one: he already owned documents, inbox and
+follow-ups. A fourteenth robot for what the chief of staff exists to do would be an org chart with a redundant
+headcount, and it would cost ~61 tokens on every turn forever.
+
+**`workspace-hygiene`** — dead scratch files, the `output-final-v3-REAL.md` graveyard, abandoned spec folders.
+Its governing rule:
+
+> **You never delete. You propose, you show, you get a yes.** Deleting a file is a one-way door, **and it is the
+> door most likely to look like a floor.**
+
+And the insight that makes it genuinely safe rather than merely cautious — **judge a file by whether we could get
+it back, not by whether it looks disposable.** Those are different questions:
+
+| Status | If we are wrong |
+|---|---|
+| Tracked and committed | Git returns it. The only safe category. |
+| Untracked | **Gone forever.** |
+| **Git-ignored** | **Gone forever — and this is the trap.** `.env`, credentials, a local DB. It looks like debris *because* the repo cannot see it, and it is often the only copy in the world. |
+
+**The files that look most disposable are exactly the ones git cannot give back.** Ignored files never travel in a
+batch — own line, own reason, own yes. Nothing referenced anywhere is ever proposed (grep the name first: a
+"throwaway" script named in a CI workflow is load-bearing and badly named). And the build runs after — if it goes
+red, restore immediately.
+
+**`document-studio`** — real deliverables in real formats. **Never fakes one:** HTML written into a `.docx` is a
+lie with a file extension, and the human finds out in front of whoever they sent it to. Markdown, HTML, CSV, JSON
+and SVG always work; PDF/Word/Excel/slides get **checked for, never assumed**, and **nothing is ever installed to
+satisfy a format request.** The fallback is not a consolation prize: **a single self-contained HTML file opens
+anywhere, prints to a genuinely good PDF in two clicks, and pastes into Word with formatting intact.** *"No PDF
+tool here — open this and hit Print → Save as PDF"* is a coworker's answer. *"Unsupported format"* is a tool's.
+
+**`comms-draft`** — the customer update, release note, Slack post, investor email. **DRAFT. NEVER SEND.**
+
+> **An outbound message is the deepest one-way door in this product.** Code reverts. A deploy rolls back. **A
+> message to five hundred customers cannot be unsent.** And it holds even when an MCP connection puts sending one
+> call away — **capability is not consent.**
+
+Every claim must be sourced from something that exists on the machine — a commit, a doc, a test result. **A draft
+that invents a ship date is a promise the human never made**, and they discover they made it only when someone
+holds them to it. Missing facts leave a **visible gap** (`[NEEDS: the actual ship date]`), never a plausible
+filler: **a hole they can see is safe; a confident fabrication is not.** Plus the rule most outbound drafts break
+— **say the bad thing plainly**; a vague message about a real problem spares no one, it just means they find out
+later and trust you less.
+
+### Learning their filing, not imposing ours
+
+Conventions land in a new `workspace` block in `otto-profile.json` — **with a yes** — and are obeyed thereafter.
+If they keep specs in a folder called `stuff/`, **specs live in `stuff/`.** *A crew that keeps reorganising
+someone's desk to its own taste is not helping; it is a second job.*
+
+And per doctrine — *do it by hand before you automate it* — **no cleanup routine is ever proposed until cleanups
+have been run by hand**, because **an automated cleaner built on a guess about what is disposable is the single
+most destructive thing this crew could ship.**
+
+### Also
+
+- **Fixed a live doctrine violation.** Switchboard still told the crew to pick *"the cheapest model that can do the
+  job"* — the exact rule `docs/doctrine.md` §3.2 resolved **against**. It is now *"the tier the work actually
+  demands"*: a cheap model that needs three retries costs more than one clean pass. The doctrine had been settled
+  for four versions; the robot hadn't been told.
+- **Comms boundary named, not blended:** Dialtone answers **inbound** (a customer wrote in). Switchboard drafts
+  **outbound** (we have something to say and nobody asked).
+
 ## 21.4.0 — 2026-07-12
 
 **Three things a company does that a tool does not.**

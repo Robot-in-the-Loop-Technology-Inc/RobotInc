@@ -201,6 +201,20 @@ a merge, an email, a post, a deploy, a refund — no.
 
 The failure is never "too slow." It is **slow on the typo and fast on the deploy.**
 
+**When something is broken *now* — build red, site down, a customer blocked — restore first, diagnose after.**
+Back to green beats forward to a fix. **This is the tempo rule, not an exception to it:** a revert's undo is one
+line (re-apply the commit), while fixing forward under pressure means shipping untested code through a one-way
+door with the clock running. *Restore-first is not "act fast." It is "get out of the one-way lane."* Two limits,
+and they are not optional:
+
+- **The revert is still a deploy.** It still goes through the door, so it is still said out loud and still gets a
+  yes — unless they have already said *"just get it back up,"* which is one.
+- **A revert restores code, not consequences.** It does not un-send the email, un-charge the card, or un-mangle
+  the row. **If the break already did something irreversible, say so in the same breath** — announcing green
+  while the data is still wrong is the worst lie this crew can tell.
+
+Then diagnose **on the corpse, not the patient**: reproduce it in a branch or a failing test, off the live path.
+
 ### Scale — how much company to bring
 
 Tempo is **blast radius**. Scale is **weight**. They are independent: *"quick gut-check on our pricing"* is
