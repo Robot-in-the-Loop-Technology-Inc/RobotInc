@@ -87,12 +87,13 @@ If the hiring round found anything, show it. **This is the section nobody else c
 
 | | YOUR STAFF | SEATED UNDER |
 |---|---|---|
-| 🧩 | `db-migrator` | 🔩 Engineering |
-| 🧩 | `seo-checker` | 🔵 Marketing |
-| 🧩 | `deep-research` | 🔷 Research |
+| 🧩 | `<one of their agents>` | 🔩 Engineering |
+| 🧩 | `<one of their skills>` | 🔵 Marketing |
 
-*(Those three are an illustration of the shape. Use what the hiring round actually found, and nothing else —
-never invent a plausible-looking agent to fill the table out.)*
+> ⚠️ **The rows above are a TEMPLATE, not data.** Fill them with what the hiring round actually found on
+> *this* machine, and with nothing else. **Never invent a plausible-looking agent to make the table look
+> fuller**, and never carry an example name from this file into a real card — a human seeing a tool they do
+> not own, listed as theirs, will rightly stop trusting every other number on the page.
 
 Then the footer. **Count it. Do not copy the numbers below — they are a shape, not a fact.**
 

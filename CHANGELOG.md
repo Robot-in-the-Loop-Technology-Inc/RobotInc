@@ -1,5 +1,20 @@
 # Changelog
 
+## 20.3.1 — 2026-07-12
+
+**Fix: the company card leaked the maintainer's own config.**
+
+The `YOUR STAFF` example in 20.3.0 listed `deep-research` — a real skill from the maintainer's `~/.claude`,
+not a RobotInc skill. Shipped an hour earlier, in a public repo, dressed up as an illustration of the user's
+own tools.
+
+It is now an unmistakable template (`<one of their agents>`), and **the validator refuses to ship anything
+else**: any row in that table naming something other than a `<placeholder>` fails the build. Verified by
+re-introducing the leak and watching CI reject it.
+
+Why this matters beyond tidiness: a user who sees a tool they do not own, listed as *theirs*, stops trusting
+every other number on the page — and the whole card is a claim about their machine.
+
 ## 20.3.0 — 2026-07-12
 
 **The company card.** On first meeting, Otto now draws `robot.inc` — the wordmark, the full payroll, the

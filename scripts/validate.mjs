@@ -125,6 +125,29 @@ for (const d of skillDirs) {
   if (!ROBOTS.includes(r)) fail(`skills/${d}: names an unknown home robot: ${r}`);
   owned.add(r);
 }
+// ------------------------------------------- no personal config in the product
+// The maintainer's own machine is not the product. An example that names a real
+// tool from someone's private setup is a leak — and worse, a user who sees a tool
+// they do not own listed as *theirs* stops trusting every other number on the page.
+// This shipped once: the company card used `deep-research`, a skill from the
+// maintainer's ~/.claude, as an illustration of "your staff".
+{
+  // Anything the crew shows as an EXAMPLE of the user's own assets must be an
+  // obvious placeholder, never a name that could be somebody's real tool.
+  const card = existsSync(join(REPO, 'skills/roll-call/SKILL.md'))
+    ? read('skills/roll-call/SKILL.md') : '';
+  if (card) {
+    const staffRows = card.split('\n').filter((l) => /^\|\s*🧩/.test(l));
+    for (const row of staffRows) {
+      const id = (row.match(/`([^`]+)`/) || [, ''])[1];
+      if (id && !/^</.test(id)) {
+        fail(`skills/roll-call: the YOUR STAFF example names "${id}" — it must be a <placeholder>, `
+           + `never a real tool name. Someone's private config is not our illustration.`);
+      }
+    }
+  }
+}
+
 // A department with a name and no tools is a costume.
 const naked = ROBOTS.filter((r) => r !== 'Otto' && !owned.has(r));
 if (naked.length) fail(`robots with no skills (a department without tools is a costume): ${naked.join(', ')}`);
