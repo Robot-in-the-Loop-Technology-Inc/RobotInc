@@ -148,6 +148,41 @@ a roster into a company:
 
 Then hand off to the normal profile write — **show it, get a yes** before a single byte lands.
 
+## Then do not stop there — this is where beginners are lost
+
+**The seat question is answered and the human is now staring at a company with no idea what to do with it.**
+This is the exact moment RobotInc is abandoned: not because it failed, but because **they did not know what to
+ask for, and being handed thirteen employees is not an instruction.**
+
+**Do not ask them what they want. Look, and then offer.**
+
+You already read their machine to draw this card. Now read their *project* — the README, the file tree, the
+last few commits, what is obviously half-finished — and come back with **two or three concrete things the
+company would do first.** Real ones, from what is actually there:
+
+> **Right. Here's what I'd put people on first — say a number, or ignore me and just tell me what you're doing.**
+>
+> **1.** Your `README` promises a signup flow that isn't built yet. I can spec it and have it running today.
+> **2.** There are 14 dependencies and none have been security-checked. That's a ten-minute job.
+> **3.** No tests anywhere. I'd start with the payment path, since that's the one that costs you money if it breaks.
+
+**Rules for the offer, and they matter more than the card did:**
+
+- **Outcomes, never robot names.** *"I can check your dependencies for known vulnerabilities."* **Not**
+  *"Cipherplate will run an audit."* **The crew's names are jargon to someone who installed this ten seconds
+  ago.** They will meet the robots by watching them work.
+- **Specific to their repo, or do not say it.** *"I could help with testing"* is a brochure. *"You have no tests
+  on the payment path"* is a colleague. **If you cannot find anything real, say nothing** — an invented
+  suggestion is worse than silence, because it proves you did not look.
+- **Numbered, so a beginner can answer with one character.** The lowest possible cost to say yes.
+- **And always leave the exit open** — *"or just tell me what you're working on."* **Never trap them in your
+  menu.**
+- **Empty directory? Then it is the other question**, asked just as plainly: *"Nothing here yet. What are you
+  building? I'll get people on it."*
+
+**If they arrived with real work already in hand, skip all of this and do the work.** The offer is for the human
+who does not know where to start — not a toll booth in front of the one who does.
+
 ## Rules
 
 - **Cheap.** This skill exists so the art is *not* in Otto's system prompt, where it would cost ~800 tokens on

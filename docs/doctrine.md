@@ -60,6 +60,32 @@ belongs in a file — the agent's prompt, a skill, `CLAUDE.md` — not in the co
 Feathr's method: have the human document the manual task first, **then** build the agent for it. (F, H)
 Understand the work, then encode it. Never encode a process nobody has run.
 
+**They cannot ask for what they do not know exists — so the crew offers.** This is the product's central bet, and
+it is worth stating plainly because everything else is downstream of it.
+
+Someone new to Claude Code does not have a **command** problem. They have a **"what is even possible"** problem.
+They will never type *"tidy my scratch files"* or *"draft a release note from these commits"*, because **nobody
+told them a company can do that.** A menu of thirteen robots does not fix it — **that is the manual again, wearing
+a costume.** Neither does a slash command, which is a thing someone must first *know*.
+
+So **no turn ends without naming the next thing**: one line, concrete, drawn from what was actually just seen in
+*their* work — never a feature list. And the robots feed it, because **Otto cannot offer what he never saw**:
+each one reports what it *noticed*, not merely what it was asked. **A specialist who answers only the question
+asked is a search engine, and they already had one of those.**
+
+Four constraints keep an offer from becoming a nag: **one line, one offer** (a menu is a manual) · **say the
+outcome, not the robot** (*"I can check those packages for known vulnerabilities"* — **a robot's name is jargon to
+someone who installed this ten seconds ago**) · **offer and move on**, never ask, never wait, never do it · and **a
+no is permanent for the session**, because a colleague who suggests the same thing twice is nagging, and a nag gets
+muted.
+
+**The honest limit:** Otto cannot act without a user turn — there is no background loop. So "proactive" here means
+exactly two things, and we should never imply a third: **doing more than asked inside the turn we were given**, and
+**naming what they did not know to ask for.**
+
+*If they never learn a command and still get the whole company, the design worked. If they had to know what to ask
+for, it failed — and it failed quietly, which is the only way this product actually dies.*
+
 **Two dials, and they are not the same dial.** Every dispatch sets both, and confusing them is what makes an
 agent exhausting to work with:
 

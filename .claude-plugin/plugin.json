@@ -1,7 +1,7 @@
 {
   "name": "robotinc",
   "displayName": "RobotInc",
-  "version": "21.5.0",
+  "version": "21.6.0",
   "description": "Otto the crimson foreman plus a 13-robot crew as real, model-tiered Claude Code subagents — with proactive routing, per-turn reinforcement that survives compaction, and honest guardrails.",
   "author": {
     "name": "Robot in the Loop Technology Inc",

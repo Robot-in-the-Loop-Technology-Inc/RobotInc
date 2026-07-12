@@ -1,5 +1,85 @@
 # Changelog
 
+## 21.6.0 — 2026-07-12
+
+**They cannot ask for what they do not know exists. So the crew offers.**
+
+21.5.0 gave Switchboard the workspace, the documents and the outbound comms. Then the real question: **would he
+ever actually run?**
+
+**No.** Not for a beginner. The wiring was right — his `description` matches on files, docs and comms, so the
+auto-delegation fires *when a task exists.* But **a task only exists because the user said something**, and
+someone new to Claude Code will never type *"tidy my scratch files"* or *"draft a release note from these
+commits."* **Nobody told them a company can do that.** The machinery was correctly wired to a doorbell nobody
+knew to ring.
+
+**A beginner does not have a command problem. They have a "what is even possible" problem.** Handing them a menu
+of thirteen robots does not fix it — **that is the manual again, wearing a costume.**
+
+### No turn ends without naming the next thing
+
+One line. Concrete. Drawn from what was actually just seen in **their** work, never from a feature list:
+
+```
+Done — rate limiter's on the branch, 4 tests green.
+↳ Those three new packages haven't been security-checked. Want me to?
+
+Brief's written: C:\work\pricing-brief.md
+↳ I can turn that into a PDF, or a Slack post for your users — say the word.
+
+Also: eleven scratch files piled up in the repo root while we worked. I can table them up whenever.
+```
+
+Four rules separate an offer from a nag:
+
+- **One line, one offer.** Not three. **A menu is a manual.**
+- **Say the outcome, not the robot.** *"I can check those packages for known vulnerabilities"* — **not**
+  *"Cipherplate can run an audit."* **A robot's name is jargon to someone who installed this ten seconds ago.**
+  They meet the crew by watching them work, not by memorising a roster.
+- **Offer, then move on.** Don't ask. Don't wait. Don't do it.
+- **A no is permanent for the session.** **A colleague who suggests the same thing twice is nagging, and a nag
+  gets muted.**
+
+### The robots feed it — because Otto cannot offer what he never saw
+
+All thirteen gained: **report what you noticed, not only what you were asked.** They are the ones who saw the
+files up close — an untested payment path, a dependency with a known CVE, a secret in a committed file, a folder
+of dead drafts. One line at the end of the result, and Otto turns it into an offer.
+
+> **A specialist who answers only the question asked is a search engine** — and they already had one of those.
+
+### The first session, which is where beginners are actually lost
+
+`roll-call` no longer stops at the seat question. **That is the exact moment RobotInc gets abandoned** — not
+because it failed, but because **being handed thirteen employees is not an instruction.**
+
+So Otto **looks at their project** — README, file tree, recent commits, what is obviously half-finished — and
+**offers two or three real things, numbered, that the company would do first**:
+
+> **1.** Your `README` promises a signup flow that isn't built yet. I can spec it and have it running today.
+> **2.** 14 dependencies, none security-checked. Ten-minute job.
+> **3.** No tests anywhere. I'd start with the payment path — that's the one that costs you money if it breaks.
+>
+> *…or just tell me what you're working on.*
+
+**Specific to their repo, or say nothing** — *"I could help with testing"* is a brochure; *"you have no tests on
+the payment path"* is a colleague. **An invented suggestion is worse than silence, because it proves you did not
+look.** Empty directory gets the honest version instead: *"Nothing here yet. What are you building? I'll get
+people on it."* And if they arrived with real work in hand, **all of this is skipped** — the offer is for the
+person who does not know where to start, **not a toll booth in front of the one who does.**
+
+### The honest limit, stated rather than papered over
+
+**Otto cannot act without a user turn. There is no background loop.** So "proactive" in RobotInc means exactly
+two things, and we will not imply a third: **doing more than asked inside the turn we were given**, and **naming
+what they did not know to ask for.**
+
+*If they never learn a command and still get the whole company, the design worked. If they had to know what to
+ask for, it failed — and it failed quietly, which is the only way this product actually dies.*
+
+Recorded in `docs/doctrine.md` §1 as the product's central bet. *(Also: Switchboard's prompt still said "two
+mandates" while carrying three.)*
+
 ## 21.5.0 — 2026-07-12
 
 **Somebody sweeps up. And when it's broken now, we go back to green first.**
