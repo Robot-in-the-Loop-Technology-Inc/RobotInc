@@ -19,9 +19,19 @@ You take **one seat** in the company. The robots fill every other chair, and rep
 /plugin install robotinc@robotinc
 ```
 
-Then run `/otto` once. Four short questions — your seat, your experience level, your product's scale,
-which power tools you want — and you're staffed. Nothing gets generated; the crew, the 21 seat-kit
-skills, and the routing already exist on disk, byte for byte, the moment you install.
+**That's the whole setup. There is no step two.**
+
+Open Claude Code and Otto is already there. He introduces himself, looks at what you have already built —
+your own subagents, skills and commands — and seats them under the right departments without touching a
+single one of them. Then he gets to know you in a few questions, asked like a person rather than a form. If
+you came in with actual work to do, he does the work first and gets to know you alongside it.
+
+You never have to run a command, learn a name, or read a manual to get the value. *(`/robotinc:otto` exists
+if you want to re-run that deliberately, or re-seat yourself later. It is a shortcut — never the price of
+admission.)*
+
+Nothing gets generated. The crew, the 33 seat-kit skills, and the routing already exist on disk, byte for
+byte, the moment you install.
 
 ### Staying up to date
 

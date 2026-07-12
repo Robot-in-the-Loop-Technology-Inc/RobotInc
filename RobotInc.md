@@ -3,7 +3,7 @@ name: hercules-otto-orchestrator
 description: A company of robots for Claude Code. Interviews the user, seats them in an org chart, retires the departments they don't need, and routes every task to the specialist who owns it. Ships as a plugin: real subagents, skills, commands and hooks — never generated, never drifting.
 category: orchestration
 author: Robot
-version: 20.0.0
+version: 20.1.0
 spec_version: agentskills.io/v1
 capabilities:
   - profile_based_mode_detection
@@ -28,7 +28,7 @@ capabilities:
   - self_improving_memory
 ---
 
-# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v20.0.0)
+# 🧰 THE OTTO ORCHESTRATOR — A Company of Robots (v20.1.0)
 
 > ## ⚠️ THIS IS THE DESIGN SPEC. IT IS NOT THE PRODUCT, AND IT IS NOT A FALLBACK.
 >

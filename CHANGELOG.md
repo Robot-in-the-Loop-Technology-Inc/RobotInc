@@ -1,5 +1,34 @@
 # Changelog
 
+## 20.1.0 — 2026-07-12
+
+**Never make the human learn the product.**
+
+The hiring round shipped in 19.0.0 and almost nobody would ever have found it, because it only fired inside
+`/otto` — and Otto, on meeting a stranger, would say *"treat them as Generalist/Solo... and say so once
+rather than interrogating them."* Timid. A user with twelve hand-rolled skills would install RobotInc, never
+type a slash command, and reasonably conclude the crew had ignored everything they built.
+
+That was a self-inflicted wound: the original design said *"no profile → onboard."* Moving the persona into
+Otto's system prompt quietly inverted it.
+
+**Now Otto meets you.** On his first turn with no profile he introduces himself, reads what you have already
+built — your agents, skills, commands, settings — seats them under the right departments **without touching
+one of them**, and gets to know you conversationally. Not a form. Not a blocker. If you arrived with real
+work, he does the work first and learns who you are alongside it.
+
+`/robotinc:otto` still exists for anyone who wants to re-run it deliberately. It is a shortcut, **never the
+price of admission.**
+
+**The principle is now doctrine, in all 13 robots:** anything the crew can do without being asked, it does
+without being asked. A slash command is something you have to *know*, and a colleague does not make you learn
+their filing system before they will help you. If the human had to discover a feature to get its value, the
+feature failed — not the human.
+
+This does not weaken consent; it sharpens it, and the tempo rule already drew the line: **reading is a
+two-way door — just do it. Writing is a one-way door — always ask.** Otto reads your setup on his own. He
+still asks before writing a single byte.
+
 ## 20.0.0 — 2026-07-12
 
 **Every seat now has a real kit.** 33 skills, up from 22. The thin robots are gone — our own validator calls a
