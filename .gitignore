@@ -3,3 +3,7 @@
 # They must never ship to a public branch.
 README.draft.md
 *.draft.md
+
+# Claude Code writes .claude/settings.local.json when a plugin is enabled at project
+# scope. It is machine-local state and must never ship.
+.claude/
