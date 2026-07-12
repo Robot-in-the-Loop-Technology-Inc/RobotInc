@@ -12,15 +12,69 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The version gate below diffs against the previous commit.
+          fetch-depth: 2
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
       # Our own gates: the crew's invariants (PROACTIVELY triggers, model pins,
-      # Otto's roster, a home robot per skill, manifest counts, versions).
+      # Otto's roster, the trace hook's roster, a home robot per skill, the
+      # doctrine tripwire, manifest counts, versions).
       - run: node scripts/validate.mjs
 
       # Anthropic's gate: the same schema check the official plugin directory
       # runs on submission. --strict also fails on unrecognized fields. If this
       # breaks, we have silently dropped out of directory-eligibility.
       - run: npx -y @anthropic-ai/claude-code plugin validate . --strict
+
+      # ---------------------------------------------------------------------
+      # THE SHIPPED-BUT-INVISIBLE GATE.
+      #
+      # plugin.json's `version` is Claude Code's CACHE KEY. If the plugin's
+      # content changes and the version does NOT, an already-installed user's
+      # client sees the same version string and SKIPS THE UPDATE — they stay on
+      # the old build, forever, and nobody finds out. The fix ships to main, CI
+      # goes green, and it reaches nobody.
+      #
+      # That is the worst failure this repo can have: a release that looks
+      # delivered and is not. So: if anything a user installs has changed, the
+      # version must have changed too.
+      - name: A content change must carry a version bump
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          # Everything Claude Code actually copies to a user's machine.
+          SHIPPED='agents/ skills/ commands/ hooks/ settings.json .claude-plugin/'
+
+          if ! git rev-parse HEAD~1 >/dev/null 2>&1; then
+            echo "First commit on this branch — nothing to diff against. Skipping."
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- $SHIPPED || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No shipped files changed. No version bump required."
+            exit 0
+          fi
+
+          PREV=$(git show HEAD~1:.claude-plugin/plugin.json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version')
+          CURR=$(node -pe 'JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json","utf8")).version')
+
+          echo "Shipped files changed:"
+          echo "$CHANGED" | sed 's/^/  /'
+          echo ""
+          echo "plugin.json version: $PREV -> $CURR"
+
+          if [ "$PREV" = "$CURR" ]; then
+            echo ""
+            echo "::error::Shipped content changed but plugin.json version is still $CURR."
+            echo "::error::Claude Code uses that string as its cache key, so every EXISTING user"
+            echo "::error::would silently skip this update and stay on the old build."
+            echo "::error::Bump plugin.json (and RobotInc.md's frontmatter, which validate.mjs keeps in sync)."
+            exit 1
+          fi
+
+          echo "OK — the change is reachable by anyone who already installed."

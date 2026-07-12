@@ -1,5 +1,48 @@
 # Changelog
 
+## 22.2.0 — 2026-07-12
+
+**A release that looks delivered and isn't is the worst failure this repo can have. Now CI refuses one.**
+
+Verified the plugin install/update mechanics against Anthropic's docs rather than trusting memory, and found
+something load-bearing:
+
+> **`plugin.json`'s `version` is Claude Code's cache key.** Push a fix to `main` without bumping it and every
+> **already-installed** user's client sees the same version string and **skips the update entirely.** They stay
+> on the old build. CI goes green, the fix is on `main`, and **it reaches nobody.**
+
+We have bumped religiously every release, so nothing is broken today. But **nothing enforced it** — the
+validator checked that `plugin.json` and `RobotInc.md` *agree* on a version, never that it *changed*. That is
+the same disease as the whole 22.0.0 review: a rule held together by discipline with no gate under it, waiting
+for the first tired commit.
+
+**New CI gate:** if anything a user actually installs changes (`agents/ skills/ commands/ hooks/ settings.json
+.claude-plugin/`) and `plugin.json`'s version does not, **the build fails.** Tested both ways against the real
+22.0.0 → 22.1.0 diff: passes with the bump, fails without it.
+
+### Install instructions corrected
+
+- **Added `/reload-plugins` + a restart to the install block.** `/reload-plugins` is *supposed* to be enough,
+  but it does not currently rebuild the command index, so a restart is what actually makes every robot and
+  skill appear. **We would rather say so than have someone think the crew installed half-broken.**
+- **Stopped promising auto-update works hands-free.** It is **off by default for third-party marketplaces like
+  ours**, and there are open Claude Code issues where it refreshes the catalog *without reinstalling the
+  plugin* — leaving you on the old build **while reporting that you are current.** The README now vouches for
+  the manual path and says plainly why:
+
+  ```
+  /plugin marketplace update robotinc
+  /plugin update robotinc@robotinc
+  /reload-plugins
+  ```
+
+  *Turn auto-update on if you like; don't rely on it to have delivered a fix you are waiting for.*
+
+**An install is pinned**, which is the good news buried under all that: Claude Code records the version at
+install time and does not go hunting for a new one, so **nothing about someone's crew changes underneath
+them.** Updates are pulled, never pushed. And `~/.claude/otto-profile.json` — their seat, tier, verbosity, and
+everything the crew learned about them — lives outside the plugin and survives every update untouched.
+
 ## 22.1.0 — 2026-07-12
 
 **The one line of instruction this product gets.**

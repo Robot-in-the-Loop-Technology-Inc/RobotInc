@@ -17,7 +17,12 @@ You take **one seat** in the company. The robots fill every other chair, and rep
 ```
 /plugin marketplace add Robot-in-the-Loop-Technology-Inc/RobotInc
 /plugin install robotinc@robotinc
+/reload-plugins
 ```
+
+Then **restart Claude Code once.** `/reload-plugins` is supposed to be enough on its own, but it does not
+currently rebuild the command index — so the restart is what actually makes every robot and skill appear. We
+would rather tell you that than have you wonder why the crew looks half-installed.
 
 **That's the whole setup. There is no step two.**
 
@@ -35,14 +40,28 @@ byte, the moment you install.
 
 ### Staying up to date
 
-Turn auto-update on once and you inherit every improvement we ship, hands-free: `/plugin` → **Marketplaces**
-→ **robotinc** → **Enable auto-update**. Claude Code refreshes the catalog, updates the plugin, and prompts
-you to `/reload-plugins` when a new version lands.
+**Your install is pinned.** Claude Code records the version at install time and does not go looking for a new
+one — so nothing about your crew changes underneath you. When you want what we shipped since:
 
-Or update by hand: `/plugin marketplace update robotinc`
+```
+/plugin marketplace update robotinc     # refresh the catalog
+/plugin update robotinc@robotinc        # pull the new version
+/reload-plugins                         # then restart Claude Code
+```
 
-Your `~/.claude/otto-profile.json` — seat, tier, verbosity — is yours. It lives outside the plugin and
-survives every update untouched.
+**This manual path is the one we vouch for.** Auto-update exists — `/plugin` → **Marketplaces** → **robotinc**
+→ **Enable auto-update** — and when it works it does exactly what you'd hope. But it is **off by default for
+third-party marketplaces like ours**, and there are open Claude Code issues where it refreshes the catalog
+without actually reinstalling the plugin, leaving you on the old build while reporting you're current. Turn it
+on if you like; **don't rely on it to have delivered a fix you're waiting for.** Run the three lines above and
+you know.
+
+*(We'd rather say that than have you think you have a fix you don't. Every version we publish is a real bump —
+CI refuses a release whose content changed without one, because Claude Code uses that version string as its
+cache key: ship a fix without bumping it and every existing install silently skips the update.)*
+
+Your `~/.claude/otto-profile.json` — seat, tier, verbosity, what the crew learned about you — is **yours**. It
+lives outside the plugin and survives every update untouched.
 
 > **Upgrading from `otto@robotinc`?** The plugin was renamed in 16.2.0, and a rename is the one thing
 > auto-update cannot carry across. **Refresh the marketplace first** — your cached catalog still lists the
