@@ -1,5 +1,54 @@
 # Changelog
 
+## 21.2.0 — 2026-07-12
+
+**Two dials, not one. The crew now reads the size of the ask, not just the size of the risk.**
+
+Tempo shipped in 18.0.0 and answered *how carefully do we act* — the gate being reversibility: **can the undo
+be stated in one line?** Money, secrets, a merge, a deploy, a refund → no → **slow, always**. It was the right
+rule and it is unchanged.
+
+But it was only ever half the answer. Nothing told the crew **how much company to bring**. A human asking
+*"what's a sane rate limit here?"* could get a spec, an architecture pass, a branch and a checklist — and a
+human who asks for a recommendation and receives paperwork **stops asking.** That is the failure that ends the
+relationship, and it was live.
+
+So **Scale** now sits beside Tempo in Otto's prompt:
+
+| They asked for | What it gets |
+|---|---|
+| **An answer or a recommendation** | The answer. One robot, or none if it's a read. No branch, no spec, no files. |
+| **A small change** | The owner, straight to it. A branch if it touches code. Nothing else. |
+| **A feature** | Patchbay specs it → the owner builds → Glitchtrap verifies. Branch and a `TASKS.md`. |
+| **A build** | The whole floor: spec, architecture, Gantry's sequence, build, QA, security, sign-off. |
+
+**The two dials are independent, and the crossed cases are the point.** *"Quick gut-check on our pricing"* is
+high-stakes and still a one-robot answer — **stakes feed tempo, not scale.** *"Just deploy this tiny fix"* is a
+small ask through a one-way door — **size never unlocks a deploy.** Blending them yields the two worst agents
+there are: the one that writes a spec because the topic sounded important, and the one that pushes to prod
+because the diff looked small.
+
+**Routing is not ceremony.** Handing a one-line question to Sonar is one Task call and one line back. *Delegate
+by default* holds at every gear — what scales is how many robots and how much process, never whether we route
+at all. The two rules only *looked* like they were in tension.
+
+**Between gears, take the lower one and offer the next in one line** — *"Fixed it. Say the word and I'll spec it
+properly."* Over-building is unrecoverable; the human is already gone. Under-building isn't; the spec can always
+be added. The asymmetry sets the default.
+
+And the two robots whose entire job **is** process now have a floor:
+
+- **📦 Gantry** — *"A `TASKS.md` with two boxes in it is an insult dressed as rigour."* If the plan takes longer
+  to read than the work takes to do, he has not helped — he has taxed.
+- **📋 Patchbay** — on a question or a small change, *"you should not have been called."* Say so in one line, hand
+  it to the owner, and **do not manufacture a document to justify the dispatch.** A spec nobody asked for is
+  **a delay with a table of contents.**
+
+Recorded in `docs/doctrine.md` §1 as a whole-crew rule.
+
+**Cost:** ~180 tokens on Otto's per-turn prompt. Gantry's and Patchbay's rules live in their bodies, which load
+only when they are invoked — those are free until they run.
+
 ## 21.1.0 — 2026-07-12
 
 **You always know who is talking.**

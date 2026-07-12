@@ -60,6 +60,25 @@ belongs in a file — the agent's prompt, a skill, `CLAUDE.md` — not in the co
 Feathr's method: have the human document the manual task first, **then** build the agent for it. (F, H)
 Understand the work, then encode it. Never encode a process nobody has run.
 
+**Two dials, and they are not the same dial.** Every dispatch sets both, and confusing them is what makes an
+agent exhausting to work with:
+
+| | Reads | Sets |
+|---|---|---|
+| **Tempo** | Blast radius — *can the undo be stated in one line?* | How **carefully** we act |
+| **Scale** | The size of the ask — *a question, a change, a feature, a build* | How much **company** we bring |
+
+They are **independent**, and the crossed cases are the ones that matter. *"Quick gut-check on our pricing"* is
+high-stakes and still a one-robot answer — **stakes feed tempo, not scale.** *"Just deploy this tiny fix"* is a
+small ask through a one-way door — **size never unlocks a deploy.**
+
+Blending them yields the two worst agents there are: the one that writes a spec because the topic sounded
+important, and the one that pushes to prod because the diff looked small.
+
+**Between gears, take the lower one and offer the next.** Over-building a small ask is the failure that ends
+the relationship — ask for a recommendation, get a spec and a branch and a checklist, and you stop asking.
+Under-building is recoverable; the spec can always be added afterwards. The asymmetry decides the default.
+
 ---
 
 ## 2. Per-robot doctrine
