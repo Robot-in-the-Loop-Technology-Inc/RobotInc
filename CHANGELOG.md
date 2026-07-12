@@ -1,5 +1,41 @@
 # Changelog
 
+## 20.3.0 — 2026-07-12
+
+**The company card.** On first meeting, Otto now draws `robot.inc` — the wordmark, the full payroll, the
+user's *own* hired staff seated in their departments, and the seat question. Unprompted. No slash command.
+
+```diff
+  ██████╗  ██████╗ ██████╗  ██████╗ ████████╗    ██╗███╗   ██╗ ██████╗
+  ██████╔╝██║   ██║██████╔╝██║   ██║   ██║       ██║██╔██╗ ██║██║
+- ██║  ██║╚██████╔╝██████╔╝╚██████╔╝   ██║   ██╗ ██║██║ ╚████║╚██████╗
+- ╚═╝  ╚═╝ ╚═════╝ ╚═════╝  ╚═════╝    ╚═╝   ╚═╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
+```
+
+Duotone: the letter faces off-white, the shadow crimson. A plugin **cannot** draw a startup banner — no hook's
+stdout reaches the terminal, ANSI codes are rejected, and plugins can't set `statusLine`. The only surface is
+the main-thread agent's first message, so that is what we use. The colour comes from a `diff` fence (`-` rows
+render red; space-prefixed rows render default **and stay aligned**, because two spaces occupy the same width
+as `- `).
+
+Glyphs are Block Elements and Box Drawing — **not emoji** — so no variation-selector width bug and no platform
+variance. 70 columns, fits the 80-column default. Below ~70 it wraps; a skill cannot read terminal width, so
+that limit is known and accepted. Every other failure degrades gracefully: no highlighting gives a grey
+logotype, a light theme gives dark-on-red. Nothing becomes garbage.
+
+**The row that matters is `YOUR STAFF`** — not our tools, *their people*, seated in their own org chart.
+That's the section a standalone agent CLI cannot draw.
+
+**It costs nothing until it's drawn.** The art lives in a skill, not Otto's system prompt, where it would have
+cost ~800 tokens on every turn forever.
+
+**And the counts are derived, never remembered.** The card's first draft hardcoded "33 skills" — and the
+validator caught it lying, because adding `roll-call` made it 34. A card that overstates the company is a lie
+the human catches on day two, and after that nothing you say is trusted.
+
+`robot.inc` is a **logotype, not a rename.** The plugin is still `robotinc`; install is still
+`robotinc@robotinc`; agents still render `robotinc:bitforge-engineer`.
+
 ## 20.2.0 — 2026-07-12
 
 **RobotInc is the employer. Otto is its foreman.**
