@@ -1,5 +1,57 @@
 # Changelog
 
+## 22.3.0 — 2026-07-12
+
+**"I've filed your people, and I haven't touched one of them" — said as a sentence, and then shown.**
+
+The card *claimed* to seat the user's own tools. It showed a **two-row table** (one agent, one skill), and the
+promise that nothing was overwritten appeared as **three words in a footer**. Three things were wrong with that:
+
+**It never showed hooks, commands or MCP servers.** The hiring round *walks* all of them — `~/.claude/hooks`,
+`commands/`, `settings.json`'s `mcpServers` — and then the card silently dropped them. Someone with a
+`pre-commit` hook and a GitHub MCP server saw no evidence either had been noticed, let alone kept.
+
+**It never surfaced a collision.** This is the one that actually matters. Claude Code resolves an agent by
+**name**, and a user-level file **wins**. So someone who owns `~/.claude/agents/bitforge-engineer.md` has had
+**their** agent running all along and ours has **never executed** — and the platform says nothing. The card was
+the one place they'd find out, and it didn't tell them. **They are entitled to know that before they trust a
+word of the roster.** It now goes *above* the table, in plain language:
+
+> ⚠️ **You have your own `<name>` — and it outranks mine.** Yours is what actually runs; my `<name>` has never
+> executed on this machine. **Yours keeps the job.** I haven't touched your file and I won't.
+
+**And the promise was buried.** *"nothing overwritten"* in a footer is not reassurance — **it is the fear they
+arrived with**, that installing a company of robots means something they built gets bulldozed. It costs one
+sentence to answer, so it now gets one, before any table:
+
+> **You already have staff. I've filed them, and I haven't touched a single one.**
+> Nothing of yours was renamed, moved, disabled, or overwritten — the only thing that changed is *my record* of
+> who works here.
+
+### The org chart, not an inventory
+
+The table now carries **what each thing is** and **who it now reports to** — because *"a skill of mine now
+reports to Marketing"* only lands if you can see that it is a skill:
+
+| | THEIRS | WHAT | NOW REPORTS TO |
+|---|---|---|---|
+| 🧩 | `<their agent>` | agent | 🔩 Bitforge · Engineering |
+| 🧩 | `<their skill>` | skill | 🔵 Holovox · Marketing |
+| 🧩 | `<their command>` | command | 📋 Patchbay · Product |
+| 🧩 | `<their hook>` | hook | 🤖 Switchboard · Ops |
+| 🧩 | `<their MCP server>` | mcp | 🤖 Switchboard · Ops |
+
+**Hooks, MCP servers and settings always file under 🤖 Switchboard** — they are the *environment*, and the
+environment is the Chief of Staff's department. **Do not strain to give a hook a department it does not have:**
+a `PreToolUse` guard is not "Engineering" because it happens to fire on `Edit`. `hiring-round` now records a
+`kind` alongside the department, because **Otto's card can render that column but cannot invent it.**
+
+An **empty payroll still gets one line and no ceremony** — `13 robots · 38 skills · clean slate`. A clean start
+is not a hole, and a "none found" table makes it look like one.
+
+*(The gate that stops a real tool name from the maintainer's own machine appearing in these example rows was
+re-tested against the new table. It still fires.)*
+
 ## 22.2.0 — 2026-07-12
 
 **A release that looks delivered and isn't is the worst failure this repo can have. Now CI refuses one.**

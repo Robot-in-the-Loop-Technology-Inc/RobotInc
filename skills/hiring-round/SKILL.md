@@ -87,6 +87,15 @@ beats a later one:
 | routable but genuinely ambiguous | one grouped question, default `peer` |
 | not routable at all (journals, scratch notes, prompt experiments) | `reference` |
 
+**Hooks, MCP servers and `settings.json` entries always file under 🤖 Switchboard.** They are the *environment*,
+and the environment is the Chief of Staff's department. **Do not strain to give a hook a department it does not
+have** — a `PreToolUse` guard is not "Engineering" because it happens to fire on `Edit`.
+
+**Record the `kind` alongside the department** — `agent | skill | command | hook | mcp`. The human is not
+looking at an inventory, they are looking at **their own org chart**, and *"a skill of mine now reports to
+Marketing"* only makes sense if they can see that it is a skill. Otto's card renders this column; it cannot
+invent it.
+
 **Confidence is recorded, not hidden**: `high | medium | low | unclassified`. Only `high`, or `medium`
 confirmed by the user, may ever become a `prefer` route. A misfiled asset defaults to `peer`, which is
 harmless — Claude Code was already going to surface it on its own description.
@@ -137,9 +146,17 @@ the rest sit in the cold file as `overflow`.
 
 ### 5. Report as an org chart, then get a yes
 
-Group by department. Lead with collisions (they're the correctness bug), then the `prefer` shortlist, then
-everything else in one line each. **Nothing is written before this report** — inventory and classification
-are pure reads; the report is the product, the write is the receipt.
+**Lead with the promise, in a sentence, before any table:** *nothing of theirs was renamed, moved, disabled or
+overwritten; the only thing that changed is our record of who works here.* **This is the fear they arrived
+with** — that installing a company of robots means something they built gets bulldozed — and it costs one line
+to answer. Do not make them infer it from a word in a footer.
+
+Then **collisions first** (they are the correctness bug), then the org chart itself: every asset with its
+**kind** and **the robot it now reports to**, grouped by department. Then the `prefer` shortlist. Everything
+else, one line each.
+
+**Nothing is written before this report.** Inventory and classification are pure reads; **the report is the
+product, and the write is only the receipt.**
 
 For a payroll of size N, this is at most three asks, never N: one yes on the classification table, one yes
 *per collision*, one yes on the `prefer` shortlist as a whole list. Everything unasked defaults to `peer`.

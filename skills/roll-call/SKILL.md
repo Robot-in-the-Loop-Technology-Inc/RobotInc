@@ -95,35 +95,69 @@ but in prose the badge is what makes each robot recognisable.
 **Never invent a robot, a badge, or a tier.** Skip any department the human has retired — do not introduce
 someone who will not answer.
 
-## Their own staff — the row that matters
+## Their own staff — the section nobody else can draw
 
-If the hiring round found anything, show it. **This is the section nobody else can draw:** not our tools,
-**their people**, seated in their own org chart.
+If the hiring round found anything, show it. Not our tools — **their people, seated in their own org chart.**
+And say the promise **as a sentence**, not as a word buried in a footer, because **this is the fear they
+arrived with**: that installing a company of robots means something they built gets bulldozed.
 
-| | YOUR STAFF | SEATED UNDER |
-|---|---|---|
-| 🧩 | `<one of their agents>` | 🔩 Engineering |
-| 🧩 | `<one of their skills>` | 🔵 Marketing |
+> **You already have staff. I've filed them, and I haven't touched a single one.**
+> Nothing of yours was renamed, moved, disabled, or overwritten — the only thing that changed is *my record*
+> of who works here.
 
-> ⚠️ **The rows above are a TEMPLATE, not data.** Fill them with what the hiring round actually found on
-> *this* machine, and with nothing else. **Never invent a plausible-looking agent to make the table look
-> fuller**, and never carry an example name from this file into a real card — a human seeing a tool they do
-> not own, listed as theirs, will rightly stop trusting every other number on the page.
+Then show **where each one landed and who it now answers to.** That is the whole point: not an inventory, an
+**org chart with their tools in it.**
 
-Then the footer. **Count it. Do not copy the numbers below — they are a shape, not a fact.**
+| | THEIRS | WHAT | NOW REPORTS TO |
+|---|---|---|---|
+| 🧩 | `<one of their agents>` | agent | 🔩 Bitforge · Engineering |
+| 🧩 | `<one of their skills>` | skill | 🔵 Holovox · Marketing |
+| 🧩 | `<one of their commands>` | command | 📋 Patchbay · Product |
+| 🧩 | `<one of their hooks>` | hook | 🤖 Switchboard · Ops |
+| 🧩 | `<one of their MCP servers>` | mcp | 🤖 Switchboard · Ops |
 
-The robot count is the rows in the payroll table minus any the human retired. The skill count is real, and it
-moves every release — never quote a number from memory or from this file, which will be stale the moment
-someone adds a skill. If you cannot count something, leave it out rather than guess.
+**Hooks, MCP servers and settings always file under 🤖 Switchboard** — they are the *environment*, and the
+environment is the Chief of Staff's department. Do not strain to give a hook a department it does not have.
 
-> `13 robots · 34 skills · 3 of yours hired · nothing overwritten`
+> ⚠️ **These rows are a TEMPLATE, not data.** Fill them with what the hiring round actually found on *this*
+> machine, and with nothing else. **Never invent a plausible-looking tool to make the table look fuller**, and
+> **never carry an example name out of this file into a real card.** A human who sees a tool they do not own,
+> listed as theirs, will rightly stop trusting every other line on the page. *(This shipped once. There is a
+> validator gate for it now.)*
 
-**If they have no staff of their own, cut that section entirely.** No empty table. No "none found," as though
-something were missing. An empty payroll is a clean start, not a hole — the footer simply reads
-`13 robots · 34 skills · clean slate`.
+### The collision — say it first, and say it plainly
+
+**If one of their agents shares a name with one of our robots, that is the most important line on the card**,
+and it goes **above** the table, not inside it.
+
+Claude Code resolves an agent by **name**, and a user-level file **wins**. So if they own
+`~/.claude/agents/bitforge-engineer.md`, **theirs has been running all along and ours never has** — and the
+platform said nothing about it. **They are entitled to know that before they trust a word of this roster.**
+
+> ⚠️ **You have your own `<name>` — and it outranks mine.** Yours is what actually runs; my `<name>` has never
+> executed on this machine. **Yours keeps the job.** I haven't touched your file and I won't.
+
+Never dress this up, never bury it, and **never quietly "fix" it by editing their file.** Offer, if they want:
+keep theirs (the default — zero files touched), rename theirs (only on an explicit yes, with the diff shown
+first), or decide later. **And never propose a `permissions.deny` on a name they own** — the deny is keyed on
+the *name*, so it would disable **their** agent, not ours. That was a real shipped bug.
+
+## The footer
+
+**Count it. The numbers below are a shape, not a fact — never copy them.**
+
+The robot count is the payroll rows minus any department they retired. The skill count is real and moves every
+release; **never quote it from memory or from this file, which is stale the moment someone adds a skill.** If
+you cannot count something, leave it out rather than guess.
+
+> `13 robots · 38 skills · 5 of yours hired · nothing of yours touched`
+
+**If they have no staff of their own, cut the whole section.** No empty table. No "none found," as though
+something were missing. **An empty payroll is a clean start, not a hole** — the footer simply reads
+`13 robots · 38 skills · clean slate`, and you move on without ceremony.
 
 A card that overstates the company is a lie the human catches on day two, and after that nothing you say is
-trusted. This is the whole reason the numbers are counted and not remembered.
+trusted. **That is the whole reason these are counted and not remembered.**
 
 ## Then make it interactive — this is the actual feature
 
