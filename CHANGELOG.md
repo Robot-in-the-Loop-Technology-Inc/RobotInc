@@ -1,5 +1,25 @@
 # Changelog
 
+## 20.2.0 — 2026-07-12
+
+**RobotInc is the employer. Otto is its foreman.**
+
+Twelve of the thirteen robots introduced themselves as belonging to *"the Otto crew"*, and the spec was titled
+*"THE OTTO ORCHESTRATOR."* That made Otto the company. He isn't — he works for it, exactly like the rest of
+them, and exactly like the human's own hired staff. The company belongs to the **human**.
+
+- *"the Otto crew"* → *"the RobotInc crew"*, in every robot.
+- The spec is retitled **ROBOTINC**. Otto is named as its foreman, not as the product.
+- Otto's own prompt now opens by saying so: RobotInc is the employer, he is its foreman, the company is the
+  human's, and he must never speak as though it belongs to him.
+
+**Otto is still the CEO and strategist — because that is his seat.** Strategy/Leadership is Otto's the way
+Engineering is Bitforge's and Legal is Docket's, and it obeys the same rule as every other seat: **if the
+human sits in it, the robot who owns it becomes their co-pilot.** Sit in Strategy and Otto proposes and waits
+for your call rather than deciding. Every seat you don't take runs on autopilot and reports.
+
+That is the whole promise, and it only works if the company is yours and Otto merely runs the floor.
+
 ## 20.1.0 — 2026-07-12
 
 **Never make the human learn the product.**
