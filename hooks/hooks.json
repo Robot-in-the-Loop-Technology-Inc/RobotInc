@@ -1,5 +1,17 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[RobotInc Auto-Onboarding]\nBefore replying: check <config>/.otto-met (CLAUDE_CONFIG_DIR if set, else ~/.claude).\nMissing -> run roll-call before your first reply (banner, card, seat question). No command needed.\nPresent -> skip roll-call. Read <config>/otto-profile.json. Unless style.avoid has session-start-brief,\nread ./TASKS.md and ./.claude/otto-trace.log in THIS directory only, and open with a capped brief\n(doing items + last 2 trace lines, max 5 lines, no headers). Nothing to report -> just ask\nWhat can I help with?'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "hooks": [

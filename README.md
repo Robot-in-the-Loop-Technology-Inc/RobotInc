@@ -183,11 +183,16 @@ already have.
 
 ## What this does to your machine (read this)
 
-RobotInc installs exactly **one** hook: `hooks/otto-trace.mjs`, which fires when a robot finishes and
-appends one line to `otto-trace.log`. It sends nothing anywhere. It's the only part of the plugin that
+RobotInc installs exactly **two** hooks, and neither sends anything anywhere. `hooks/otto-trace.mjs` fires
+when a robot finishes and appends one line to `otto-trace.log`. It's the only part of the plugin that
 touches `node`, and it's best-effort — without Node on your PATH, the log simply isn't written. Nothing
 else breaks: the handoffs still render in Claude Code's native subagent UI, and routing is unaffected,
 because routing lives in Otto's system prompt, not in a hook.
+
+A second hook fires once, at session start: a bare shell `echo` of a static string, no script file and no
+runtime — it just reminds Otto in-context to check whether he's met you yet. If it fails to fire for any
+reason, nothing breaks: the same rule is written in full in Otto's system prompt, so behaviour degrades to
+that, never to a crash and never to a repeated first meeting.
 
 Claude Code shows no consent dialog and no sandbox for plugin hooks — true of every plugin you'll ever
 install, this one included. The file is short and dependency-free. Read it before you install; that

@@ -184,6 +184,20 @@ something were missing. **An empty payroll is a clean start, not a hole** — th
 A card that overstates the company is a lie the human catches on day two, and after that nothing you say is
 trusted. **That is the whole reason these are counted and not remembered.**
 
+## Write the sentinel — the moment the card is drawn, not after
+
+Write `<config>/.otto-met`: one line, the current UTC timestamp in ISO 8601 (e.g. `2026-07-13T12:34:56Z`).
+Overwrite it every time this card is drawn, first meeting or on request — the timestamp is a "last drawn," not
+a one-time flag.
+
+**Do this now, before the seat question below** — not after it. This is what covers the human who sees the
+card, has no time to answer the seat question, and closes the session. Without the sentinel written *here*,
+they would get the whole card again next time, which is the exact noise this skill exists to prevent.
+
+**This file is operational bookkeeping, not consent.** It records only "this machine has seen the card." It
+never substitutes for `otto-profile.json`, which still requires an explicit yes before a single byte lands —
+writing the sentinel is not writing the profile, and must never be treated as one.
+
 ## Then make it interactive — this is the actual feature
 
 The card is not the point. **The question under it is.**
