@@ -328,6 +328,31 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
       if (/\bnode\b|\bpython3?\b|\.mjs\b|\.py\b/.test(h.command || '')) {
         fail('hooks.json: SessionStart command references node/python/a script file — the whole point of this hook is zero runtime dependency, see the comment above');
       }
+      // The command is a single-quoted shell literal: echo '<payload>'. In
+      // BOTH bash and PowerShell, a literal apostrophe INSIDE that payload
+      // closes the quote early — the rest of the string is re-parsed as
+      // shell syntax, silently, with no error surfaced anywhere a human
+      // would see it, on exactly the bare-Windows machine this hook exists
+      // for. That is otto-brief.mjs's failure ("undefined behaviour a
+      // stranger discovers") wearing a different hat, so it is gated here,
+      // not left to survive on a sentence in a comment. Escaping is
+      // deliberately not offered as the fix: bash needs '\'' and PowerShell
+      // needs '' to embed a literal quote inside a single-quoted string, and
+      // those two escapes are NOT interchangeable — supporting one would
+      // require per-shell command strings, which defeats the entire point
+      // of one portable literal. The only sound rule is zero, always.
+      const cmd = h.command || '';
+      const firstQuote = cmd.indexOf("'");
+      const lastQuote = cmd.lastIndexOf("'");
+      if (firstQuote === -1 || lastQuote <= firstQuote) {
+        fail(`hooks.json: SessionStart command is not wrapped in the expected single-quoted literal — cannot verify it is apostrophe-safe`);
+      } else if (cmd.slice(firstQuote + 1, lastQuote).includes("'")) {
+        fail(`hooks.json: SessionStart command payload contains an apostrophe (U+0027) — it closes the single-quoted `
+           + `literal early in BOTH bash and PowerShell, and the remainder re-parses as shell syntax, silently, on a `
+           + `bare-Windows machine with no error a human will ever see. Rephrase to avoid it ("does not", not `
+           + `"doesn't"). Do not substitute a typographic apostrophe (U+2019) as an escape hatch unless it has been `
+           + `empirically verified byte-identical through both shells — it has not been.`);
+      }
       if (!(h.timeout > 0 && h.timeout <= 10)) fail(`hooks.json: SessionStart timeout is ${h.timeout}, expected a small bounded number (<=10s) — this hook must never hang session start`);
     }
   }
