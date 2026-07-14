@@ -301,10 +301,13 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
 // from its own rule is worse than no example: it is the thing a future edit copy-pastes.
 {
   const otto = read(`agents/${MAIN_THREAD}`);
-  const GRAMMAR = /^ {4}· \S+ [A-Z][A-Za-z]+ — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/m;
+  // Grammar converged with the ↳ relay line (2026-07-14, the write-path weld): badge, Name, (Role), item,
+  // note, then the written copy's date suffix. Two prefixes share this same body — `↳ ` shown to the human,
+  // `· ` written to otto-state.md — so the example pair below must both match.
+  const GRAMMAR = /^ {4}· \S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/m;
   if (!GRAMMAR.test(otto)) {
     fail(`agents/${MAIN_THREAD}: the otto-state.md worked example does not match its own stated grammar `
-       + `(· <badge> <Name> — <item>: <note>  (YYYY-MM-DD)) — fix the example or the rule, they must agree.`);
+       + `(· <badge> <Name> (<Role>) — <item>: <note>  (YYYY-MM-DD)) — fix the example or the rule, they must agree.`);
   }
 }
 
