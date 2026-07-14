@@ -1,5 +1,30 @@
 # Changelog
 
+## 22.7.2 — 2026-07-14
+
+**Rigor tiers doctrine and per-robot spend ledger.**
+
+This is a T2 docs+finance release. No measurement boards; mechanical verification only (3/3 stdin cases, validator
+green with 2 new negative-tested gates).
+
+### Rigor tiers doctrine
+
+Workshop (design-time, T0), release (T1: shipped once; T2: ship-ready but not shipped; T3: archived), and each
+dispatch names the tier. Otto reads `tier:` frontmatter and routes accordingly. Explained in `docs/rigor-tiers.md`.
+
+### Per-robot spend ledger
+
+`otto-ledger.log` — one line per subagent call: robot, tokens+duration, ISO-8601 timestamp. Hook-derived from
+transcript analysis, Node.js only (fail-soft: absent on systems without Node). Each robot gets a ledger line;
+Otto's main-thread spend is estimated, not ledger fact, because Otto is the main thread (cannot observe itself).
+
+**Baudrate's new duty:** per-robot spend audit + spend-vs-tier alignment check. Reads the ledger at session
+close, compares each robot's measured spend to its model tier, flags outliers (e.g., Haiku agent burning Sonnet
+tokens). Otto co-pilots the audit results.
+
+**No on-by-default ledger claim.** The ledger is infrastructure; it does not claim to be a user feature. It
+exists so Baudrate can audit it, and that is the only claim made.
+
 ## 22.7.1 — 2026-07-14
 
 **Hotfix: upgrader re-card suppressed; silent no-op on fresh users eliminated.**
