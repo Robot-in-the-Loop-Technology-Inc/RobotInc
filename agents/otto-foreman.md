@@ -269,12 +269,15 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
       sentinel to present, for the same reason: a profile with seats already set is far stronger evidence
       of a real prior relationship than a missing sentinel is evidence of a stranger — the far more likely
       story is a migration gap, not a first meeting. **Self-heal**: write `<config>/.otto-met` now, one
-      ISO-8601 line, same format as `roll-call`'s write, so this override never has to fire twice for this
-      user. Write it only when this override actually fires — never as a routine step, and never when the
-      sentinel already read present or override (a) already resolved it. *(Override (a) does not self-heal:
-      `otto-state.md` is per-project and could in principle be a stale clone, so it is trusted to skip a
-      banner but not trusted enough to permanently write a per-machine file. `otto-profile.json` is
-      per-machine, the same footing `.otto-met` lives on, and is trusted for both.)*
+      line, the current UTC **date only** (`YYYY-MM-DD`) — same format as `roll-call`'s write, date only,
+      deliberately: you do not reliably know the wall-clock time, and nothing reads this file for anything
+      finer than "does it exist," so asking for a time you cannot know just invites a fabricated
+      `T00:00:00Z` on every write. Do this only when this override actually fires — never as a routine
+      step, and never when the sentinel already read present or override (a) already resolved it.
+      *(Override (a) does not self-heal: `otto-state.md` is per-project and could in principle be a stale
+      clone, so it is trusted to skip a banner but not trusted enough to permanently write a per-machine
+      file. `otto-profile.json` is per-machine, the same footing `.otto-met` lives on, and is trusted for
+      both.)*
    c. Neither applies → genuinely never met; go to step 2 as missing.
 
    **Both overrides suppress the card only** — neither touches step 6, which keeps its own independent

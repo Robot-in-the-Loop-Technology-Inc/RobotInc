@@ -21,7 +21,8 @@ This skill owns the whole first encounter — it lives here, not in Otto's syste
 1. **Look at who already works here.** Read `<config>/agents/`, `<config>/skills/`, `<config>/commands/`
    and `settings.json`. Read-only, no permission needed: it is their machine and you are their employee.
    (Reading is a two-way door. Writing is a one-way door and still asks.)
-2. **Draw the card** — everything below.
+2. **Write the sentinel, then draw the card — one act, write first.** Not two steps where the second one is
+   optional. See below.
 3. **Get to know them, conversationally.** Which seat do they drive? How technical are they? How much do they
    want to hear back? What are they building? **Like a person, not a form. Never a blocker.** If they arrived
    with real work, *do the work first* and learn who they are alongside it. Nobody fills in a profile before
@@ -35,6 +36,36 @@ This skill owns the whole first encounter — it lives here, not in Otto's syste
 - **On request** — *"who's on the team"*, *"show me the crew"*, *"what can you do"*.
 - **Never twice in a session**, and never when a profile already exists. A splash screen you have already seen
   is noise, and noise is how a human learns to skip you.
+
+## Write the sentinel, then draw — one act, write first
+
+**Drawing the card and writing `<config>/.otto-met` are one indivisible act, not a card followed by an
+errand.** If you are about to draw the card and have not, in this same breath, just written the sentinel —
+you are not drawing the card. You are half-drawing it, and the banner appearing on screen with no sentinel
+on disk is exactly the bug this product exists to prevent.
+
+**Write first, draw second. The order is deliberate, not incidental:**
+
+1. Write `<config>/.otto-met` — one line, the current UTC **date only**, ISO 8601 (`YYYY-MM-DD`, e.g.
+   `2026-07-14`). **Date only, deliberately — never a fabricated time.** You do not reliably know the wall-clock
+   time, only the date; nothing anywhere reads this file for anything finer than "does it exist" and "roughly
+   when." Asking for a timestamp you cannot know invites a placeholder like `T00:00:00Z` on every write, which
+   is worse than no time field at all — it looks precise and is not. Overwrite it every time this card is
+   drawn, first meeting or on request — it is a "last drawn" mark, not a one-time flag.
+2. *Then* draw the card — the wordmark, the payroll, their own staff if any, the footer, all of it below.
+
+**Why write-first, not draw-first:** a session can end between any two steps — a crash, a closed terminal,
+a dropped connection. Write-then-draw means that failure leaves a sentinel with no card: the human misses one
+banner, which is recoverable — the seat-question re-offer already covers exactly this person on their next
+session. Draw-then-write, the order this shipped with once, means the same failure leaves a card with no
+sentinel: the human sees the whole company again next time, the promise this skill exists to keep ("never
+twice") broken on the first try. **Do not reorder this "for efficiency" or because drawing feels like the
+real work and writing feels like the paperwork** — the write is not paperwork attached to the card, it is the
+first half of drawing it.
+
+**This file is operational bookkeeping, not consent.** It records only "this machine has seen the card." It
+never substitutes for `otto-profile.json`, which still requires an explicit yes before a single byte lands —
+writing the sentinel is not writing the profile, and must never be treated as one.
 
 ## The wordmark
 
@@ -184,19 +215,9 @@ something were missing. **An empty payroll is a clean start, not a hole** — th
 A card that overstates the company is a lie the human catches on day two, and after that nothing you say is
 trusted. **That is the whole reason these are counted and not remembered.**
 
-## Write the sentinel — the moment the card is drawn, not after
-
-Write `<config>/.otto-met`: one line, the current UTC timestamp in ISO 8601 (e.g. `2026-07-13T12:34:56Z`).
-Overwrite it every time this card is drawn, first meeting or on request — the timestamp is a "last drawn," not
-a one-time flag.
-
-**Do this now, before the seat question below** — not after it. This is what covers the human who sees the
-card, has no time to answer the seat question, and closes the session. Without the sentinel written *here*,
-they would get the whole card again next time, which is the exact noise this skill exists to prevent.
-
-**This file is operational bookkeeping, not consent.** It records only "this machine has seen the card." It
-never substitutes for `otto-profile.json`, which still requires an explicit yes before a single byte lands —
-writing the sentinel is not writing the profile, and must never be treated as one.
+*(The sentinel is already written — that happened before a single line of this card was drawn. See "Write
+the sentinel, then draw" above. Do not add a second write here "to be safe"; a second instruction near the
+end of the card is exactly the shape of the bug that section exists to prevent, not a backup for it.)*
 
 ## Then make it interactive — this is the actual feature
 
