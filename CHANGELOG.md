@@ -2,27 +2,39 @@
 
 ## 22.7.1 — 2026-07-14
 
-**Hotfix: every 22.6.0 upgrader got re-carded once.**
+**Hotfix: upgrader re-card suppressed; silent no-op on fresh users eliminated.**
 
 `.otto-met` did not exist before 22.7.0. On upgrade, every existing user — seated, tiered, weeks into using
 the crew — read as "never met" on their first 22.7.0 session and got the full banner and card, spuriously,
 exactly once. The untested state was profile-with-seats, no sentinel, no state file; the maintainer's own
 machine had a hand-written sentinel and never hit it, so nothing caught this before release.
 
-**The fix.** Step 1 of the session-open protocol gains a second override, the same shape as the state-file
-backstop that already measured 10/10: if `<config>/otto-profile.json` exists and carries a `seats` key, a
-missing or unreadable sentinel is overridden to present — the card is suppressed — and `.otto-met` is
-self-healed (written, one ISO-8601 line) so the override never has to fire twice for that user. Suppresses
-the card only; the seat-question path (step 6) keeps its own independent condition and is untouched. A
-profile *without* seats does not trigger this override — that is the half-onboarded state, and it already
-has its own path, unaffected by this change.
+### Measured fix (staged deployment)
 
-**Known open question, same shape as the relay-writer noted below:** the self-heal is a Write tool call,
-gated on a prompt-level condition, not a code-level guarantee. The override *check* (read `.otto-met`, read
-`otto-profile.json`, decide) is the part that matters for the actual bug, and is the same shape as the
-state-file backstop, which has measured reliably. The self-heal *write* is a bonus on top of that — if it
-does not fire, the override simply re-evaluates from scratch next session, at the same low cost this bug
-already carried, no worse. Glitchtrap re-measures both before this merges.
+**Upgrader re-card:** **0/10 fail**, self-heal **10/10**. Step 1 of the session-open protocol gains a second
+override: if `<config>/otto-profile.json` exists and carries a `seats` key, a missing or unreadable sentinel is
+overridden to present — the card is suppressed — and `.otto-met` is self-healed (written, one ISO-8601 line) so
+the override never has to fire twice for that user. Suppresses the card only; step 6 (seat-question path) keeps
+its own independent condition and is untouched. A profile *without* seats does not trigger this override.
+
+**Silent no-op on fresh users:** was 2/15, **now 0/15**. Root cause was the word "silence" in both the hook
+trigger payload and the protocol-opener prose. Reworded both; no users now hit the protocol without seeing
+something in their reply.
+
+**Sentinel weld:** Write-before-card confirmed in every run where the write landed. The write is a tool call
+gated on prompt-level condition, not code-level guarantee; if it does not fire, the override re-evaluates from
+scratch next session at no worse cost.
+
+**A/B fail-closed gates:** 0 failures, six consecutive rounds.
+
+### Residual (documented not hidden)
+
+~1/15 sentinel write lands in a typo'd path (model-level path construction error, 3rd occurrence across all
+rounds; real-world rate unknown, plausibly lower on ~/.claude than artificial sandbox paths). Partially
+self-healed by this release: any user with a seated profile gets the card suppressed and sentinel rewritten by
+the new override. Worst case: one repeated banner for a user who was carded and never engaged. **Structural fix
+needed:** remove the model from config-path string construction entirely. Same root family as the relay-writer;
+consider solving both with one mechanism.
 
 **Validator.** New gate locks `.otto-met` to exactly two writers — `skills/roll-call` and
 `agents/otto-foreman.md` — now that the self-heal makes the foreman a writer of it for the first time, not

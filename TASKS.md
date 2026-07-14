@@ -224,6 +224,13 @@ Until then, brief stays silent unless human or another plugin wrote state (safe 
 
 Status: Unverified (PostToolUse stdout-to-context behaviour needs same doc-vs-reality check SessionStart got). Do not ship until measured on real sessions.
 
+**Path-construction hallucination fix**
+
+Model-level path construction error: ~1/15 sentinel write lands in a typo'd path. 3rd occurrence across all
+rounds; real-world rate unknown, plausibly lower on ~/.claude. **Structural fix needed:** remove the model from
+config-path string construction entirely. Same root family as the relay-writer; consider solving both with one
+mechanism.
+
 **POLICY (ratified by Andrew):** Mac/Linux verification becomes a **HARD pre-release gate** for the next release. This is the second consecutive release shipped with the untested macOS/Linux sh gap (first was v22.6.0). A third release with this gap is not acceptable. Before v22.8.0 ships, the SessionStart hook must run and verify on macOS and Linux. If it fails, escalate; do not publish.
 
 ---
