@@ -245,6 +245,72 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
   }
 }
 
+// ------------------------------------------- otto-state.md: single writer, single prompt
+// Vector's spec was explicit: Otto is the SOLE writer, upserting at relay time, and the
+// instruction to do so lives in EXACTLY ONE file (agents/otto-foreman.md). Telling a
+// department to "write your own line" would rebuild — across thirteen prompts instead of
+// one — the exact drift-by-duplication problem this file exists to solve (see the
+// otto-trace.mjs ROBOTS-map gate above for the same disease in an earlier organ). Gated
+// here so the next edit that "helpfully" teaches Bitforge to log its own state gets caught
+// before it ships, not after someone notices Otto's log and a robot's own log disagree.
+{
+  const MAIN_THREAD_FILE = `agents/${MAIN_THREAD}`;
+  for (const f of agentFiles) {
+    if (f === MAIN_THREAD) continue;
+    const s = read(`agents/${f}`);
+    if (/otto-state\.md/.test(s)) {
+      fail(`agents/${f}: mentions otto-state.md — only ${MAIN_THREAD_FILE} may write it (or know it exists). `
+         + `A department that writes its own line rebuilds the drift this file exists to prevent.`);
+    }
+  }
+  // Also refuse the same leak from a skill — the write path is a robot's job, not a skill's.
+  for (const d of skillDirs) {
+    const s = read(`skills/${d}/SKILL.md`);
+    if (/otto-state\.md/.test(s)) {
+      fail(`skills/${d}: mentions otto-state.md — the write path belongs to agents/${MAIN_THREAD} only.`);
+    }
+  }
+}
+
+// ------------------------------------------- otto-state.md is cwd-relative, never <config>-relative
+// otto-profile.json and .otto-met are global, per-machine, under <config>. otto-state.md is
+// the opposite on purpose: per-PROJECT, under ./.claude/, precisely so a stray mention of
+// "<config>/otto-state.md" would silently point every project on a machine at one shared
+// file — the same class of path confusion this feature has already shipped twice (the
+// config-dir wander, the hardcoded ~/.claude gate above). A mention here is wrong by
+// construction; there is no context in which it is correct.
+{
+  const BAD_STATE_PATH = /<config>`?\/otto-state\.md/;
+  for (const dir of ['agents', 'skills', 'commands']) {
+    const walk = dir === 'skills'
+      ? readdirSync(join(REPO, dir)).map((d) => `${dir}/${d}/SKILL.md`).filter((p) => existsSync(join(REPO, p)))
+      : readdirSync(join(REPO, dir)).filter((f) => f.endsWith('.md')).map((f) => `${dir}/${f}`);
+    for (const p of walk) {
+      if (BAD_STATE_PATH.test(read(p).replace(/\s+/g, ' '))) {
+        fail(`${p}: refers to otto-state.md as <config>-relative — it is per-PROJECT (./.claude/otto-state.md, `
+           + `cwd only), never per-machine. <config> is right for otto-profile.json and .otto-met; it is wrong here.`);
+      }
+    }
+  }
+}
+
+// ------------------------------------------- otto-state.md line grammar, checked against its own example
+// The grammar is prose in agents/otto-foreman.md, not a shipped file (otto-state.md is
+// generated per-project at runtime) — so the one thing actually gateable is that the
+// WORKED EXAMPLE in the spec matches the grammar it is illustrating. An example that drifts
+// from its own rule is worse than no example: it is the thing a future edit copy-pastes.
+{
+  const otto = read(`agents/${MAIN_THREAD}`);
+  // Grammar converged with the ↳ relay line (2026-07-14, the write-path weld): badge, Name, (Role), item,
+  // note, then the written copy's date suffix. Two prefixes share this same body — `↳ ` shown to the human,
+  // `· ` written to otto-state.md — so the example pair below must both match.
+  const GRAMMAR = /^ {4}· \S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/m;
+  if (!GRAMMAR.test(otto)) {
+    fail(`agents/${MAIN_THREAD}: the otto-state.md worked example does not match its own stated grammar `
+       + `(· <badge> <Name> (<Role>) — <item>: <note>  (YYYY-MM-DD)) — fix the example or the rule, they must agree.`);
+  }
+}
+
 // ------------------------------------------- robots cannot dispatch robots
 // Every robot carries `disallowedTools: Agent` — Otto mediates every handoff. Four
 // skills nonetheless instructed robots to "Invoke `glitchtrap-qa` (context: fork +
@@ -268,10 +334,40 @@ for (const req of ['otto.md', 'standup.md']) {
 if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is maintainer-only and must never ship');
 
 // ---------------------------------------------------------------- hooks
-// Exactly one hook ships, and it is best-effort by design: otto-trace.mjs
-// needs `node`, which Claude Code's native installer does NOT provide. If node
-// is absent the log is never written and nothing else changes. No hook may
-// ever be load-bearing for the persona — that lives in Otto's system prompt.
+// Exactly two hooks ship. otto-trace.mjs (SubagentStop) is best-effort by
+// design: it needs `node`, which Claude Code's native installer does NOT
+// provide. If node is absent the log is never written and nothing else
+// changes. The SessionStart hook (added for auto-onboarding, 2026-07) is the
+// opposite case on purpose: it is a bare shell `echo` of a STATIC string, zero
+// runtime dependency, chosen specifically because otto-brief.mjs (a prior
+// SessionStart-shaped hook) shipped and was retired for needing node on a
+// platform that does not guarantee it. No hook may ever be load-bearing for
+// the persona — the rule it echoes is written in full in Otto's system prompt
+// ("Where the human sits"); the hook is only ever a same-session reinforcement
+// of it, so a machine where the hook fails to fire degrades to that paragraph,
+// never to a crash and never to a re-triggered first meeting.
+//
+// Quoting strategy for the SessionStart command (why this survives sh, Git
+// Bash AND bare Windows PowerShell with ONE string): Claude Code's hook runner
+// picks the interpreter per platform when `shell` is omitted — bash on
+// macOS/Linux, Git Bash on Windows if installed, else PowerShell — so the
+// SAME command string must parse under both POSIX sh grammar and PowerShell
+// grammar. `echo '<literal, real newlines, no apostrophes>'` does: single
+// quotes are fully literal (no $ / backtick expansion) in BOTH shells, both
+// shells let a single-quoted literal span physical lines with the newline
+// characters preserved verbatim, and `echo` exists as a real command in sh
+// AND as a PowerShell alias for Write-Output. Deliberately NOT printf or `\n`
+// escapes: bash's builtin echo and dash's do not agree on interpreting
+// backslash escapes, which is exactly the classic echo portability trap —
+// using literal embedded newlines instead of `\n` sequences sidesteps it
+// entirely, at the cost of a message that must never itself contain a `'`.
+// Empirically run through Git Bash sh AND a genuinely piped bare-PowerShell
+// child process on this Windows box: byte-identical output both ways (one
+// harmless artifact — PowerShell appends its own trailing \r before the final
+// \n; it does not touch the internal newlines). macOS/Linux sh is NOT
+// independently verified on real hardware here — POSIX single-quote grammar
+// is standard enough that it should generalize, but that is reasoning, not a
+// test, and Glitchtrap should confirm on real Unix hardware before release.
 {
   const hookFiles = readdirSync(join(REPO, 'hooks'));
   const extra = hookFiles.filter((f) => !['hooks.json', 'otto-trace.mjs'].includes(f));
@@ -281,7 +377,51 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   if (/Level[- ]?2|Operator'/.test(trace)) fail('hooks/otto-trace.mjs: personal tier leaked in');
   const hooks = JSON.parse(read('hooks/hooks.json'));
   const events = Object.keys(hooks.hooks || {});
-  if (events.join() !== 'SubagentStop') fail(`hooks.json must wire ONLY SubagentStop (got: ${events.join(', ') || 'none'})`);
+  const ALLOWED_EVENTS = new Set(['SessionStart', 'SubagentStop']);
+  const badEvents = events.filter((e) => !ALLOWED_EVENTS.has(e));
+  if (badEvents.length) fail(`hooks.json wires an unreviewed event: ${badEvents.join(', ')} (allowed: ${[...ALLOWED_EVENTS].join(', ')})`);
+  if (!events.includes('SubagentStop')) fail('hooks.json is missing the SubagentStop trace hook');
+
+  // The SessionStart hook is the one place a regression could silently smuggle
+  // the runtime dependency back in (or fire on the wrong trigger). Gate both.
+  for (const entry of hooks.hooks?.SessionStart || []) {
+    if (entry.matcher !== 'startup') {
+      fail(`hooks.json: SessionStart matcher is "${entry.matcher}", must be "startup" — firing on resume/clear/compact `
+         + `risks re-running roll-call for someone already met`);
+    }
+    for (const h of entry.hooks || []) {
+      if (h.args) fail('hooks.json: SessionStart hook sets "args" — that switches Claude Code to EXEC form, which bypasses the shell entirely and would silently stop injecting the echoed text as shell output');
+      if (/\bnode\b|\bpython3?\b|\.mjs\b|\.py\b/.test(h.command || '')) {
+        fail('hooks.json: SessionStart command references node/python/a script file — the whole point of this hook is zero runtime dependency, see the comment above');
+      }
+      // The command is a single-quoted shell literal: echo '<payload>'. In
+      // BOTH bash and PowerShell, a literal apostrophe INSIDE that payload
+      // closes the quote early — the rest of the string is re-parsed as
+      // shell syntax, silently, with no error surfaced anywhere a human
+      // would see it, on exactly the bare-Windows machine this hook exists
+      // for. That is otto-brief.mjs's failure ("undefined behaviour a
+      // stranger discovers") wearing a different hat, so it is gated here,
+      // not left to survive on a sentence in a comment. Escaping is
+      // deliberately not offered as the fix: bash needs '\'' and PowerShell
+      // needs '' to embed a literal quote inside a single-quoted string, and
+      // those two escapes are NOT interchangeable — supporting one would
+      // require per-shell command strings, which defeats the entire point
+      // of one portable literal. The only sound rule is zero, always.
+      const cmd = h.command || '';
+      const firstQuote = cmd.indexOf("'");
+      const lastQuote = cmd.lastIndexOf("'");
+      if (firstQuote === -1 || lastQuote <= firstQuote) {
+        fail(`hooks.json: SessionStart command is not wrapped in the expected single-quoted literal — cannot verify it is apostrophe-safe`);
+      } else if (cmd.slice(firstQuote + 1, lastQuote).includes("'")) {
+        fail(`hooks.json: SessionStart command payload contains an apostrophe (U+0027) — it closes the single-quoted `
+           + `literal early in BOTH bash and PowerShell, and the remainder re-parses as shell syntax, silently, on a `
+           + `bare-Windows machine with no error a human will ever see. Rephrase to avoid it ("does not", not `
+           + `"doesn't"). Do not substitute a typographic apostrophe (U+2019) as an escape hatch unless it has been `
+           + `empirically verified byte-identical through both shells — it has not been.`);
+      }
+      if (!(h.timeout > 0 && h.timeout <= 10)) fail(`hooks.json: SessionStart timeout is ${h.timeout}, expected a small bounded number (<=10s) — this hook must never hang session start`);
+    }
+  }
 
   // The hook's ROBOTS map must know every delegate robot, with the SAME badge and
   // role as Otto's roster. It didn't: Gantry shipped and was never added here, so
@@ -382,4 +522,4 @@ if (errors.length) {
   for (const e of errors) console.error(`  ✗ ${e}`);
   process.exit(1);
 }
-console.log(`valid: ${robotCount} robots + otto-foreman, ${skillDirs.length} skills, ${commands.length} commands, 1 hook`);
+console.log(`valid: ${robotCount} robots + otto-foreman, ${skillDirs.length} skills, ${commands.length} commands, 2 hooks`);

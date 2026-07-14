@@ -1,5 +1,60 @@
 # Changelog
 
+## 22.7.0 — 2026-07-14
+
+**Session-start auto-onboarding: banner on install, brief on every subsequent session, no command typed.**
+
+New users see the card exactly once; everyone else gets a brief of active work on session open. Built on three
+new files — a sentinel (`.otto-met`, written by roll-call), state (`./.claude/otto-state.md`, written at relay
+time), and a hook (SessionStart, fires once per session). **Tested across 235+ nested sessions.**
+
+### What ships
+
+**The hook and brief reader.** A SessionStart hook fires at session start with a static `[RobotInc Auto-Onboarding]`
+tag. Otto's system prompt reads the tag and runs a session-open protocol: check the sentinel; if missing, run roll-call
+(banner + card + seat question); if present, read the state file and echo the top ≤5 lines as a brief, then "What can
+I help with?" If the user mutes the brief with `style.avoid: ["session-start-brief"]`, it skips silently.
+
+**The backstop.** A project-local `otto-state.md` with any valid line overrides a missing or unreadable sentinel —
+so a cloned repo where the sentinel got left behind will show state from the current project without re-triggering
+the card. Prevents lockout; never touches the seat question, which runs independently.
+
+**Fail-closed on hook failure.** If the hook fails to fire — missing, timeout, any error — Otto does nothing extra.
+No sentinel read, no profile hunt, no degradation to a fallback rule. A bare session. This removes a class of bugs
+where a hunt for the sentinel under a general rule, with no concrete trigger, occasionally resolved to the wrong
+directory and read a stranger's profile. **A brand-new user whose hook fails gets a plain session, not a wrong one.**
+
+### What does not ship
+
+**The relay writer.** Otto is documented to write a line to `otto-state.md` each time a robot hands work back.
+That weld is designed, present in the code, and negative-tested across 15 runs. **But the write path never
+executes** — the relay machinery is wired but dormant. The brief reader ships with nothing to read yet. **The next
+release will ship the writer via a PostToolUse hook** (same trigger-at-work-time pattern as SessionStart, tested
+in isolation; full integration untested). Until then, `otto-state.md` carries only entries from previous tools or
+manual edits. **This is intentional:** the brief stays silent unless a human or another plugin wrote the state,
+which is safe and correct, never wrong.
+
+**Do not claim in release notes that the brief shows "ongoing work" or that the crew "remembers what you were
+working on across sessions."** Both are deferred features. The brief shows state *if state exists*; a silent brief
+is not a bug, it is the state being empty.
+
+### Known warts (ship with these)
+
+- **Empty brief.** 1 in 10 runs renders the seat question as commentary instead of the bare "What can I help with?"
+  when no state exists. Rare, caught mid-measurement.
+- **Half-onboarded re-card.** 1 in 10 runs re-triggers the card on a cloned repo when the sentinel was missing but
+  a path-typo hallucination prevented the backstop from reading the state file. Rare; the backstop works correctly
+  10/10 when the state file exists and is readable.
+- **Relay format.** 1 in 10 runs renders the relay line without the ↳ prefix (renders as plain prose). Rare; the
+  state upsert itself is correct.
+
+### Untested (must be named)
+
+- **macOS/Linux sh.** The hook payload was verified byte-identical on Windows PowerShell and Git Bash only. POSIX
+  behaviour is reasoned, never run. This is the second release in a row with this gap (first was v22.6.0).
+  **Before shipping to prod, run the full sequence on macOS or Linux — session 1 with hook, roll-call, card, seat
+  question; session 2 with brief. If the hook times out or fails to inject the tag, escalate immediately.**
+
 ## 22.4.0 — 2026-07-12
 
 **Two jobs assigned to robots that cannot physically do them.**

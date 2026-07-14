@@ -12,6 +12,28 @@ Five files read or write this. They must all agree with *this page*, and none of
 `skills/workspace-hygiene/SKILL.md` (writes `workspace`) · `skills/claude-code-tuneup/SKILL.md`
 (writes `lastTuneup`).
 
+## Sibling files — not this schema, and not consent-gated
+
+Three files sit beside `otto-profile.json` at session open. **None of them are `otto-profile.json`, none of
+them require a yes before writing, and each answers exactly one question.** A robot reading the wrong one for
+a given question is the drift this table exists to prevent.
+
+| File | Answers | Consent | Written by |
+|---|---|---|---|
+| `<config>/.otto-met` | Have we met this user at all? | Not gated — operational bookkeeping | `roll-call`, the instant the card is drawn |
+| `./.claude/otto-state.md` (this project, cwd only — never `<config>`) | What is each robot's active work, right now? | Not gated — same footing as the trace log | `agents/otto-foreman.md`, at relay time, and **only** there |
+| `./.claude/otto-trace.log` (or `<config>/otto-trace.log` if there is no project) | What did the crew do, historically? | Not gated | `hooks/otto-trace.mjs`, best-effort |
+
+**One file, one question, always:**
+
+- The session-open brief reads `otto-state.md` **only** — never `TASKS.md`, never the trace log directly.
+- `TASKS.md` is the task list, Gantry's to keep; nothing in the brief's read path touches it.
+- `otto-trace.log` is full history, and `/standup` is the thing that reads it. The brief is not a compressed
+  standup and must not quietly grow into one by reading the same source.
+
+Getting this wrong reads exactly as it sounds: two files disagreeing about the same fact, silently, because
+two different pieces of prose each believed they owned the answer.
+
 ---
 
 ## The whole file
