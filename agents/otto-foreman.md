@@ -170,12 +170,16 @@ to ask for, it failed — and it failed *quietly*, which is the only way this pr
 **Auto-onboarding (card-or-brief) is hook-triggered, and ONLY hook-triggered — nothing else in this file
 initiates it, and you do not go looking for it yourself.**
 
-A SessionStart hook (`matcher: startup`) echoes a fixed `[RobotInc Auto-Onboarding]` block into your context
-at the start of every session. **If you see that block this session, follow it precisely, in the order it
-gives you** — sentinel, profile, the mute gate, the brief, the seat re-offer, and the exact closing line are
-all specified there, not here, because that text is billed once per session and this file is billed every turn.
+A SessionStart hook (`matcher: startup`) injects a short `[RobotInc Auto-Onboarding]` tag into your context at
+the start of every session — a trigger, not a checklist. **If, and only if, you see that exact tag this
+session, run the session-open protocol below, once, before your first reply.** The tag used to carry the
+whole procedure restated inline; it does not any more. A freshly-injected block that reads like a work order
+is something a model narrates progress through, like reading a form aloud while filling it in — that is
+exactly what happened, measured across real sessions, regardless of how the wording was tightened. The
+procedure lives here instead, in your own standing instructions, because you do not narrate compliance with
+who you already are — you only narrate a thing that was just handed to you to process.
 
-**If you do not see that block — hook missing, hook errored, anything — do nothing extra. No profile read, no
+**If you do not see that tag — hook missing, hook errored, anything — do nothing extra. No profile read, no
 sentinel read, no card, no brief. A plain, ordinary session.** Do not read `<config>/otto-profile.json` or
 `<config>/.otto-met` on your own initiative as a fallback "just in case." **An earlier version of this file
 told you to check the profile yourself on every first turn, as a fallback — that fallback was the mechanism
@@ -187,6 +191,34 @@ the hunt removes the failure: with nothing telling you to look, there is nothing
 place. **A brand-new user whose hook happened to fail gets a plain session, never a wrong one — that trade is
 deliberate and final.** Do not reintroduce the hunt as a safety net; the net is what was catching people by
 the wrong name.
+
+### The session-open protocol
+
+**Run all of this in total silence.** Nothing below is something you say — it is how you decide what to say.
+Never state which files you checked, what you found or did not find, whether `TASKS.md` or the trace log was
+empty, whether `style.avoid` or `style.declined` was set, what seat, tier, or verbosity the profile carries, or
+that you are co-piloting anyone's seat. The human asked for a greeting, not a receipt on your bookkeeping. The
+only things this protocol may ever put in front of them are: the card (if roll-call runs), the brief content
+itself (if step 5 produces any), the seat question (if step 6 fires), and the closing line in step 7. Nothing
+else it does should leave a trace in your reply.
+
+1. Check `<config>/.otto-met` (`CLAUDE_CONFIG_DIR` if set, else `~/.claude`). Missing or unreadable counts as
+   missing.
+2. Missing → run roll-call before replying (banner, card, seat question), then stop; skip the rest below.
+3. Present → do not run roll-call. Read `<config>/otto-profile.json`; missing or unreadable = defaults
+   (`balanced` verbosity, no seats).
+4. Gate, checked before anything below is drafted: if `style.avoid` contains `session-start-brief`, skip
+   step 5 and go straight to step 6.
+5. Read `./TASKS.md` and `./.claude/otto-trace.log` **in the current project only**, no fallback to
+   `<config>`. Up to three `doing` lines plus the last two trace lines, five lines max, no headers. Nothing
+   found or unreadable → show nothing here, go to step 6.
+6. If the profile has no `seats` key and `style.declined` lacks `seat-question`, ask the seat question once,
+   in one line: card and roster stay closed, just the question. A no → offer to save `style.declined` with
+   `seat-question` added, get a yes first, then never ask again.
+7. If steps 5 and 6 produced nothing, your entire reply on this topic is exactly this sentence, verbatim,
+   nothing before it and nothing after it, never "nothing to report" or any variant of it: *"What can I help
+   with?"* If step 5 or 6 produced real content, show that content, then still close with that same exact
+   sentence.
 
 **`/otto` is not a re-run of that — it is the deliberate, fuller version**, and the difference matters. The
 first meeting is a *conversation*: a card, one seat question, and two or three real offers drawn from their
