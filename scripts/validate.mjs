@@ -245,6 +245,69 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
   }
 }
 
+// ------------------------------------------- otto-state.md: single writer, single prompt
+// Vector's spec was explicit: Otto is the SOLE writer, upserting at relay time, and the
+// instruction to do so lives in EXACTLY ONE file (agents/otto-foreman.md). Telling a
+// department to "write your own line" would rebuild — across thirteen prompts instead of
+// one — the exact drift-by-duplication problem this file exists to solve (see the
+// otto-trace.mjs ROBOTS-map gate above for the same disease in an earlier organ). Gated
+// here so the next edit that "helpfully" teaches Bitforge to log its own state gets caught
+// before it ships, not after someone notices Otto's log and a robot's own log disagree.
+{
+  const MAIN_THREAD_FILE = `agents/${MAIN_THREAD}`;
+  for (const f of agentFiles) {
+    if (f === MAIN_THREAD) continue;
+    const s = read(`agents/${f}`);
+    if (/otto-state\.md/.test(s)) {
+      fail(`agents/${f}: mentions otto-state.md — only ${MAIN_THREAD_FILE} may write it (or know it exists). `
+         + `A department that writes its own line rebuilds the drift this file exists to prevent.`);
+    }
+  }
+  // Also refuse the same leak from a skill — the write path is a robot's job, not a skill's.
+  for (const d of skillDirs) {
+    const s = read(`skills/${d}/SKILL.md`);
+    if (/otto-state\.md/.test(s)) {
+      fail(`skills/${d}: mentions otto-state.md — the write path belongs to agents/${MAIN_THREAD} only.`);
+    }
+  }
+}
+
+// ------------------------------------------- otto-state.md is cwd-relative, never <config>-relative
+// otto-profile.json and .otto-met are global, per-machine, under <config>. otto-state.md is
+// the opposite on purpose: per-PROJECT, under ./.claude/, precisely so a stray mention of
+// "<config>/otto-state.md" would silently point every project on a machine at one shared
+// file — the same class of path confusion this feature has already shipped twice (the
+// config-dir wander, the hardcoded ~/.claude gate above). A mention here is wrong by
+// construction; there is no context in which it is correct.
+{
+  const BAD_STATE_PATH = /<config>`?\/otto-state\.md/;
+  for (const dir of ['agents', 'skills', 'commands']) {
+    const walk = dir === 'skills'
+      ? readdirSync(join(REPO, dir)).map((d) => `${dir}/${d}/SKILL.md`).filter((p) => existsSync(join(REPO, p)))
+      : readdirSync(join(REPO, dir)).filter((f) => f.endsWith('.md')).map((f) => `${dir}/${f}`);
+    for (const p of walk) {
+      if (BAD_STATE_PATH.test(read(p).replace(/\s+/g, ' '))) {
+        fail(`${p}: refers to otto-state.md as <config>-relative — it is per-PROJECT (./.claude/otto-state.md, `
+           + `cwd only), never per-machine. <config> is right for otto-profile.json and .otto-met; it is wrong here.`);
+      }
+    }
+  }
+}
+
+// ------------------------------------------- otto-state.md line grammar, checked against its own example
+// The grammar is prose in agents/otto-foreman.md, not a shipped file (otto-state.md is
+// generated per-project at runtime) — so the one thing actually gateable is that the
+// WORKED EXAMPLE in the spec matches the grammar it is illustrating. An example that drifts
+// from its own rule is worse than no example: it is the thing a future edit copy-pastes.
+{
+  const otto = read(`agents/${MAIN_THREAD}`);
+  const GRAMMAR = /^ {4}· \S+ [A-Z][A-Za-z]+ — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/m;
+  if (!GRAMMAR.test(otto)) {
+    fail(`agents/${MAIN_THREAD}: the otto-state.md worked example does not match its own stated grammar `
+       + `(· <badge> <Name> — <item>: <note>  (YYYY-MM-DD)) — fix the example or the rule, they must agree.`);
+  }
+}
+
 // ------------------------------------------- robots cannot dispatch robots
 // Every robot carries `disallowedTools: Agent` — Otto mediates every handoff. Four
 // skills nonetheless instructed robots to "Invoke `glitchtrap-qa` (context: fork +
