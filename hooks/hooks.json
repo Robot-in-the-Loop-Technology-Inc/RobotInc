@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[RobotInc Auto-Onboarding] Session-open protocol applies now, in silence.'",
+            "command": "echo '[RobotInc Auto-Onboarding] Run the session-open protocol before replying.'",
             "timeout": 5
           }
         ]

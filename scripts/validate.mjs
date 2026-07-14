@@ -187,6 +187,30 @@ for (const d of skillDirs) {
 const naked = ROBOTS.filter((r) => r !== 'Otto' && !owned.has(r));
 if (naked.length) fail(`robots with no skills (a department without tools is a costume): ${naked.join(', ')}`);
 
+// ------------------------------------------- roll-call: sentinel write must precede the card, in FILE order
+// G measured 1/10: the card drawn correctly, the sentinel never written. Root cause was a proximity
+// instruction ("written the moment the card is drawn") sitting near the draw instead of fused into it.
+// 22.7.1's fix reordered the file so the write instruction appears BEFORE the wordmark — a skill is prose
+// a model reads top to bottom, so file order is not cosmetic here, it is close to execution order. This is
+// the one part of that fix that IS mechanically checkable (unlike the self-heal timestamp wording, which
+// is prompt semantics, not a structural property of the tree): a future edit that moves the write section
+// back below the card would silently reopen exactly this bug, and nothing else would catch it.
+{
+  const rc = read('skills/roll-call/SKILL.md');
+  const writeIdx = rc.indexOf('Write the sentinel, then draw');
+  const wordmarkIdx = rc.indexOf('## The wordmark');
+  if (writeIdx === -1) {
+    fail(`skills/roll-call: no "Write the sentinel, then draw" section found — the write-before-draw fix `
+       + `for the G 1/10 (card drawn, sentinel never written) regressed or was renamed without updating this gate.`);
+  } else if (wordmarkIdx === -1) {
+    fail(`skills/roll-call: no "## The wordmark" section found — cannot verify write-before-draw ordering.`);
+  } else if (writeIdx > wordmarkIdx) {
+    fail(`skills/roll-call: the sentinel-write section appears AFTER "## The wordmark" — this is the exact `
+       + `draw-then-write order that shipped a card with no sentinel (G 1/10). Move the write section before `
+       + `the wordmark, or the fix silently regresses.`);
+  }
+}
+
 // ------------------------------------------- no prompt may name a skill we don't ship
 // Sonar's description said "owns the deep-research skill" for six versions.
 // deep-research is a skill on the MAINTAINER's machine — so every user was told,
@@ -308,6 +332,31 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
   if (!GRAMMAR.test(otto)) {
     fail(`agents/${MAIN_THREAD}: the otto-state.md worked example does not match its own stated grammar `
        + `(· <badge> <Name> (<Role>) — <item>: <note>  (YYYY-MM-DD)) — fix the example or the rule, they must agree.`);
+  }
+}
+
+// ------------------------------------------- .otto-met has exactly two writers, named, no drift
+// 22.7.1's migration fix gave agents/otto-foreman.md a second job w.r.t. .otto-met: it used to
+// only READ the sentinel; the seated-profile override now WRITES it too (self-heal). That is a
+// deliberate, documented exception to "one writer" — roll-call writes it at first meeting,
+// otto-foreman.md self-heals it on a proven migration gap — but it is now exactly the moment a
+// THIRD file could start writing or checking it "helpfully" and nobody would notice until two
+// writers disagreed. Lock the set at exactly these two before that happens.
+{
+  const SENTINEL_WRITERS = new Set(['roll-call']);
+  for (const d of skillDirs) {
+    if (SENTINEL_WRITERS.has(d)) continue;
+    if (/\.otto-met/.test(read(`skills/${d}/SKILL.md`))) {
+      fail(`skills/${d}: mentions .otto-met — only skills/roll-call and agents/${MAIN_THREAD} may write or `
+         + `rely on it. A third writer is exactly how two copies of "have we met" start to disagree.`);
+    }
+  }
+  for (const f of agentFiles) {
+    if (f === MAIN_THREAD) continue;
+    if (/\.otto-met/.test(read(`agents/${f}`))) {
+      fail(`agents/${f}: mentions .otto-met — only agents/${MAIN_THREAD} and skills/roll-call may write or `
+         + `rely on it.`);
+    }
   }
 }
 

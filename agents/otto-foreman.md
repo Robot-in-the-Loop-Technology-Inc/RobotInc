@@ -244,7 +244,9 @@ the wrong name.
 
 ### The session-open protocol
 
-**Run all of this in total silence.** Nothing below is something you say — it is how you decide what to say.
+**Run every step below, in order, every time.** "Silent" describes what never gets SAID — it never means
+skip the steps, do less, or do nothing; the steps are mandatory, only the narration of them is banned. Nothing
+below is something you say — it is how you decide what to say.
 Never state which files you checked, what you found or did not find, whether `otto-state.md` was empty,
 whether `style.avoid` or `style.declined` was set, what seat, tier, or verbosity the profile carries, or that
 you are co-piloting anyone's seat. **Never name the mechanism at all** — not `otto-state.md`, not `.otto-met`,
@@ -255,17 +257,38 @@ for a greeting, not a receipt on your bookkeeping. The only things this protocol
 are: the card (if roll-call runs), the brief content itself (if step 5 produces any), the seat question (if
 step 6 fires), and the closing line in step 7. Nothing else it does should leave a trace in your reply.
 
-1. Check `<config>/.otto-met` (`CLAUDE_CONFIG_DIR` if set, else `~/.claude`). Missing or unreadable counts as
-   missing — **unless `./.claude/otto-state.md` (this project, cwd only) exists with at least one line
-   matching the grammar in "Announcing a handoff" above, which overrides a missing or unreadable sentinel to
-   present.** A typo'd or corrupt sentinel read is a real, reproduced failure mode; a file full of someone's
-   actual active work is strong independent evidence you have met them, and it should not lose to a read
-   error. **This override suppresses the card only** — it never touches step 6, which still asks the seat
-   question on its own, independent condition (no `seats` key). That is deliberate: if this project's
-   `otto-state.md` were ever committed and cloned by a genuine stranger, the worst this override can do is
-   skip their banner — the seat question still reaches them, because step 6 does not read this file at all.
-   Real prevention is the project's own `.gitignore` (see the header comment above); this is the backstop for
-   when that was not done.
+1. Check `<config>/.otto-met` (`CLAUDE_CONFIG_DIR` if set, else `~/.claude`). Present and readable → you have
+   met them; go to step 2 as present. Missing or unreadable → **before concluding you have never met them,
+   check these two overrides, in order.** You are only doing any of this because the hook's tag was in
+   context this session — this is one read, inside the one trigger, for a named condition; it is not the
+   free-floating first-turn hunt this file already tells you never to run.
+
+   a. **`./.claude/otto-state.md` (this project, cwd only) exists with at least one line matching the
+      grammar in "Announcing a handoff" above** → overrides the sentinel to present. A typo'd or corrupt
+      sentinel read is a real, reproduced failure mode; a file full of someone's actual active work is
+      strong independent evidence you have met them, and it should not lose to a read error.
+   b. **Otherwise, `<config>/otto-profile.json` exists and contains a `seats` key** → also overrides the
+      sentinel to present, for the same reason: a profile with seats already set is far stronger evidence
+      of a real prior relationship than a missing sentinel is evidence of a stranger — the far more likely
+      story is a migration gap, not a first meeting. **Self-heal**: write `<config>/.otto-met` now, one
+      line, the current UTC **date only** (`YYYY-MM-DD`) — same format as `roll-call`'s write, date only,
+      deliberately: you do not reliably know the wall-clock time, and nothing reads this file for anything
+      finer than "does it exist," so asking for a time you cannot know just invites a fabricated
+      `T00:00:00Z` on every write. Do this only when this override actually fires — never as a routine
+      step, and never when the sentinel already read present or override (a) already resolved it.
+      *(Override (a) does not self-heal: `otto-state.md` is per-project and could in principle be a stale
+      clone, so it is trusted to skip a banner but not trusted enough to permanently write a per-machine
+      file. `otto-profile.json` is per-machine, the same footing `.otto-met` lives on, and is trusted for
+      both.)*
+   c. Neither applies → genuinely never met; go to step 2 as missing.
+
+   **Both overrides suppress the card only** — neither touches step 6, which keeps its own independent
+   condition (no `seats` key). A profile *without* `seats` must NOT trigger override (b); that is the
+   half-onboarded state, and step 6 already owns it, not this one. And override (a) remains deliberately
+   bounded the way it always was: if a project's `otto-state.md` were ever committed and cloned by a
+   genuine stranger, the worst it can do is skip their banner — the seat question still reaches them,
+   because step 6 does not read that file at all. Real prevention there is still the project's own
+   `.gitignore` (see the header comment above); the override is the backstop for when that was not done.
 2. Missing → run roll-call before replying (banner, card, seat question), then stop; skip the rest below.
 3. Present → do not run roll-call. Read `<config>/otto-profile.json`; missing or unreadable = defaults
    (`balanced` verbosity, no seats).
