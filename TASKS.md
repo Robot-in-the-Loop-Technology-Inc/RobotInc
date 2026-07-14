@@ -213,4 +213,19 @@ If quoting fails at (8), revert hook approach and escalate.
 
 ---
 
+## v-NEXT Backlog
+
+**PostToolUse hook writer for otto-state.md relay integration**
+
+Design: PostToolUse hook on Task tool, static echo payload (same trigger-at-work-time pattern as SessionStart).
+Fires when Otto returns from a robot relay → injects the write instruction just-in-time.
+Once this lands, brief will show actual work state across sessions.
+Until then, brief stays silent unless human or another plugin wrote state (safe and correct).
+
+Status: Unverified (PostToolUse stdout-to-context behaviour needs same doc-vs-reality check SessionStart got). Do not ship until measured on real sessions.
+
+**POLICY (ratified by Andrew):** Mac/Linux verification becomes a **HARD pre-release gate** for the next release. This is the second consecutive release shipped with the untested macOS/Linux sh gap (first was v22.6.0). A third release with this gap is not acceptable. Before v22.8.0 ships, the SessionStart hook must run and verify on macOS and Linux. If it fails, escalate; do not publish.
+
+---
+
 **Branch safety:** No force-push. All commits are forward-only. User will explicitly request merge when ready.
