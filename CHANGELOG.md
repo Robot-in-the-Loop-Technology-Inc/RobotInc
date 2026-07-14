@@ -1,5 +1,33 @@
 # Changelog
 
+## 22.7.1 — 2026-07-14
+
+**Hotfix: every 22.6.0 upgrader got re-carded once.**
+
+`.otto-met` did not exist before 22.7.0. On upgrade, every existing user — seated, tiered, weeks into using
+the crew — read as "never met" on their first 22.7.0 session and got the full banner and card, spuriously,
+exactly once. The untested state was profile-with-seats, no sentinel, no state file; the maintainer's own
+machine had a hand-written sentinel and never hit it, so nothing caught this before release.
+
+**The fix.** Step 1 of the session-open protocol gains a second override, the same shape as the state-file
+backstop that already measured 10/10: if `<config>/otto-profile.json` exists and carries a `seats` key, a
+missing or unreadable sentinel is overridden to present — the card is suppressed — and `.otto-met` is
+self-healed (written, one ISO-8601 line) so the override never has to fire twice for that user. Suppresses
+the card only; the seat-question path (step 6) keeps its own independent condition and is untouched. A
+profile *without* seats does not trigger this override — that is the half-onboarded state, and it already
+has its own path, unaffected by this change.
+
+**Known open question, same shape as the relay-writer noted below:** the self-heal is a Write tool call,
+gated on a prompt-level condition, not a code-level guarantee. The override *check* (read `.otto-met`, read
+`otto-profile.json`, decide) is the part that matters for the actual bug, and is the same shape as the
+state-file backstop, which has measured reliably. The self-heal *write* is a bonus on top of that — if it
+does not fire, the override simply re-evaluates from scratch next session, at the same low cost this bug
+already carried, no worse. Glitchtrap re-measures both before this merges.
+
+**Validator.** New gate locks `.otto-met` to exactly two writers — `skills/roll-call` and
+`agents/otto-foreman.md` — now that the self-heal makes the foreman a writer of it for the first time, not
+only a reader. A third file mentioning it fails the build.
+
 ## 22.7.0 — 2026-07-14
 
 **Session-start auto-onboarding: banner on install, brief on every subsequent session, no command typed.**

@@ -311,6 +311,31 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
   }
 }
 
+// ------------------------------------------- .otto-met has exactly two writers, named, no drift
+// 22.7.1's migration fix gave agents/otto-foreman.md a second job w.r.t. .otto-met: it used to
+// only READ the sentinel; the seated-profile override now WRITES it too (self-heal). That is a
+// deliberate, documented exception to "one writer" — roll-call writes it at first meeting,
+// otto-foreman.md self-heals it on a proven migration gap — but it is now exactly the moment a
+// THIRD file could start writing or checking it "helpfully" and nobody would notice until two
+// writers disagreed. Lock the set at exactly these two before that happens.
+{
+  const SENTINEL_WRITERS = new Set(['roll-call']);
+  for (const d of skillDirs) {
+    if (SENTINEL_WRITERS.has(d)) continue;
+    if (/\.otto-met/.test(read(`skills/${d}/SKILL.md`))) {
+      fail(`skills/${d}: mentions .otto-met — only skills/roll-call and agents/${MAIN_THREAD} may write or `
+         + `rely on it. A third writer is exactly how two copies of "have we met" start to disagree.`);
+    }
+  }
+  for (const f of agentFiles) {
+    if (f === MAIN_THREAD) continue;
+    if (/\.otto-met/.test(read(`agents/${f}`))) {
+      fail(`agents/${f}: mentions .otto-met — only agents/${MAIN_THREAD} and skills/roll-call may write or `
+         + `rely on it.`);
+    }
+  }
+}
+
 // ------------------------------------------- robots cannot dispatch robots
 // Every robot carries `disallowedTools: Agent` — Otto mediates every handoff. Four
 // skills nonetheless instructed robots to "Invoke `glitchtrap-qa` (context: fork +
