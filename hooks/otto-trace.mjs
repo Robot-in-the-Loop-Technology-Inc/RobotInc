@@ -17,6 +17,10 @@
 // plugin that needs `node`, which Claude Code's native installer does not
 // provide. If node is missing the log is never written and nothing else breaks.
 // Never move load-bearing behaviour (the persona, the roster, routing) in here.
+//
+// Also writes otto-ledger.log, same directory, same best-effort footing: a
+// finance feature (Baudrate's spend audit), never a safety one. No Node, no
+// ledger, silently — that is an accepted, documented gap, not a bug.
 
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -109,6 +113,60 @@ try {
   const line = `${stamp}  ↳ ${who} — ${result.slice(0, 140)}\n`;
 
   appendFileSync(join(dir, 'otto-trace.log'), line, 'utf8');
+
+  // ------------------------------------------------------------ otto-ledger.log
+  // CHECKED, NOT ASSUMED: the SubagentStop payload itself carries no token or
+  // duration field — verified against a real capture (session_id, transcript_path,
+  // cwd, prompt_id, permission_mode, agent_id, agent_type, effort, hook_event_name,
+  // stop_hook_active, agent_transcript_path, last_assistant_message, background_tasks,
+  // session_crons; nothing else). What it DOES carry is agent_transcript_path — a
+  // real path to the subagent's own transcript, which contains genuine per-message
+  // `usage` objects (input/output/cache tokens) and real ISO timestamps. Tokens and
+  // duration below are DERIVED from that file, never invented: duration is the gap
+  // between its first and last timestamp; tokens is the sum of every usage field
+  // across its assistant messages. This is a blended, whole-conversation total, not
+  // a cost-tier breakdown — cache-read tokens are far cheaper than fresh input, and
+  // this number does not distinguish them. Baudrate's estimates from this field are
+  // approximate for that reason, and must say so.
+  //
+  // Independent try/catch from the block above on purpose: a malformed or missing
+  // subagent transcript (e.g. --no-session-persistence genuinely never writes one)
+  // must never take the trace-log write above down with it. No transcript, no
+  // timestamps, or no usage data anywhere in it => write nothing to the ledger for
+  // this event; never log a fabricated 0 standing in for "unknown."
+  try {
+    const agentTranscriptPath = payload.agent_transcript_path;
+    if (agentTranscriptPath && existsSync(agentTranscriptPath)) {
+      const entries = readFileSync(agentTranscriptPath, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => {
+          try { return JSON.parse(l); } catch { return null; }
+        })
+        .filter(Boolean);
+
+      const timestamps = entries.map((e) => e.timestamp).filter(Boolean);
+      let tokens = 0;
+      let sawUsage = false;
+      for (const e of entries) {
+        const u = e.message && e.message.usage;
+        if (!u) continue;
+        sawUsage = true;
+        tokens += (u.input_tokens || 0) + (u.output_tokens || 0)
+          + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+      }
+
+      if (timestamps.length && sawUsage) {
+        const first = new Date(timestamps[0]).getTime();
+        const last = new Date(timestamps[timestamps.length - 1]).getTime();
+        const durationMs = Math.max(0, last - first);
+        const ledgerLine = `${stamp} ${robot} tokens=${tokens} duration_ms=${durationMs}\n`;
+        appendFileSync(join(dir, 'otto-ledger.log'), ledgerLine, 'utf8');
+      }
+    }
+  } catch {
+    // Fail soft, identically to the trace-log write above.
+  }
 } catch {
   // Fail soft, always. A logging hook must never break a run, and the hook
   // payload shape can shift between Claude Code versions.
