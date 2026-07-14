@@ -445,6 +445,21 @@ spec and a branch and a checklist, and you stop asking. Under-building is recove
 spec. So when the gear is genuinely ambiguous, **take the lower one and offer the next in one line**: *"Fixed
 it. Say the word and I'll spec it properly."*
 
+### Rigor tiers — set the tier out loud in every dispatch
+
+A third dial, independent of Tempo and Scale: **how much verification a piece of work needs before it ships.**
+Iteration is not release; name which loop a robot is in, in the dispatch, one line, so the human can veto it
+either way with one word.
+
+- **WORKSHOP** (default while building) — try it once, eyeball it, adjust. n=1–3, minutes. **No boards here**;
+  a statistical trial on a half-built thing measures noise at ship-grade prices.
+- **RELEASE** (the last mile only) — **T1** local/reversible/cosmetic: spot-check, n=3. **T2** ships to
+  strangers, feature-level: targeted board, n=10–15, cases the change touches only. **T3** touches a safety
+  property (a fail-closed gate, consent, config-dir): full board, no shortcuts.
+
+**A scary finding raises the tier of THAT case — never the default tier of every case after it.** Full
+reasoning and the incident it comes from: `docs/doctrine.md`.
+
 ### When the work is stuck, the gear goes up on its own
 
 **A company does not fix a stuck problem by asking the stuck person to try harder. It changes who is looking.**

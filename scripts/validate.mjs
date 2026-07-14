@@ -360,6 +360,48 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
   }
 }
 
+// ------------------------------------------- otto-ledger.log: filename referenced consistently
+// The ledger's write path is code (hooks/otto-trace.mjs), not a prompt duplicated across department
+// files, so the otto-state.md-shaped "single writer" drift risk does not apply the same way here —
+// nothing else is instructed to write it. What IS real and mechanically checkable: the three places
+// that must agree on its existence (the hook that writes it, Baudrate who reads it, the docs that
+// name it) all spell the filename identically. A silent typo in any one of them (otto-ledger.log vs
+// otto_ledger.log) would have Baudrate confidently reading a file the hook never wrote to.
+{
+  const LEDGER_FILE = 'otto-ledger.log';
+  const mustMention = [
+    ['hooks/otto-trace.mjs', 'hooks/otto-trace.mjs'],
+    [`agents/baudrate-cfo.md`, 'agents/baudrate-cfo.md'],
+    ['docs/profile-schema.md', 'docs/profile-schema.md'],
+  ];
+  for (const [path, label] of mustMention) {
+    if (existsSync(join(REPO, path)) && !read(path).includes(LEDGER_FILE)) {
+      fail(`${label}: does not mention "${LEDGER_FILE}" — the hook that writes it, the robot that reads `
+         + `it, and the docs that name it must all agree on the exact filename.`);
+    }
+  }
+}
+
+// ------------------------------------------- the rigor-tiers core lesson, verbatim in both homes
+// docs/doctrine.md carries the full doctrine; agents/otto-foreman.md carries a compact version because
+// that file is billed every turn. The one sentence Otto named as the actual point of the retro --
+// "keep it verbatim or improve it, don't drop it" -- is exactly the line a future edit is most likely
+// to quietly soften in one copy and not the other. Gate the two copies staying identical, not just
+// both present.
+{
+  const CORE_LESSON = 'A scary finding raises the tier of THAT case — never the default tier of every case after it.';
+  const otto = read(`agents/${MAIN_THREAD}`);
+  const doctrine = existsSync(join(REPO, 'docs/doctrine.md')) ? read('docs/doctrine.md') : '';
+  if (!otto.includes(CORE_LESSON)) {
+    fail(`agents/${MAIN_THREAD}: missing the rigor-tiers core lesson sentence verbatim -- it must read `
+       + `"${CORE_LESSON}"`);
+  }
+  if (doctrine && !doctrine.includes(CORE_LESSON)) {
+    fail(`docs/doctrine.md: missing the rigor-tiers core lesson sentence verbatim, or it has drifted from `
+       + `agents/${MAIN_THREAD}'s copy -- must read "${CORE_LESSON}"`);
+  }
+}
+
 // ------------------------------------------- robots cannot dispatch robots
 // Every robot carries `disallowedTools: Agent` — Otto mediates every handoff. Four
 // skills nonetheless instructed robots to "Invoke `glitchtrap-qa` (context: fork +

@@ -409,6 +409,44 @@ The crew should know this is the game it is playing.
 
 ---
 
+## 5. Internally-earned doctrine
+
+Distilled from RobotInc's own build history, not the 13 external sources in §0 — there is no talk to cite,
+because nobody outside gave it to us. Held to the same bar anyway: traceable to a real, named incident, never
+vibes.
+
+### Rigor tiers — set the tier OUT LOUD in every dispatch
+
+Iteration is not release. Name which loop you are in.
+
+**WORKSHOP** (default while building): try it once, eyeball it, adjust. n=1–3. Minutes. **Boards are banned
+here** — a statistical trial on a half-built thing measures noise at ship-grade prices.
+
+**RELEASE** (the last mile only):
+
+| Tier | Scope | Verification |
+|---|---|---|
+| **T1** | Local / reversible / cosmetic failure | Spot-check, n=3 |
+| **T2** | Ships to strangers, feature-level | Targeted board, n=10–15, cases the change touches ONLY |
+| **T3** | Touches a safety property (fail-closed gate, consent, config-dir) | Full board, no shortcuts |
+
+The tier is named in the dispatch, one line, so the human can veto it in either direction with one word.
+
+**A scary finding raises the tier of THAT case — never the default tier of every case after it.**
+
+**The incident this comes from.** The `feature/session-start-hook` build (v22.6.0 → v22.7.1) shipped a real
+config-dir-wander bug early, and that one genuine fright set the verification dial to maximum for every pass
+after it — full nested-session boards, every time, for fixes that ranged from a safety-critical fail-closed
+gate down to a single reworded sentence in a static string. The dial never came back down on its own, because
+nobody had explicit permission to say "that one is smaller." Cost was real: statistical measurement at
+ship-grade rigor, paid on work that was still being iterated, not released. The fix was never "be less
+careful" — a fail-closed gate and a consent boundary earned every bit of that scrutiny. The fix was **naming
+the tier out loud, every time**, so the decision belongs to the human in the moment, not to the momentum of
+the last scary finding. A board that found something real should raise the tier of *that specific case* on
+its next check — not silently reset the floor for everything that follows it.
+
+---
+
 ## Open questions
 
 None blocking. §3.2 (model tiering) was resolved on 2026-07-12 by fixing the rule rather than abandoning the
