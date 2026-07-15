@@ -1,15 +1,38 @@
 #!/usr/bin/env node
-// Test suite for hooks/otto-state.mjs — task 8 (smoke) and task 9 (9a-9m
-// negative tests) from TASKS.md's v22.8.0 build. Real filesystem I/O against
-// scratch temp directories; no mocking, no framework, no dependency.
+// Test suite for hooks/otto-state.mjs — task 8 (smoke), task 9 (9a-9m
+// negative tests) from TASKS.md's v22.8.0 build, plus Glitchtrap's
+// adversarial-pass additions (G2-G8, G11) and the Option C contract tests
+// (G9/G10 and the keying/eviction-independence cases below). Real filesystem
+// I/O against scratch temp directories; no mocking, no framework, no
+// dependency.
 //
 //   node scripts/test-otto-state.mjs
 //
 // NOTE ON SCOPE: this exercises the WRITER (hooks/otto-state.mjs) directly and
-// mechanically. The READER half of tasks 9b/9m (agents/otto-foreman.md step 5)
-// is an LLM system prompt, not code — it cannot be unit-tested here. Those
-// cases are marked below; what IS verified is that the writer produces state
-// the documented reader grammar can parse.
+// mechanically. The READER half (agents/otto-foreman.md step 5) is an LLM
+// system prompt, not code — it cannot be unit-tested here. Those cases are
+// marked below; what IS verified is that the writer produces state the
+// documented reader grammar can parse.
+//
+// ---------------------------------------------------------------- Option C
+// Two build rounds tried to classify a subagent's own summary text as
+// "terminal" (done/shipped/merged/abandoned) vs. "still active" so the
+// writer could clear a finished item's line instead of upserting it. Round 1
+// (bare word-boundary match): false-cleared active work 7/7 on realistic
+// negated phrasing ("not done yet, still drafting"). Round 2 (negation-aware
+// window, fixing round 1): closed those false-clears but opened a worse
+// failure in the OPPOSITE direction, false-KEEPING 8/8 on genuinely finished
+// work containing an innocent nearby negation word ("shipped; no issues
+// found", "merged to main, not without drama") — a persistent, indefinite
+// false signal, worse than the silent-once false-clear it replaced. Ratified
+// decision (Vector, after the stuck-loop escalation): delete the inference
+// entirely rather than try a third heuristic. No content inspection, no clear
+// path — every relay is an upsert; cleanup is cap-8 recency eviction only.
+//
+// The tests below that used to prove a clear/keep DECISION (G1, G6, G9, G10
+// in earlier rounds) now prove the ABSENCE of one: every phrase that used to
+// be adversarial, in either direction, is just upsert content now, verified
+// byte-for-byte, with zero special-casing anywhere in the pipeline.
 
 import {
   mkdtempSync,
@@ -20,7 +43,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   run,
@@ -30,8 +53,6 @@ import {
   renderLine,
   keyOfLine,
   CAP,
-  TERMINAL,
-  isTerminalSummary,
   BUILTINS,
 } from '../hooks/otto-state.mjs';
 
@@ -65,6 +86,13 @@ function withClaudeDir(projectDir) {
   mkdirSync(join(projectDir, '.claude'), { recursive: true });
 }
 
+function newProjectDir() {
+  const projectDir = mkdtempSync(join(tmpdir(), 'otto-state-project-'));
+  scratchDirs.push(projectDir);
+  withClaudeDir(projectDir);
+  return projectDir;
+}
+
 const globalPath = (configDir) => join(configDir, 'otto-state-global.md');
 const localPath = (projectDir) => join(projectDir, '.claude', 'otto-state.md');
 
@@ -86,6 +114,10 @@ function payload({ subagentType, description, text, cwd }) {
 
 function runWith(configDir, home, p) {
   run(p, { env: { CLAUDE_CONFIG_DIR: configDir }, home: home || configDir });
+}
+
+function require_basename(p) {
+  return p.split(/[\\/]/).filter(Boolean).pop();
 }
 
 // ---------------------------------------------------------------- task 2: classification (pure logic)
@@ -113,18 +145,6 @@ record('bareType: strips only the robotinc: prefix, leaves other namespaces alon
 record('classify: unknown non-built-in gets 🧩 hired-staff marker', () => {
   const c = classify('db-migrator');
   assert(c.skip === false && c.badge === '🧩' && c.hired === true && c.name === 'db-migrator', 'hired-staff classification wrong');
-});
-
-record('TERMINAL: matches explicit tokens on word boundaries', () => {
-  for (const s of ['Auth middleware done, 4 tests green', 'PR merged', 'feature shipped to prod', 'branch abandoned']) {
-    assert(TERMINAL.test(s), `expected terminal match in "${s}"`);
-  }
-});
-
-record('TERMINAL: does not match unrelated text', () => {
-  for (const s of ['kingdom of nouns', 'undone work remains', 'shipping soon']) {
-    assert(!TERMINAL.test(s), `unexpected terminal match in "${s}"`);
-  }
 });
 
 record('renderLine / keyOfLine round-trip (internal parser, not the LLM reader)', () => {
@@ -167,15 +187,10 @@ record('8. smoke: write + read round-trip, global + local, header present', () =
   assert(readFileSync(localPath(projectDir), 'utf8').startsWith('<!--'), 'local file missing header');
 });
 
-function require_basename(p) {
-  return p.split(/[\\/]/).filter(Boolean).pop();
-}
-
 // ---------------------------------------------------------------- 9a: home-dir persona
 
 record('9a. home-dir persona: global fires, local skipped', () => {
   const { configDir } = freshDirs();
-  const home = configDir; // configDirOf(env={}, home) with no override falls back to <home>/.claude
   const homeDir = mkdtempSync(join(tmpdir(), 'otto-state-home-'));
   scratchDirs.push(homeDir);
   const realConfigDir = join(homeDir, '.claude');
@@ -207,9 +222,9 @@ record('9b. custom CLAUDE_CONFIG_DIR: writer targets the env-set path (reader ha
   assert(existsSync(globalPath(altConfig)), 'writer did not honour CLAUDE_CONFIG_DIR override');
 });
 
-// ---------------------------------------------------------------- 9c: upsert
+// ---------------------------------------------------------------- 9c: upsert-overwrite on re-touch
 
-record('9c. upsert: same key twice collapses to one line, newest kept', () => {
+record('9c. upsert-overwrite on re-touch: same key twice collapses to one line, newest content kept', () => {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);
   const p1 = payload({ subagentType: 'bitforge-engineer', description: 'rate limiter', text: 'started', cwd: projectDir });
@@ -219,6 +234,7 @@ record('9c. upsert: same key twice collapses to one line, newest kept', () => {
   const lines = readLines(localPath(projectDir));
   assert(lines.length === 1, `expected 1 line after upsert, got ${lines.length}`);
   assert(lines[0].includes('finished draft'), 'upsert did not keep the newest summary');
+  assert(!lines[0].includes(': started'), 'upsert should have replaced, not appended, the old content');
 });
 
 record('regression: "robotinc:bitforge-engineer" and bare "bitforge-engineer" upsert to the SAME line', () => {
@@ -231,9 +247,9 @@ record('regression: "robotinc:bitforge-engineer" and bare "bitforge-engineer" up
   assert(lines[0].includes('finished') && lines[0].includes('🔩 Bitforge (Engineer)'), `line malformed: ${lines[0]}`);
 });
 
-// ---------------------------------------------------------------- 9d: cap at 8
+// ---------------------------------------------------------------- 9d: eviction order (cap at 8, recency only)
 
-record('9d. cap at 8: 9th write evicts the 1st (oldest)', () => {
+record('9d. eviction order: cap at 8, 9th write evicts the 1st (oldest) — recency only, no other rule', () => {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);
   for (let i = 1; i <= 9; i++) {
@@ -248,38 +264,14 @@ record('9d. cap at 8: 9th write evicts the 1st (oldest)', () => {
   assert(lines.length === CAP, `expected ${CAP} lines, got ${lines.length}`);
   assert(!lines.some((l) => l.includes('item-1:')), 'oldest entry (item-1) should have been evicted');
   assert(lines.some((l) => l.includes('item-9:')), 'newest entry (item-9) should be present');
-});
-
-// ---------------------------------------------------------------- 9e: terminal clear (both files)
-
-record('9e. terminal clear: line removed from BOTH global and local', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'webhook fix', text: 'in progress', cwd: projectDir }));
-  assert(readLines(localPath(projectDir)).length === 1, 'setup: line should exist before terminal call');
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'webhook fix', text: 'shipped to prod', cwd: projectDir }));
-  assert(readLines(localPath(projectDir)).length === 0, 'local line should be cleared by terminal token');
-  assert(readLines(globalPath(configDir)).length === 0, 'global line should be cleared by terminal token');
-});
-
-// ---------------------------------------------------------------- 9f: false-clear negative
-
-record('9f. false-clear: "done" in description text, not in summary, does not clear', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({
-    subagentType: 'bitforge-engineer',
-    description: 'mark item as done manually',
-    text: 'drafted the toggle, needs review',
-    cwd: projectDir,
-  }));
-  const lines = readLines(localPath(projectDir));
-  assert(lines.length === 1, `"done" in description text alone should not clear the line — got ${lines.length} lines`);
+  // Order is strictly newest-first — item-9 at the top, item-2 (the new oldest survivor) at the bottom.
+  assert(lines[0].includes('item-9:'), `newest item should be first, got: ${lines[0]}`);
+  assert(lines[lines.length - 1].includes('item-2:'), `oldest surviving item should be last, got: ${lines[lines.length - 1]}`);
 });
 
 // ---------------------------------------------------------------- 9g: first-create header
 
-record('9g. first-create header: present exactly once, matches the documented format', () => {
+record('9g. first-create header: present exactly once, states the recent-first (not "active only") contract', () => {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);
   assert(!existsSync(localPath(projectDir)) && !existsSync(globalPath(configDir)), 'setup: files should not exist yet');
@@ -290,6 +282,15 @@ record('9g. first-create header: present exactly once, matches the documented fo
   assert((l.match(/<!--/g) || []).length === 1, 'local header should appear exactly once');
   assert(g.includes('otto-state-global.md') && g.includes('-->'), 'global header malformed');
   assert(l.includes('otto-state.md') && l.includes('-->'), 'local header malformed');
+  // The contract text itself, not just its presence: no clear path, no "active work only" claim.
+  // Flatten whitespace first -- the header is hand-wrapped prose and a phrase can legitimately
+  // span a physical line break (e.g. "no clear\n     path:"), same reasoning as scripts/validate.mjs's
+  // own wrapped-prose checks.
+  const gFlat = g.replace(/\s+/g, ' ');
+  const lFlat = l.replace(/\s+/g, ' ');
+  assert(lFlat.includes('no clear path') && lFlat.includes('recent work'), 'local header does not state the recent-first, no-clear-path contract');
+  assert(gFlat.includes('no clear path') && gFlat.includes('recent work'), 'global header does not state the recent-first, no-clear-path contract');
+  assert(!lFlat.includes('active work only') && !gFlat.includes('active work only'), 'header still claims "active work only" — stale contract text');
 });
 
 // ---------------------------------------------------------------- 9h: no .claude dir -> no local write
@@ -347,7 +348,6 @@ async function testCrossProcessRace() {
   assert(lines.length === 2, `expected 2 lines after concurrent distinct-key writes, got ${lines.length}: ${JSON.stringify(lines)}`);
   assert(lines.some((l) => l.includes('race-item-a')), 'race-item-a line missing — lost write under lock contention');
   assert(lines.some((l) => l.includes('race-item-b')), 'race-item-b line missing — lost write under lock contention');
-  // File must still be well-formed (every line parses).
   for (const l of lines) assert(keyOfLine(l, false) !== null, `corrupted line after concurrent writes: ${l}`);
 }
 
@@ -364,16 +364,10 @@ record('9l. lock exhaustion: degrades to raw append, self-heals on next clean wr
     text: 'appended while locked',
     cwd: projectDir,
   }));
-  // Under a held lock, the writer must not have touched CAP/header logic —
-  // just a raw append. File may not even exist yet if it was never created
-  // before (append creates it, but with no header — expected and documented:
-  // "self-heals on next clean write").
   assert(existsSync(localPath(projectDir)), 'degraded append should still land the line');
   let lines = readLines(localPath(projectDir));
   assert(lines.length === 1 && lines[0].includes('appended while locked'), 'degraded line missing or malformed');
   rmSync(lockDir, { recursive: true, force: true }); // release the simulated lock
-  // Next clean write for a DIFFERENT key should read the degraded line back
-  // in (loadFile tolerates a missing/absent header) and cap/dedupe normally.
   runWith(configDir, configDir, payload({
     subagentType: 'bitforge-engineer',
     description: 'clean follow-up',
@@ -400,86 +394,10 @@ record('9m. round-trip: writer output matches agents/otto-foreman.md\'s document
   const dateStr = new Date().toISOString().slice(0, 10);
   const expected = `· 🔩 Bitforge (Engineer) — subscription schema: drafted  (${dateStr})`;
   assert(raw.includes(expected), `line does not match the grammar's own worked example shape.\nExpected substring: ${expected}\nGot file:\n${raw}`);
-  // The GRAMMAR regex scripts/validate.mjs checks against otto-foreman.md's
-  // worked example — reuse the same shape here so a drift between the two
-  // is caught by this test, not just eyeballed.
   const GRAMMAR = /^· \S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/;
   const line = readLines(localPath(projectDir))[0];
   assert(GRAMMAR.test(line), `writer's line does not match otto-foreman.md's GRAMMAR regex: ${line}`);
 });
-
-// ---------------------------------------------------------------- Glitchtrap: adversarial pass, v22.8.0 QA
-//
-// Everything below was written to attack the build, not confirm it — the priority list Bitforge/Gantry
-// flagged as accepted risks in TASKS.md's build notes, plus edge cases the 23/23 suite above does not cover.
-// Where a test asserts the CORRECT (desired) behaviour and the build does not deliver it, the test is left
-// failing on purpose — that is the regression repro, not a mistake. See the QA report for the verdict.
-
-// ---------------------------------------------------------------- G1: TERMINAL false-clear on realistic negation
-//
-// TERMINAL is a bare word-boundary match (`/\b(done|shipped|merged|abandoned)\b/i`) against the SUMMARY (the
-// subagent's own last non-empty line), with no negation handling — flagged as a known, accepted risk in the
-// file's own header comment. This is not a synthetic gotcha: "not done yet" and "nothing merged" are exactly
-// how a subagent naturally phrases an in-progress result. A false clear is silent — no error, no stdout, the
-// active-work line just vanishes from both files, and nothing else in the product will ever say it happened.
-
-const REALISTIC_NEGATION_CASES = [
-  'not done yet, still drafting the second endpoint',
-  'nothing merged yet -- waiting on review',
-  'far from done, 3 tests still red',
-  'undone work remains, not shipped to prod',
-  'this is not abandoned, just paused for review',
-  'done is not the word for this -- 3 tests failing',
-  'half-done, needs another pass',
-];
-
-record('G1a. TERMINAL false-clear rate on realistic negated subagent phrasing (measured, not asserted-safe)', () => {
-  const falseClears = REALISTIC_NEGATION_CASES.filter((s) => TERMINAL.test(s));
-  // Recorded as informational even if it "passes" zero-tolerance — the number IS the finding.
-  // As of this build: matches on ALL of them (rate logged to stdout below for the report).
-  console.log(`    [G1a] false-clear rate on ${REALISTIC_NEGATION_CASES.length} realistic negated cases: ${falseClears.length}/${REALISTIC_NEGATION_CASES.length}`);
-  assert(true, 'informational only — see logged rate above');
-});
-
-record('G1b. REGRESSION (expected to FAIL until fixed): "not done yet, still drafting" must not clear an active line end-to-end', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'webhook retry logic', text: 'started the backoff handler', cwd: projectDir }));
-  assert(readLines(localPath(projectDir)).length === 1, 'setup: line should exist before the negated call');
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'webhook retry logic', text: 'not done yet, still drafting the second endpoint', cwd: projectDir }));
-  const lines = readLines(localPath(projectDir));
-  assert(lines.length === 1, `FALSE CLEAR: "not done yet" wrongly cleared the active line (TERMINAL matched "done" with no negation handling) — local lines remaining: ${lines.length}`);
-  assert(readLines(globalPath(configDir)).length === 1, 'FALSE CLEAR: global line was also wrongly cleared');
-});
-
-record('G1c. REGRESSION (expected to FAIL until fixed): "nothing merged yet -- waiting on review" must not clear an active line', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'pr queue', text: 'opened the PR', cwd: projectDir }));
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'pr queue', text: 'nothing merged yet -- waiting on review', cwd: projectDir }));
-  const lines = readLines(localPath(projectDir));
-  assert(lines.length === 1, `FALSE CLEAR: "nothing merged" wrongly cleared the active line — local lines remaining: ${lines.length}`);
-});
-
-// ---------------------------------------------------------------- Bitforge fix-verification: true terminal
-// phrasing must still clear, both directions of the negation fix proven together, not just the negative side.
-
-for (const [label, text] of [
-  ['merged to main', 'merged to main'],
-  ['shipped in 4 commits', 'shipped in 4 commits'],
-  ['done -- 4 tests green', 'done -- 4 tests green'],
-  ["QA's original doc example ('Auth middleware done, 4 tests green')", 'Auth middleware done, 4 tests green'],
-]) {
-  record(`true-positive: "${label}" still clears an active line (negation fix must not over-correct)`, () => {
-    const { configDir, projectDir } = freshDirs();
-    withClaudeDir(projectDir);
-    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'true-positive check', text: 'in progress', cwd: projectDir }));
-    assert(readLines(localPath(projectDir)).length === 1, 'setup: line should exist before the terminal call');
-    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'true-positive check', text, cwd: projectDir }));
-    assert(readLines(localPath(projectDir)).length === 0, `"${text}" should have cleared the local line but did not`);
-    assert(readLines(globalPath(configDir)).length === 0, `"${text}" should have cleared the global line but did not`);
-  });
-}
 
 // ---------------------------------------------------------------- G2: unicode survives description/summary
 
@@ -496,8 +414,6 @@ record('G2. unicode in description and summary survives render + upsert (badge, 
   assert(lines.length === 1, `expected 1 line, got ${lines.length}`);
   assert(lines[0].includes('国际化 façade — résumé import 🎉'), `unicode description mangled: ${lines[0]}`);
   assert(lines[0].includes('café-name edge case fixed 🎉'), `unicode summary mangled: ${lines[0]}`);
-  // Upsert a second time with the same unicode description -- key must still match (slugify must be stable
-  // across the same unicode input) or this silently becomes a duplicate line instead of an upsert.
   runWith(configDir, configDir, payload({
     subagentType: 'bitforge-engineer',
     description: '国际化 façade — résumé import 🎉',
@@ -535,8 +451,6 @@ record('G4. very long result text truncates at 140 chars without corrupting the 
   assert(m, `line did not parse for truncation check: ${lines[0]}`);
   assert(m[1].length === 140, `summary should be exactly capped at 140 chars, got ${m[1].length}`);
 
-  // Surrogate-pair boundary: an emoji sits exactly on char 139/140 of the raw text; a naive .slice(0,140)
-  // can split a UTF-16 surrogate pair in half and corrupt the string (renders as a replacement glyph).
   const emojiBoundaryText = 'y'.repeat(139) + '🎉' + 'trailing text that must be cut';
   runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'emoji boundary', text: emojiBoundaryText, cwd: projectDir }));
   const lines2 = readLines(localPath(projectDir));
@@ -560,20 +474,6 @@ record('G5. the same description dispatched to two different robots produces two
   assert(lines.some((l) => l.includes('🔘 Glitchtrap')), 'Glitchtrap line missing');
 });
 
-// ---------------------------------------------------------------- G6: terminal result for a line that doesn't exist
-
-record('G6. terminal result for a key with no existing line: no crash, no phantom line added, file stays consistent', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  // No setup write at all for this key -- straight to a terminal call.
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'never started', text: 'shipped to prod', cwd: projectDir }));
-  assert(readLines(localPath(projectDir)).length === 0, 'a terminal result for a nonexistent key should add nothing');
-  assert(readLines(globalPath(configDir)).length === 0, 'a terminal result for a nonexistent key should add nothing (global)');
-  // Header should still exist and be well-formed (upsertOrClear ran against an empty list, saveFile still fires).
-  assert(existsSync(localPath(projectDir)), 'file should still be created (with header, zero body lines)');
-  assert(readFileSync(localPath(projectDir), 'utf8').startsWith('<!--'), 'header should still be present even with zero lines');
-});
-
 // ---------------------------------------------------------------- G7: real concurrent race, same key, forced contention
 
 async function testRealContentionSameKey() {
@@ -587,17 +487,10 @@ async function testRealContentionSameKey() {
       child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`child ${n} exited ${code}`))));
       child.on('error', reject);
     });
-  // 6 real processes, SAME upsert key, fired together -- this forces real mkdir-lock contention (not the
-  // manually-staged lock of 9l) and is the actual invocation path a hook spawn uses (stdin JSON, node
-  // subprocess), not the imported run() function. Whichever write lands last should win; the file must stay
-  // parseable and have exactly one line for this key either way (clean win) or show evidence of a degraded
-  // append that a subsequent clean write self-heals (per the documented degrade contract).
   await Promise.all([1, 2, 3, 4, 5, 6].map(spawnOne));
   let lines = readLines(localPath(projectDir));
   assert(lines.length >= 1, 'same-key race under real contention lost every write');
   for (const l of lines) assert(keyOfLine(l, false) !== null, `corrupted line after real same-key contention: ${l}`);
-  // Self-heal: one more clean write for a DIFFERENT key must succeed and the file must still parse, proving
-  // no lock dir was left orphaned by the contention above.
   runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'post-race cleanup', text: 'clean write after contention', cwd: projectDir }));
   lines = readLines(localPath(projectDir));
   assert(lines.some((l) => l.includes('post-race cleanup')), 'lock was left held after real contention -- next clean write starved');
@@ -616,134 +509,141 @@ record('G8. tagged global line parses with keyOfLine(line, true) and still match
   const key = keyOfLine(line, true);
   assert(key !== null, `tagged global line failed to parse via keyOfLine: ${line}`);
   assert(key.startsWith(`${require_basename(projectDir)}::bitforge-engineer::`), `tagged key missing project prefix: ${key}`);
-  // NOTE: scripts/test-otto-state.mjs's own 9m GRAMMAR constant
-  // (`/^· \S+ [A-Z][A-Za-z]+ \(...\) .../`) does NOT have an optional `[project] ` group, so it does not
-  // actually match a global tagged line -- 9m only ever exercises it against the untagged LOCAL file. Confirmed
-  // here: the local-only GRAMMAR fails against a real global line, which is a gap in the *test's* coverage of
-  // the reader contract, not proof the reader itself is broken (agents/otto-foreman.md's step 5 is prose, not
-  // this regex, and a live session-open run does parse the tag -- see QA report). Left as an explicit,
-  // documented assertion so the gap is visible instead of silently uncovered.
   const LOCAL_ONLY_GRAMMAR = /^· \S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/;
   assert(!LOCAL_ONLY_GRAMMAR.test(line), 'expected: the local-only GRAMMAR const does not cover tagged global lines (documents a test-coverage gap, not a writer bug)');
   const TAG_AWARE_GRAMMAR = /^· (?:\[[^\]]+\] )?\S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/;
   assert(TAG_AWARE_GRAMMAR.test(line), `tag-aware grammar should match a real global line: ${line}`);
 });
 
-// ---------------------------------------------------------------- Glitchtrap round 2: attacking isTerminalSummary()
-//
-// Bitforge's fix (commit d5814de) closed the original G1b/G1c false-clears with a 24-char negation window
-// checked both before AND after the match. Attacked from both directions per the re-verify request: does the
-// window still miss realistic false-clears (semantic distance, quoting), and — the new risk a window this wide
-// introduces — does it now false-KEEP on realistic terminal phrasing that happens to contain an innocent
-// negation-shaped word nearby ("no issues", "nothing left to do", "not without drama")? Both directions found
-// real, end-to-end-reproduced defects. Left failing on purpose, same convention as G1b/G1c.
-
-// ---------------------------------------------------------------- G9: false-clear, round 2 (distance + quoting)
-
-record('G9a. false-clear rate, round 2: distance/sarcasm and quoted-name phrasing the window still misses', () => {
-  const cases = [
-    'we are done waiting on X, still building',
-    'the "shipped emails" feature is still red',
-    'task done? no', // control: SHOULD be caught (adjacent "no") -- confirms the window isn't just broken outright
-  ];
-  const results = cases.map((s) => [s, isTerminalSummary(s)]);
-  for (const [s, r] of results) console.log(`    [G9a] ${r ? 'CLEARS' : 'keeps '} | ${s}`);
-  assert(true, 'informational only — see logged results above');
-});
-
-record('G9b. REGRESSION (expected to FAIL until fixed): "we are done waiting on X, still building" must not clear', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'vendor integration', text: 'blocked on vendor X', cwd: projectDir }));
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'vendor integration', text: 'we are done waiting on X, still building', cwd: projectDir }));
-  const lines = readLines(localPath(projectDir));
-  assert(lines.length === 1, `FALSE CLEAR: "done waiting on X, still building" wrongly cleared an active line — remaining: ${lines.length}`);
-});
-
-record('G9c. REGRESSION (expected to FAIL until fixed): a terminal word inside a quoted ITEM NAME must not clear an unfinished item', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'emails feature', text: 'starting the inbox module', cwd: projectDir }));
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'emails feature', text: 'the "shipped emails" feature is still red', cwd: projectDir }));
-  const lines = readLines(localPath(projectDir));
-  assert(lines.length === 1, `FALSE CLEAR: a terminal word inside a quoted item name ("shipped emails") wrongly cleared a still-red item — remaining: ${lines.length}`);
-});
-
-// ---------------------------------------------------------------- G10: false-KEEP (the fix's own new risk)
-//
-// The negation window is 24 chars on EACH side of the match — wide enough to catch an unrelated "no"/
-// "nothing"/"without" elsewhere in the same sentence that is not actually negating the terminal word at all.
-// This is the flip side nobody tested before this pass: a genuinely finished item that now never clears, and
-// stays in the brief forever (there is no re-clear trigger short of a second dispatch with unambiguous
-// phrasing) -- worse than the staleness-ages-out story the fix's own comment leans on, because staleness only
-// helps a line that is still ACTIVE; a false-KEEP looks identical to real active work with no visible signal
-// that anything is wrong.
-
-record('G10a. false-KEEP rate on realistic terminal phrasing with an innocent nearby negation cue (measured)', () => {
-  const cases = [
-    'merged to main, not without drama',
-    'done -- nothing left to do',
-    'shipped; no issues found',
-    'abandoned the old plan, nothing more to do here',
-    'done, no regrets',
-    'shipped with no known issues',
-    'merged -- no conflicts',
-    'done. no further action needed',
-  ];
-  const falseKeeps = cases.filter((s) => !isTerminalSummary(s));
-  for (const s of cases) console.log(`    [G10a] ${isTerminalSummary(s) ? 'clears' : 'KEEPS <-- WRONG'} | ${s}`);
-  console.log(`    [G10a] false-keep rate: ${falseKeeps.length}/${cases.length}`);
-  assert(true, 'informational only — see logged rate above');
-});
-
-record('G10b. REGRESSION (expected to FAIL until fixed): "merged to main, not without drama" must clear — it DID merge', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'merge check', text: 'opened the PR', cwd: projectDir }));
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'merge check', text: 'merged to main, not without drama', cwd: projectDir }));
-  const lines = readLines(localPath(projectDir));
-  assert(lines.length === 0, `FALSE KEEP: "not without drama" is a double-negative confirming the merge happened, but the line was not cleared. Lines remaining: ${lines.length}`);
-});
-
-record('G10c. REGRESSION (expected to FAIL until fixed): "done -- nothing left to do" must clear — "nothing" confirms, does not negate', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'cleanup task', text: 'working on cleanup', cwd: projectDir }));
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'cleanup task', text: 'done -- nothing left to do', cwd: projectDir }));
-  const lines = readLines(localPath(projectDir));
-  assert(lines.length === 0, `FALSE KEEP: "nothing left to do" confirms completion, does not negate "done" — lines remaining: ${lines.length}`);
-});
-
-record('G10d. REGRESSION (expected to FAIL until fixed): "shipped; no issues found" must clear — a clean shipment is still a shipment', () => {
-  const { configDir, projectDir } = freshDirs();
-  withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'release cut', text: 'cutting the release', cwd: projectDir }));
-  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'release cut', text: 'shipped; no issues found', cwd: projectDir }));
-  const lines = readLines(localPath(projectDir));
-  assert(lines.length === 0, `FALSE KEEP: "no issues found" is a status note, not a negation of "shipped" — lines remaining: ${lines.length}`);
-});
-
-// ---------------------------------------------------------------- G11: truncation, round 2 (grapheme-cluster boundary)
-//
-// Round-1 G4 confirmed the fix resolves the reported defect: a surrogate pair (emoji, some CJK) landing on the
-// 140 CODE-POINT cutoff no longer splits into an invalid replacement-character glyph. Attacking further per
-// the re-verify request: Array.from().slice() is code-point-safe, not GRAPHEME-CLUSTER-safe. A combining
-// character (base + combining mark, two code points / one visual glyph) or a ZWJ sequence (several code
-// points joined into one glyph, e.g. a family emoji) can still be split between code points that are each
-// individually valid UTF-16/UTF-8 -- so no U+FFFD replacement character appears, but the diacritic or the
-// joined sequence is silently altered. This is a materially smaller defect than the one that was fixed (valid
-// output vs. corrupted output) and is left informational rather than a blocking regression, but is worth
-// Bitforge/Vector knowing: "truncate by code point" is not the same claim as "truncate unicode-safely."
+// ---------------------------------------------------------------- G11: truncation, grapheme-cluster boundary (informational)
 
 record('G11. informational: grapheme-cluster boundary (combining accent) can still be silently altered by a code-point-safe truncation', () => {
-  const combining = 'é'; // "e" + combining acute accent (U+0301) -- two code points, one visual glyph (é)
+  const combining = 'é'; // "e" + combining acute accent (U+0301) -- two code points, one visual glyph (é)
   const text = 'z'.repeat(139) + combining + 'TRAILING';
   const result = Array.from(text).slice(0, 140).join('');
   const droppedAccent = result.endsWith('e') && !result.includes('́');
   console.log(`    [G11] combining-char truncation: ${droppedAccent ? 'accent silently dropped (valid output, altered glyph)' : 'kept whole'}`);
-  // No U+FFFD replacement character is produced either way -- confirming this is NOT the same class of bug
-  // as the fixed surrogate-pair defect, just a smaller, disclosed residual gap.
   assert(!result.includes('�'), 'should never contain a literal replacement character regardless of grapheme handling');
+});
+
+// ---------------------------------------------------------------- G9: content that used to false-clear now just upserts (Option C)
+//
+// Every phrase below wrongly cleared an active line in round 1 or round 2 of the deleted terminal-inference
+// machinery. Under the new contract there is no inspection at all, so each one is simply verbatim upsert
+// content — proven here by dispatching it as a SECOND call over an existing line and confirming the line
+// persists (never removed) with the new text exactly, byte-for-byte.
+
+const FORMERLY_FALSE_CLEAR_CASES = [
+  ['not done yet, still drafting the second endpoint', 'round 1 (G1b): bare match negated-before'],
+  ['nothing merged yet -- waiting on review', 'round 1 (G1c): bare match negated-before'],
+  ['far from done, 3 tests still red', 'round 1 (G1a): negation phrase before'],
+  ['done is not the word for this -- 3 tests failing', 'round 1 (G1a): negation after the match'],
+  ['half-done, needs another pass', 'round 1 (G1a): glued negation prefix'],
+  ['we are done waiting on X, still building', 'round 2 (G9b): semantic distance, window missed it'],
+  ['the "shipped emails" feature is still red', 'round 2 (G9c): terminal word inside a quoted item name'],
+];
+
+for (const [text, provenance] of FORMERLY_FALSE_CLEAR_CASES) {
+  record(`G9. "${text}" (${provenance}) persists unchanged by construction -- no inspection, so nothing to false-clear`, () => {
+    const { configDir, projectDir } = freshDirs();
+    withClaudeDir(projectDir);
+    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'g9 case', text: 'setup: in progress', cwd: projectDir }));
+    assert(readLines(localPath(projectDir)).length === 1, 'setup: line should exist before the formerly-adversarial call');
+    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'g9 case', text, cwd: projectDir }));
+    const localLines = readLines(localPath(projectDir));
+    assert(localLines.length === 1, `line should persist (exactly 1), got ${localLines.length}`);
+    assert(localLines[0].includes(`: ${text}  (`), `line content should be the verbatim new text, got: ${localLines[0]}`);
+    const globalLines = readLines(globalPath(configDir));
+    assert(globalLines.length === 1, `global line should persist too, got ${globalLines.length}`);
+    assert(globalLines[0].includes(`: ${text}  (`), `global line content should match verbatim, got: ${globalLines[0]}`);
+  });
+}
+
+// ---------------------------------------------------------------- G10: content that used to false-keep now just upserts, and evicts normally (Option C)
+//
+// Every phrase below was genuinely finished work that the round-2 negation window wrongly kept forever
+// (false-KEEP: an unrelated "no"/"nothing"/"without" nearby suppressed a real terminal match). Under the new
+// contract there is no keep/clear decision either — proven two ways: the content lands verbatim (not
+// specially cleared, not specially protected), and it is subject to the exact same cap-8 recency eviction as
+// any other line -- proving it has no special immortality left over from the old (broken) "keep" behaviour.
+
+const FORMERLY_FALSE_KEEP_CASES = [
+  'merged to main, not without drama',
+  'done -- nothing left to do',
+  'shipped; no issues found',
+  'merged -- no conflicts',
+];
+
+for (const text of FORMERLY_FALSE_KEEP_CASES) {
+  record(`G10. "${text}" persists with correct verbatim content -- no inspection, so nothing to false-keep or false-clear`, () => {
+    const { configDir, projectDir } = freshDirs();
+    withClaudeDir(projectDir);
+    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'g10 case', text, cwd: projectDir }));
+    const lines = readLines(localPath(projectDir));
+    assert(lines.length === 1, `expected exactly 1 line, got ${lines.length}`);
+    assert(lines[0].includes(`: ${text}  (`), `line content should be the verbatim text, got: ${lines[0]}`);
+  });
+}
+
+record('G10e. a formerly-false-keep line evicts at cap-8 exactly like any other -- proves it has no special lifecycle', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'finished-item', text: 'shipped; no issues found', cwd: projectDir }));
+  assert(readLines(localPath(projectDir)).some((l) => l.includes('finished-item')), 'setup: finished-item line should exist');
+  for (let i = 1; i <= 8; i++) {
+    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: `filler-${i}`, text: `work on filler ${i}`, cwd: projectDir }));
+  }
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === CAP, `expected ${CAP} lines, got ${lines.length}`);
+  assert(!lines.some((l) => l.includes('finished-item')), 'the "shipped; no issues found" line should have been evicted by recency like anything else, but is still present');
+});
+
+// ---------------------------------------------------------------- keying: (project, robot, slug)
+
+record('keying: the same robot + same slug in TWO DIFFERENT PROJECTS stays two distinct GLOBAL lines', () => {
+  const { configDir } = freshDirs();
+  const projectA = newProjectDir();
+  const projectB = newProjectDir();
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'shared item name', text: 'work in project A', cwd: projectA }));
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'shared item name', text: 'work in project B', cwd: projectB }));
+  const gLines = readLines(globalPath(configDir));
+  assert(gLines.length === 2, `same robot+slug in two different projects should be two distinct global lines, got ${gLines.length}`);
+  assert(gLines.some((l) => l.includes(`[${require_basename(projectA)}]`) && l.includes('work in project A')), 'project A global line missing or wrong');
+  assert(gLines.some((l) => l.includes(`[${require_basename(projectB)}]`) && l.includes('work in project B')), 'project B global line missing or wrong');
+  // Each project's own LOCAL file only ever sees its own single line -- the project tag is a global-only concern.
+  assert(readLines(localPath(projectA)).length === 1, 'project A local file should have exactly 1 line');
+  assert(readLines(localPath(projectB)).length === 1, 'project B local file should have exactly 1 line');
+});
+
+// ---------------------------------------------------------------- eviction independence: local and global cap separately
+
+record('eviction independence: local (per-project, cap 8) and global (cross-project, cap 8) evict on their own schedules', () => {
+  const { configDir } = freshDirs();
+  const projectA = newProjectDir();
+  const projectB = newProjectDir();
+  // 5 distinct items in project A: local A has 5, global has 5 (all tagged [A]).
+  for (let i = 1; i <= 5; i++) {
+    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: `a-item-${i}`, text: `work ${i}`, cwd: projectA }));
+  }
+  assert(readLines(localPath(projectA)).length === 5, 'project A local should have 5 lines after 5 distinct writes');
+  assert(readLines(globalPath(configDir)).length === 5, 'global should have 5 lines after 5 writes, all from project A');
+  // 5 MORE distinct items in project B: local B gets its OWN 5 (unaffected by project A's local file), while
+  // global now has 10 candidate entries total and must cap at 8 -- evicting the 2 oldest (from project A).
+  for (let i = 1; i <= 5; i++) {
+    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: `b-item-${i}`, text: `work ${i}`, cwd: projectB }));
+  }
+  const localA = readLines(localPath(projectA));
+  const localB = readLines(localPath(projectB));
+  const global = readLines(globalPath(configDir));
+  assert(localA.length === 5, `project A local should still have its own 5 lines, untouched by project B's writes -- got ${localA.length}`);
+  assert(localB.length === 5, `project B local should have its own 5 lines -- got ${localB.length}`);
+  assert(global.length === CAP, `global should be capped at ${CAP} across both projects combined -- got ${global.length}`);
+  // The global cap should have evicted project A's OLDEST entries (a-item-1, a-item-2), not project B's --
+  // recency is global-file-wide, not per-project, and local caps are completely independent of it.
+  assert(!global.some((l) => l.includes('a-item-1:')), 'global cap should have evicted the oldest entry (a-item-1) first');
+  assert(!global.some((l) => l.includes('a-item-2:')), 'global cap should have evicted the 2nd-oldest entry (a-item-2) too');
+  assert(global.some((l) => l.includes('a-item-3:')), 'a-item-3 should have survived the global cap');
+  assert(global.filter((l) => l.includes('b-item')).length === 5, 'all 5 of project B\'s items should be present in global (none evicted yet)');
 });
 
 // ---------------------------------------------------------------- run

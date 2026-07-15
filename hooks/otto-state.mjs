@@ -74,64 +74,54 @@ const NAME_TO_ID = Object.fromEntries(Object.entries(ROBOTS).map(([id, [, name]]
 // instead of vanishing, which is a cosmetic wart, never a crash.
 const BUILTINS = new Set(['Explore', 'general-purpose', 'Plan', 'claude', 'statusline-setup']);
 
-// Explicit terminal signals only — checked against the extracted SUMMARY
-// (the subagent's own final-message result line), never against the
-// description or prompt. Kept as a plain existence check (no negation
-// awareness) for simple callers; the actual clear-vs-keep decision in run()
-// uses isTerminalSummary() below, which is negation-aware. Do not use this
-// bare regex to decide whether to clear a line.
-const TERMINAL = /\b(done|shipped|merged|abandoned)\b/i;
-
-// A NEGATED terminal word must never clear a line — "not done yet, still
-// drafting" and "nothing merged yet -- waiting on review" are exactly how a
-// subagent naturally phrases in-progress work, and a bare TERMINAL.test()
-// false-cleared 7/7 on a battery of realistic negated phrasing (QA, tests
-// G1a-G1c). The design doctrine here is explicit and asymmetric: a missed
-// clear leaves a stale line that ages out VISIBLY (the 7-day staleness
-// render); a wrongful clear erases active work SILENTLY, with no recovery
-// path. Bias every ambiguous case toward keeping the line.
+// ---------------------------------------------------------------------------
+// NO CONTENT INSPECTION. NO CLEAR PATH. This is deliberate, not an omission.
 //
-// Approach: for each terminal-word match, look at a small character window
-// around it (covers both "not done" — negation before — and "done is not
-// the word for this" — negation after) and require the window be free of
-// every negation cue below before counting the match as unambiguous. A
-// character window rather than a token count on purpose: it catches a
-// negation prefix glued directly onto the word itself ("half-done",
-// "undone") without a separate tokenizer.
-const NEGATION_WINDOW = 24;
-const NEGATION_CUE = /\bnot\b|n't\b|\bnever\b|\bnothing\b|\bno\b|\bwithout\b|far\s+from|half-|un-/i;
-
-function isTerminalSummary(summary) {
-  const re = /\b(done|shipped|merged|abandoned)\b/gi;
-  let m;
-  while ((m = re.exec(summary))) {
-    const start = Math.max(0, m.index - NEGATION_WINDOW);
-    const end = Math.min(summary.length, m.index + m[0].length + NEGATION_WINDOW);
-    if (!NEGATION_CUE.test(summary.slice(start, end))) return true; // one unambiguous signal is enough
-  }
-  return false; // no match, or every match was negated -- keep the line
-}
-
+// Two build rounds tried to classify a subagent's own wording as "terminal"
+// (done/shipped/merged/abandoned) vs. "still active," first with a bare
+// word-boundary match, then with a negation-aware window. Both were measured,
+// end-to-end, to fail in OPPOSITE directions on realistic phrasing: the bare
+// match false-cleared active work 7/7 on negated phrasing ("not done yet,
+// still drafting"); the negation-window fix that closed that gap immediately
+// opened a worse one, false-KEEPING 8/8 on genuinely finished work that
+// merely contained an innocent nearby negation word ("shipped; no issues
+// found", "merged to main, not without drama"). The premise was wrong, not
+// the heuristic: natural language announces completion BY NEGATING remaining
+// work ("nothing left to do", "no issues found") — there is no keyword
+// scanner that crosses that frontier in both directions at once. Vector's
+// ratified call after the second failure: delete the inference, don't try a
+// third heuristic. See TASKS.md's "Option C" section for the full history.
+//
+// The contract is now: every relay is an upsert, unconditionally. Cleanup is
+// cap-8 RECENCY eviction only — the 9th distinct item displaces the 10th...
+// the oldest, never a content-based judgment. A finished item ages out of the
+// top 8 exactly like everything else; nothing here decides "finished" at all.
 const CAP = 8;
 const LOCK_RETRY_ATTEMPTS = 10;
 const LOCK_RETRY_DELAY_MS = 50;
 
-const LOCAL_HEADER = `<!-- otto-state.md -- active work only. Upserted by Otto at relay time (see
-     agents/otto-foreman.md, "Announcing a handoff"), and mechanically backstopped by the PostToolUse hook
-     hooks/otto-state.mjs after every completed Task call -- same grammar, same upsert key. The hook does not
-     replace Otto's own composition; it welds it. The session-open brief renders the top 5 lines verbatim.
-     Full history lives in otto-trace.log; the task list is TASKS.md. A terminal result
-     (done/shipped/merged/abandoned) removes its line rather than adding one. Capped at 8 lines, newest first.
-     If this project is version-controlled, add .claude/ to .gitignore -- RobotInc's own repo does exactly
-     this, so a stranger who clones the project never inherits someone else's "we've already met." -->`;
+const LOCAL_HEADER = `<!-- otto-state.md -- recent work, newest first, active among it. Upserted by Otto at relay
+     time (see agents/otto-foreman.md, "Announcing a handoff"), and mechanically backstopped by the
+     PostToolUse hook hooks/otto-state.mjs after every completed Task call -- same grammar, same upsert key.
+     The hook does not replace Otto's own composition; it welds it. There is no clear path: every relay is an
+     upsert, unconditionally, and cleanup is cap-8 RECENCY eviction only -- the 9th distinct item displaces the
+     oldest, never a content-based judgment (an earlier design tried to detect "done/shipped/merged/abandoned"
+     wording and clear those lines; two rounds of testing found it fails in opposite directions on realistic
+     phrasing, so it was removed rather than patched a third time). The robot's own wording carries whatever
+     completion signal there is ("shipped" reads as closed to a human); a line older than 7 days renders with
+     a relative-age suffix as a second, honest signal, never a deletion. The session-open brief renders the
+     top 5 lines verbatim. Full history lives in otto-trace.log; the task list is TASKS.md. If this project is
+     version-controlled, add .claude/ to .gitignore -- RobotInc's own repo does exactly this, so a stranger
+     who clones the project never inherits someone else's "we've already met." -->`;
 
-const GLOBAL_HEADER = `<!-- otto-state-global.md -- active work across ALL projects on this machine. Upserted only
-     by the PostToolUse hook hooks/otto-state.mjs after every completed Task call. Lines are tagged
-     [project] so state from other projects stays identifiable. The session-open brief
-     (agents/otto-foreman.md step 5) merges this with the project-local ./.claude/otto-state.md and renders the
-     top 5, newest first -- global wins on a (robot, item) conflict. A terminal result
-     (done/shipped/merged/abandoned) removes its line rather than adding one. Capped at 8 lines total across
-     all projects, newest first. -->`;
+const GLOBAL_HEADER = `<!-- otto-state-global.md -- recent work across ALL projects on this machine, newest first,
+     active among it. Upserted only by the PostToolUse hook hooks/otto-state.mjs after every completed Task
+     call. Lines are tagged [project] so state from other projects stays identifiable. There is no clear
+     path: every relay is an upsert, unconditionally, and cleanup is cap-8 RECENCY eviction only across all
+     projects combined -- the 9th distinct item displaces the oldest, never a content-based judgment (see
+     otto-state.md's header for why a done/shipped/merged/abandoned detector was tried and removed). The
+     session-open brief (agents/otto-foreman.md step 5) merges this with the project-local
+     ./.claude/otto-state.md and renders the top 5, newest first -- global wins on a (robot, item) conflict. -->`;
 
 // Matches a rendered line from either file. Group 1 is the optional
 // `[project]` tag (global only); group 2 the badge; group 3 the name (a
@@ -292,15 +282,14 @@ function saveFile(path, header, lines) {
   atomicWrite(path, body);
 }
 
-// Mutates and returns `lines`: upserts `rendered` under `key` (moves to top,
-// replacing any existing line with the same key), or — if `isTerminal` —
-// removes the existing line under `key` instead of adding anything. Corrupt
-// lines (keyOfLine returns null) are left in place, never matched, and age
-// out naturally under the cap.
-function upsertOrClear(lines, key, rendered, isTerminal, tagged) {
+// Mutates and returns `lines`: upserts `rendered` under `key` — moves to top,
+// replacing any existing line with the same key. Unconditional; there is no
+// clear path (see the header comment on CAP above). Corrupt lines (keyOfLine
+// returns null) are left in place, never matched, and age out naturally
+// under the cap, same as any other line.
+function upsert(lines, key, rendered, tagged) {
   const idx = lines.findIndex((l) => keyOfLine(l, tagged) === key);
   if (idx !== -1) lines.splice(idx, 1);
-  if (isTerminal) return lines;
   lines.unshift(rendered);
   if (lines.length > CAP) lines.length = CAP;
   return lines;
@@ -315,17 +304,16 @@ function appendDegrade(path, rendered) {
 }
 
 // One locked read-modify-write cycle against `path`. On lock exhaustion,
-// degrades to a raw append (skipped entirely for a terminal clear — clearing
-// requires reading the existing content, which is exactly what a lock
-// timeout means we cannot safely do; the next clean write self-heals it).
-function writeTarget(path, lockDir, header, key, rendered, isTerminal, tagged) {
+// degrades to a raw append (unconditional now — there is no clear path to
+// skip); the next clean write reads it back in and applies the cap normally.
+function writeTarget(path, lockDir, header, key, rendered, tagged) {
   const gotLock = acquireLock(lockDir);
   if (!gotLock) {
-    if (!isTerminal) appendDegrade(path, rendered);
+    appendDegrade(path, rendered);
     return;
   }
   try {
-    const lines = upsertOrClear(loadFile(path), key, rendered, isTerminal, tagged);
+    const lines = upsert(loadFile(path), key, rendered, tagged);
     saveFile(path, header, lines);
   } finally {
     releaseLock(lockDir);
@@ -351,8 +339,7 @@ export function run(payload, opts = {}) {
 
   const description = payload.tool_input?.description || '(untitled)';
   const finalText = extractText(payload.tool_response?.content);
-  const summary = summarize(finalText);
-  const isTerminal = isTerminalSummary(summary);
+  const summary = summarize(finalText); // verbatim (truncated) — no content inspection, no clear path
   const slug = slugify(description);
   const date = new Date().toISOString().slice(0, 10);
 
@@ -383,7 +370,6 @@ export function run(payload, opts = {}) {
       GLOBAL_HEADER,
       globalKey,
       globalRendered,
-      isTerminal,
       true
     );
   }
@@ -413,7 +399,6 @@ export function run(payload, opts = {}) {
       LOCAL_HEADER,
       localKey,
       localRendered,
-      isTerminal,
       false
     );
   }
@@ -444,4 +429,4 @@ if (isMainModule()) {
 }
 
 // Exported for tests only — the hook itself never imports these from outside.
-export { slugify, extractText, summarize, classify, bareType, renderLine, keyOfLine, configDirOf, CAP, TERMINAL, isTerminalSummary, BUILTINS, ROBOTS };
+export { slugify, extractText, summarize, classify, bareType, renderLine, keyOfLine, configDirOf, CAP, BUILTINS, ROBOTS };
