@@ -10,6 +10,19 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/otto-facts.mjs"
+            ],
+            "timeout": 5
+          }
+        ]
       }
     ],
     "SubagentStop": [

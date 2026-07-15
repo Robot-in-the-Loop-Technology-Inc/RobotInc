@@ -485,7 +485,7 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
 // test, and Glitchtrap should confirm on real Unix hardware before release.
 {
   const hookFiles = readdirSync(join(REPO, 'hooks'));
-  const extra = hookFiles.filter((f) => !['hooks.json', 'otto-trace.mjs', 'otto-state.mjs'].includes(f));
+  const extra = hookFiles.filter((f) => !['hooks.json', 'otto-trace.mjs', 'otto-state.mjs', 'otto-facts.mjs'].includes(f));
   if (extra.length) fail(`unexpected files in hooks/: ${extra.join(', ')} — a new hook is a new runtime dependency; see README`);
   const trace = read('hooks/otto-trace.mjs');
   if (VS16.test(trace)) fail('hooks/otto-trace.mjs: contains a U+FE0F variation-selector emoji');
@@ -495,6 +495,12 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   if (state) {
     if (VS16.test(state)) fail('hooks/otto-state.mjs: contains a U+FE0F variation-selector emoji');
     if (/Level[- ]?2|Operator'/.test(state)) fail('hooks/otto-state.mjs: personal tier leaked in');
+  }
+  const factsHookPath = join(REPO, 'hooks/otto-facts.mjs');
+  const facts = existsSync(factsHookPath) ? read('hooks/otto-facts.mjs') : null;
+  if (facts) {
+    if (VS16.test(facts)) fail('hooks/otto-facts.mjs: contains a U+FE0F variation-selector emoji');
+    if (/Level[- ]?2|Operator'/.test(facts)) fail('hooks/otto-facts.mjs: personal tier leaked in');
   }
   const hooks = JSON.parse(read('hooks/hooks.json'));
   const events = Object.keys(hooks.hooks || {});
@@ -535,16 +541,49 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   }
 
   // The SessionStart hook is the one place a regression could silently smuggle
-  // the runtime dependency back in (or fire on the wrong trigger). Gate both.
-  for (const entry of hooks.hooks?.SessionStart || []) {
+  // the runtime dependency back in (or fire on the wrong trigger). TWO entries
+  // are expected here, deliberately, since v22.8.0's facts injector: the
+  // original zero-dependency echo TRIGGER (gated exactly as always — it is
+  // what makes the whole session-open protocol fire at all, even with no
+  // Node on the machine) and a Node-only FACTS hook (hooks/otto-facts.mjs)
+  // that resolves <config> and a handful of existence facts mechanically so
+  // the model never has to shell out to check CLAUDE_CONFIG_DIR itself — a
+  // live, screenshot-verified bug (a brand-new user's first turn was a Bash
+  // permission dialog). The facts hook is explicitly ALLOWED to use node/args
+  // — it degrades to silently absent when Node is missing (see that file's
+  // own header comment), which is why it never needs the trigger's
+  // zero-dependency or apostrophe-safety properties.
+  const sessionStartEntries = hooks.hooks?.SessionStart || [];
+  if (sessionStartEntries.length !== 2) {
+    fail(`hooks.json: expected exactly 2 SessionStart entries (the zero-dependency trigger + the Node facts `
+       + `injector), found ${sessionStartEntries.length}`);
+  }
+  let sawTrigger = false;
+  let sawFactsHook = false;
+  for (const entry of sessionStartEntries) {
     if (entry.matcher !== 'startup') {
       fail(`hooks.json: SessionStart matcher is "${entry.matcher}", must be "startup" — firing on resume/clear/compact `
          + `risks re-running roll-call for someone already met`);
     }
     for (const h of entry.hooks || []) {
-      if (h.args) fail('hooks.json: SessionStart hook sets "args" — that switches Claude Code to EXEC form, which bypasses the shell entirely and would silently stop injecting the echoed text as shell output');
+      const isFactsHook = h.command === 'node' && (h.args || []).some((a) => /otto-facts\.mjs$/.test(a));
+      if (isFactsHook) {
+        sawFactsHook = true;
+        if (h.type !== 'command') {
+          fail(`hooks.json: SessionStart facts hook has "type": "${h.type}" — must be "command", the same `
+             + `convention every other hook here uses ("script" was tried elsewhere in this file and empirically `
+             + `never fires; see docs/hook-events.md)`);
+        }
+        if (!(h.timeout > 0 && h.timeout <= 10)) {
+          fail(`hooks.json: SessionStart facts hook timeout is ${h.timeout}, expected a small bounded number `
+             + `(<=10s) — file I/O must never hang session start`);
+        }
+        continue; // zero-dependency / single-quote-literal gates below apply to the TRIGGER only
+      }
+      sawTrigger = true;
+      if (h.args) fail('hooks.json: SessionStart trigger hook sets "args" — that switches Claude Code to EXEC form, which bypasses the shell entirely and would silently stop injecting the echoed text as shell output');
       if (/\bnode\b|\bpython3?\b|\.mjs\b|\.py\b/.test(h.command || '')) {
-        fail('hooks.json: SessionStart command references node/python/a script file — the whole point of this hook is zero runtime dependency, see the comment above');
+        fail('hooks.json: SessionStart trigger command references node/python/a script file — the whole point of this hook is zero runtime dependency, see the comment above');
       }
       // The command is a single-quoted shell literal: echo '<payload>'. In
       // BOTH bash and PowerShell, a literal apostrophe INSIDE that payload
@@ -563,17 +602,19 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
       const firstQuote = cmd.indexOf("'");
       const lastQuote = cmd.lastIndexOf("'");
       if (firstQuote === -1 || lastQuote <= firstQuote) {
-        fail(`hooks.json: SessionStart command is not wrapped in the expected single-quoted literal — cannot verify it is apostrophe-safe`);
+        fail(`hooks.json: SessionStart trigger command is not wrapped in the expected single-quoted literal — cannot verify it is apostrophe-safe`);
       } else if (cmd.slice(firstQuote + 1, lastQuote).includes("'")) {
-        fail(`hooks.json: SessionStart command payload contains an apostrophe (U+0027) — it closes the single-quoted `
+        fail(`hooks.json: SessionStart trigger command payload contains an apostrophe (U+0027) — it closes the single-quoted `
            + `literal early in BOTH bash and PowerShell, and the remainder re-parses as shell syntax, silently, on a `
            + `bare-Windows machine with no error a human will ever see. Rephrase to avoid it ("does not", not `
            + `"doesn't"). Do not substitute a typographic apostrophe (U+2019) as an escape hatch unless it has been `
            + `empirically verified byte-identical through both shells — it has not been.`);
       }
-      if (!(h.timeout > 0 && h.timeout <= 10)) fail(`hooks.json: SessionStart timeout is ${h.timeout}, expected a small bounded number (<=10s) — this hook must never hang session start`);
+      if (!(h.timeout > 0 && h.timeout <= 10)) fail(`hooks.json: SessionStart trigger timeout is ${h.timeout}, expected a small bounded number (<=10s) — this hook must never hang session start`);
     }
   }
+  if (!sawTrigger) fail('hooks.json: no zero-dependency SessionStart trigger entry found (expected an echo-based entry)');
+  if (!sawFactsHook) fail('hooks.json: no Node-based SessionStart facts hook found (expected an entry invoking hooks/otto-facts.mjs)');
 
   // The hook's ROBOTS map must know every delegate robot, with the SAME badge and
   // role as Otto's roster. It didn't: Gantry shipped and was never added here, so
