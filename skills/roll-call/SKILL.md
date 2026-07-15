@@ -18,9 +18,16 @@ model: haiku
 This skill owns the whole first encounter — it lives here, not in Otto's system prompt, because it happens
 **once** and that prompt is billed on **every turn**.
 
-1. **Look at who already works here.** Read `<config>/agents/`, `<config>/skills/`, `<config>/commands/`
-   and `settings.json`. Read-only, no permission needed: it is their machine and you are their employee.
-   (Reading is a two-way door. Writing is a one-way door and still asks.)
+1. **Look at who already works here.** The session-open facts block already did this read for you —
+   consume the injected inventory (`inv_agents`, `inv_agents_project`, `inv_skills`, `inv_commands`,
+   `inv_hooks`, `inv_mcp`; ids and types, a trailing `*` marks a filename collision with a stock robot) to
+   build the "their own staff" table and the collision line below. Paths are never stored in the block —
+   reconstruct any you need from `<config>` + type + id: `<config>/agents/<id>.md`,
+   `<cwd>/.claude/agents/<id>.md`, `<config>/skills/<id>/SKILL.md`, `<config>/commands/<id>.md`.
+   **Fall back to reading `<config>/agents/`, `<config>/skills/`, `<config>/commands/` and `settings.json`
+   yourself only when `inv` is `off`, `partial`, `error`, or absent** — and on `partial`, scan only the types
+   the block left out. Either way, read-only, no permission needed: it is their machine and you are their
+   employee. (Reading is a two-way door. Writing is a one-way door and still asks.)
 2. **Write the sentinel, then draw the card — one act, write first.** Not two steps where the second one is
    optional. See below.
 3. **Get to know them, conversationally.** Which seat do they drive? How technical are they? How much do they

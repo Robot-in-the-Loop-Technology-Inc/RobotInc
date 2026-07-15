@@ -1,5 +1,57 @@
 # Changelog
 
+## 22.8.0 — 2026-07-15
+
+**Deterministic relay-state writer + global state, session-open facts injector, first-run hiring inventory (58s→38.5s).**
+
+This is a T1 release with two new hook scripts (`otto-facts.mjs`, `otto-state.mjs`) adding deterministic facts injection at session open and relay-state persistence with home-dir user support. First-run latency cut 58s → 38.5s by moving 31s of directory enumeration off the model's critical path.
+
+### Session-open facts injector (`hooks/otto-facts.mjs`)
+
+Resolves `CLAUDE_CONFIG_DIR`, checks sentinel/profile presence, reads `cwd_is_config_dir` state, and emits a facts block on every session-open. Eliminates the model's need for a Bash permission prompt on first-run to resolve its own config path (bug 1, reproduced live by Andrew). Fixes home-persona collision bug where override (a) mistakenly suppressed the card (bug 2, reproduced live).
+
+**Payload:** six core existence facts + optional inventory block (§ below). Gate: SessionStart hook, second entry alongside the existing echo trigger. Node-only (fail-silent if absent); core facts still live in the shell-echo trigger so the protocol never depends on Node.
+
+### Session-open inventory — first-run performance cut
+
+Folds first-run hiring-round directory enumeration (31s measured) into the facts hook (runs in 467ms off-path). Emits bare ids, type tags, and filename-collision flags; never reads file contents. Consumer hand-scans only on `inv=off`/`partial`/`error` or mid-session re-runs (staleness rule). Truncation policy: hard cap ~1800 chars; collisions always emitted; oldest type dropped in priority order when budget exhausted.
+
+**Failure modes:** entire gather throws → `inv=error` + six core facts intact; sub-scan fails → `inv=partial` + successful scans ship. Inventory is wrapped in try/catch, independent from core facts.
+
+**Validation gate:** cross-checks `STOCK_AGENT_IDS` (all 14 agent basenames including `otto-foreman`) against `agents/*.md` filenames; rejects mismatches at build time.
+
+### Relay-state persistence + table brief (`hooks/otto-state.mjs`, `agents/otto-foreman.md` step 5)
+
+PostToolUse hook writes each crew call to global + local state files. Reader merges and renders top-5 in a table: `| Robot | Working on | Last update |`. Home-dir users (cwd = config dir) get global state only; project-local `.claude/` gets local too. Cap at 8 lines per file, recency-based eviction (newest first). Every relay is an upsert (no content inspection, no "done/active" inference — the robot's own wording carries the signal).
+
+**Built-ins filtered:** Explore, general-purpose, Plan, claude, statusline-setup produce no state. Unknown crew → 🧩 badge.
+
+**Staleness:** always relative ("today"/"3 days ago"), not raw date. Re-runs after first reply re-scan live (do not trust session-start snapshot).
+
+### File-structure improvements
+
+- `docs/hook-events.md` — PostToolUse payload shape, `tool_name` gate trap, plugin namespacing on `subagent_type`
+- `docs/spec-facts-inventory-22.8.0.md` — complete inventory design with rulings (a) home-persona state guard, (b) override-fired seat re-offer wording
+- Updated headers on state files: *"recent work, newest first, active among it"* (was: false "terminal results clear" contract from removed v22.8.0 build phase)
+
+### Measured verification (Glitchtrap, Windows)
+
+**Session-open facts:** 17/17 acceptance tests pass. First-run card draw: zero Bash directory-listing calls. Bug 1 fix verified (no shell-out before facts block). Bug 2 fix verified (home-persona collision guard active).
+
+**Relay-state:** 40/40 tests pass (33 functional + 4 regression). Cross-process lock contention handled; append-degrade + self-heal verified. Upsert deduplication works; cap-8 eviction verified. Round-trip render verified byte-for-byte.
+
+**Integration:** 23/23 negative tests pass (9a–9m covering lock exhaustion, built-in filtering, hired-staff badge, concurrent writes, truncation, error isolation). Home-dir persona smoke test verified (state written global-only, brief renders line correctly).
+
+**Regression:** all prior-release suites green (otto-state, otto-trace, otto-foreman prose gates).
+
+### Scope and post-merge work
+
+**In scope, this release:** deterministic writer + global state, facts injector, inventory enumeration, facts validation gate, relay-state reader integration, home-persona guard (ruling a), seat re-offer reword (ruling b), ~25s first-run floor on empty payroll verified.
+
+**Out of scope, phase 2:** PreToolUse "pending" marker, model quality on summaries, project-aware filtering.
+
+**Platform gate (POLICY — waivers by explicit authorization only):** macOS/Linux POSIX sh verification waived by Andrew 2026-07-15 (defer post-merge test to Mac hardware). SessionStart echo trigger + PostToolUse hook type still require verification on macOS when available; no shipping without it for future releases.
+
 ## 22.7.2 — 2026-07-14
 
 **Rigor tiers doctrine and per-robot spend ledger.**
