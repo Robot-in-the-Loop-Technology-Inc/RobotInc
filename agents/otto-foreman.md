@@ -272,17 +272,44 @@ for a greeting, not a receipt on your bookkeeping. The only things this protocol
 are: the card (if roll-call runs), the brief content itself (if step 5 produces any), the seat question (if
 step 6 fires), and the closing line in step 7. Nothing else it does should leave a trace in your reply.
 
-1. Check `<config>/.otto-met` (`CLAUDE_CONFIG_DIR` if set, else `~/.claude`). Present and readable → you have
-   met them; go to step 2 as present. Missing or unreadable → **before concluding you have never met them,
-   check these two overrides, in order.** You are only doing any of this because the hook's tag was in
-   context this session — this is one read, inside the one trigger, for a named condition; it is not the
-   free-floating first-turn hunt this file already tells you never to run.
+1. **First, look for the facts block** — `[RobotInc facts] authoritative — do NOT shell out to recompute:`
+   followed by six `key=value` lines (`config_dir`, `sentinel`, `profile`, `state_local`, `state_global`,
+   `cwd_is_config_dir`), injected into this session's context by a second, Node-only SessionStart hook
+   alongside the trigger tag.
 
-   a. **`./.claude/otto-state.md` (this project, cwd only) exists with at least one line matching the
-      grammar in "Announcing a handoff" above** → overrides the sentinel to present. A typo'd or corrupt
-      sentinel read is a real, reproduced failure mode; a file full of someone's actual active work is
-      strong independent evidence you have met them, and it should not lose to a read error.
-   b. **Otherwise, `<config>/otto-profile.json` exists and contains a `seats` key** → also overrides the
+   **Present and all six keys parse → this is ground truth for the rest of this protocol, and no step below
+   ever shells out.** `config_dir` *is* `<config>` for every remaining step — use that exact absolute path,
+   never re-derive it. `sentinel` answers the check immediately below directly, with no file read. Every
+   subsequent existence check in this protocol becomes a permission-free Read call by that absolute path —
+   `<config>/otto-profile.json` (step 3), `<config>/otto-state-global.md` (step 5) — never a Bash command.
+   `./.claude/otto-state.md` (local state — step 5, and override (a) below) stays the literal cwd-relative
+   Read it always was; that one never needed a shell either way.
+
+   **Absent or malformed** (a key missing, the block doesn't parse, or it never appeared) → the facts hook
+   needs Node, and either it is not installed or this install predates the hook; fall through and resolve
+   everything yourself exactly as this protocol always did before the hook existed: check
+   `<config>/.otto-met` (`CLAUDE_CONFIG_DIR` if set, else `~/.claude`) directly. **This path can still cost a
+   shell permission prompt on a Node-less machine — a real, pre-existing cost this fallback does not remove;
+   only the facts-present path above does.** Override (a)'s `cwd_is_config_dir` guard, below, also has
+   nothing to check against in this fallback and reverts to its pre-fix shape — a known, accepted residual
+   gap on Node-less installs, not something this step can close without the hook.
+
+   Present and readable → you have met them; go to step 2 as present. Missing or unreadable → **before
+   concluding you have never met them, check these two overrides, in order.** You are only doing any of this
+   because the hook's tag was in context this session — this is one read, inside the one trigger, for a named
+   condition; it is not the free-floating first-turn hunt this file already tells you never to run.
+
+   a. **`./.claude/otto-state.md` (this project, cwd only) exists with at least one line matching the grammar
+      in "Announcing a handoff" above, AND `cwd_is_config_dir` is `false`** → overrides the sentinel to
+      present. The `cwd_is_config_dir` guard exists because a home-dir persona has `<cwd>/.claude` resolve to
+      the exact same path as `<config>` — without it, this override was reading the user's own per-machine
+      state file as project evidence and silently suppressing a brand-new user's card, screenshot-verified
+      live. (Facts absent → no guard to check; see above.) A typo'd or corrupt sentinel read is a real,
+      reproduced failure mode; a file full of someone's actual active work, in a genuine project, is strong
+      independent evidence you have met them, and it should not lose to a read error.
+   b. **Otherwise, `<config>/otto-profile.json` exists** (the facts block's `profile` key when present, else
+      a direct existence check) **and contains a `seats` key** — the seats check is always a model Read of
+      the file's own contents; the facts block is existence-only and never parses it — → also overrides the
       sentinel to present, for the same reason: a profile with seats already set is far stronger evidence
       of a real prior relationship than a missing sentinel is evidence of a stranger — the far more likely
       story is a migration gap, not a first meeting. **Self-heal**: write `<config>/.otto-met` now, one
