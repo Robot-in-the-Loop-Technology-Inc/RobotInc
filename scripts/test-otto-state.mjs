@@ -31,6 +31,7 @@ import {
   keyOfLine,
   CAP,
   TERMINAL,
+  isTerminalSummary,
   BUILTINS,
 } from '../hooks/otto-state.mjs';
 
@@ -626,6 +627,123 @@ record('G8. tagged global line parses with keyOfLine(line, true) and still match
   assert(!LOCAL_ONLY_GRAMMAR.test(line), 'expected: the local-only GRAMMAR const does not cover tagged global lines (documents a test-coverage gap, not a writer bug)');
   const TAG_AWARE_GRAMMAR = /^· (?:\[[^\]]+\] )?\S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/;
   assert(TAG_AWARE_GRAMMAR.test(line), `tag-aware grammar should match a real global line: ${line}`);
+});
+
+// ---------------------------------------------------------------- Glitchtrap round 2: attacking isTerminalSummary()
+//
+// Bitforge's fix (commit d5814de) closed the original G1b/G1c false-clears with a 24-char negation window
+// checked both before AND after the match. Attacked from both directions per the re-verify request: does the
+// window still miss realistic false-clears (semantic distance, quoting), and — the new risk a window this wide
+// introduces — does it now false-KEEP on realistic terminal phrasing that happens to contain an innocent
+// negation-shaped word nearby ("no issues", "nothing left to do", "not without drama")? Both directions found
+// real, end-to-end-reproduced defects. Left failing on purpose, same convention as G1b/G1c.
+
+// ---------------------------------------------------------------- G9: false-clear, round 2 (distance + quoting)
+
+record('G9a. false-clear rate, round 2: distance/sarcasm and quoted-name phrasing the window still misses', () => {
+  const cases = [
+    'we are done waiting on X, still building',
+    'the "shipped emails" feature is still red',
+    'task done? no', // control: SHOULD be caught (adjacent "no") -- confirms the window isn't just broken outright
+  ];
+  const results = cases.map((s) => [s, isTerminalSummary(s)]);
+  for (const [s, r] of results) console.log(`    [G9a] ${r ? 'CLEARS' : 'keeps '} | ${s}`);
+  assert(true, 'informational only — see logged results above');
+});
+
+record('G9b. REGRESSION (expected to FAIL until fixed): "we are done waiting on X, still building" must not clear', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'vendor integration', text: 'blocked on vendor X', cwd: projectDir }));
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'vendor integration', text: 'we are done waiting on X, still building', cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 1, `FALSE CLEAR: "done waiting on X, still building" wrongly cleared an active line — remaining: ${lines.length}`);
+});
+
+record('G9c. REGRESSION (expected to FAIL until fixed): a terminal word inside a quoted ITEM NAME must not clear an unfinished item', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'emails feature', text: 'starting the inbox module', cwd: projectDir }));
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'emails feature', text: 'the "shipped emails" feature is still red', cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 1, `FALSE CLEAR: a terminal word inside a quoted item name ("shipped emails") wrongly cleared a still-red item — remaining: ${lines.length}`);
+});
+
+// ---------------------------------------------------------------- G10: false-KEEP (the fix's own new risk)
+//
+// The negation window is 24 chars on EACH side of the match — wide enough to catch an unrelated "no"/
+// "nothing"/"without" elsewhere in the same sentence that is not actually negating the terminal word at all.
+// This is the flip side nobody tested before this pass: a genuinely finished item that now never clears, and
+// stays in the brief forever (there is no re-clear trigger short of a second dispatch with unambiguous
+// phrasing) -- worse than the staleness-ages-out story the fix's own comment leans on, because staleness only
+// helps a line that is still ACTIVE; a false-KEEP looks identical to real active work with no visible signal
+// that anything is wrong.
+
+record('G10a. false-KEEP rate on realistic terminal phrasing with an innocent nearby negation cue (measured)', () => {
+  const cases = [
+    'merged to main, not without drama',
+    'done -- nothing left to do',
+    'shipped; no issues found',
+    'abandoned the old plan, nothing more to do here',
+    'done, no regrets',
+    'shipped with no known issues',
+    'merged -- no conflicts',
+    'done. no further action needed',
+  ];
+  const falseKeeps = cases.filter((s) => !isTerminalSummary(s));
+  for (const s of cases) console.log(`    [G10a] ${isTerminalSummary(s) ? 'clears' : 'KEEPS <-- WRONG'} | ${s}`);
+  console.log(`    [G10a] false-keep rate: ${falseKeeps.length}/${cases.length}`);
+  assert(true, 'informational only — see logged rate above');
+});
+
+record('G10b. REGRESSION (expected to FAIL until fixed): "merged to main, not without drama" must clear — it DID merge', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'merge check', text: 'opened the PR', cwd: projectDir }));
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'merge check', text: 'merged to main, not without drama', cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 0, `FALSE KEEP: "not without drama" is a double-negative confirming the merge happened, but the line was not cleared. Lines remaining: ${lines.length}`);
+});
+
+record('G10c. REGRESSION (expected to FAIL until fixed): "done -- nothing left to do" must clear — "nothing" confirms, does not negate', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'cleanup task', text: 'working on cleanup', cwd: projectDir }));
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'cleanup task', text: 'done -- nothing left to do', cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 0, `FALSE KEEP: "nothing left to do" confirms completion, does not negate "done" — lines remaining: ${lines.length}`);
+});
+
+record('G10d. REGRESSION (expected to FAIL until fixed): "shipped; no issues found" must clear — a clean shipment is still a shipment', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'release cut', text: 'cutting the release', cwd: projectDir }));
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'release cut', text: 'shipped; no issues found', cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 0, `FALSE KEEP: "no issues found" is a status note, not a negation of "shipped" — lines remaining: ${lines.length}`);
+});
+
+// ---------------------------------------------------------------- G11: truncation, round 2 (grapheme-cluster boundary)
+//
+// Round-1 G4 confirmed the fix resolves the reported defect: a surrogate pair (emoji, some CJK) landing on the
+// 140 CODE-POINT cutoff no longer splits into an invalid replacement-character glyph. Attacking further per
+// the re-verify request: Array.from().slice() is code-point-safe, not GRAPHEME-CLUSTER-safe. A combining
+// character (base + combining mark, two code points / one visual glyph) or a ZWJ sequence (several code
+// points joined into one glyph, e.g. a family emoji) can still be split between code points that are each
+// individually valid UTF-16/UTF-8 -- so no U+FFFD replacement character appears, but the diacritic or the
+// joined sequence is silently altered. This is a materially smaller defect than the one that was fixed (valid
+// output vs. corrupted output) and is left informational rather than a blocking regression, but is worth
+// Bitforge/Vector knowing: "truncate by code point" is not the same claim as "truncate unicode-safely."
+
+record('G11. informational: grapheme-cluster boundary (combining accent) can still be silently altered by a code-point-safe truncation', () => {
+  const combining = 'é'; // "e" + combining acute accent (U+0301) -- two code points, one visual glyph (é)
+  const text = 'z'.repeat(139) + combining + 'TRAILING';
+  const result = Array.from(text).slice(0, 140).join('');
+  const droppedAccent = result.endsWith('e') && !result.includes('́');
+  console.log(`    [G11] combining-char truncation: ${droppedAccent ? 'accent silently dropped (valid output, altered glyph)' : 'kept whole'}`);
+  // No U+FFFD replacement character is produced either way -- confirming this is NOT the same class of bug
+  // as the fixed surrogate-pair defect, just a smaller, disclosed residual gap.
+  assert(!result.includes('�'), 'should never contain a literal replacement character regardless of grapheme handling');
 });
 
 // ---------------------------------------------------------------- run
