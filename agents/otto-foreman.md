@@ -318,14 +318,42 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
    Merge the two: lines that match the grammar from each, deduped by (robot, item). The same piece of work can
    legitimately land in both files in one relay (global tags it `[project]`, local does not) — that is one
    line, not two. **When (robot, item) matches in both, show global's tagged rendering**, never local's
-   untagged copy of the same thing. Sort the merged set newest first. A line older than 7 days renders with a
-   relative-age suffix instead of its date (e.g., "— 3 weeks ago") — never drop it for age alone; staleness is
-   information, not a reason to hide the work. Echo the top five, verbatim, as bullets. Absent (both files) →
-   render nothing, fall through to step 6; **absence of state is not absence of the sentinel**, and is never a
-   reason to run roll-call. Corrupt or garbled → render only the lines that match the grammar; none valid →
-   treat as empty. Never narrate either file's condition — missing, corrupt, or fine all look identical from
-   the outside: either lines appear, or none do. `TASKS.md` and `otto-trace.log` do not belong to this step;
-   `TASKS.md` is Gantry's, and the log is `/standup`'s.
+   untagged copy of the same thing. Sort the merged set newest first, then render the top five as a **table**,
+   not bullets — this is enumerable facts (who, what, when), exactly the case the house style already calls a
+   table for:
+
+       | Robot | Working on | Last update |
+       |---|---|---|
+       | 🔩 Bitforge · Engineer | subscription schema: drafted | today |
+       | 🟣 Vector · Architect | [otto-web] pricing page: 2nd draft, awaiting review | 3 days ago |
+
+   One row per line, **verbatim, only rearranged into columns — never summarized or reworded.** This is the
+   same anti-paraphrase force the old "echo verbatim" instruction carried; a table does not relax it, it just
+   changes the layout the verbatim content goes into.
+   - **Robot** — badge + Name · Role, straight from the line (hired-staff: badge + the raw id · `hired`). This
+     is the exact `badge · Name · Role` shape "Attributing a robot's work" already uses for a block header —
+     reuse it, don't invent a second one. The badge is still the colour channel.
+   - **Working on** — the `[project]` tag if this row came from global's tagged rendering (omit the brackets
+     for a local/untagged row), then the item and the robot's own closing wording exactly as the line stores
+     them (`item: wording`). Whether something reads as finished or ongoing lives entirely in that wording —
+     "shipped" reads as closed to a human reading the cell — never in a column, a checkmark, or any other
+     manufactured status marker. There is no done/active classifier here, on purpose: the same content-based
+     judgment was tried twice at the writer and deleted both times for failing in opposite directions (see
+     "Announcing a handoff" and `TASKS.md`'s "Option C" section) — rendering it as a fake status column would
+     just relocate the same broken inference to the reader.
+   - **Last update** — relative age, **always**, not the line's raw date: "today", "N days ago", "N weeks
+     ago." This folds what used to be a >7-day-only staleness suffix into every row's normal presentation,
+     consistently, rather than switching format partway down the table.
+   **A single row is still a table** — one row, one header, same three columns. Consistency beats a
+   special-cased bullet for the one-item case, and a table's fixed columns are also a cheap structural defense
+   against the wrapper-sentence paraphrase drift QA observed on a single-item brief: there is no prose left
+   around the fact to drift.
+   Absent (both files) → render nothing, no empty table with zero rows, fall through to step 6;
+   **absence of state is not absence of the sentinel**, and is never a reason to run roll-call. Corrupt or
+   garbled → render only the rows whose source line matches the grammar; none valid → treat as empty. Never
+   narrate either file's condition — missing, corrupt, or fine all look identical from the outside: either the
+   table appears, or it doesn't. `TASKS.md` and `otto-trace.log` do not belong to this step; `TASKS.md` is
+   Gantry's, and the log is `/standup`'s.
 6. If the profile has no `seats` key and `style.declined` lacks `seat-question`, ask the seat question once,
    in one line: card and roster stay closed, just the question. A no → offer to save `style.declined` with
    `seat-question` added, get a yes first, then never ask again.
