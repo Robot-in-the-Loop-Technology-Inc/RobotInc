@@ -4,6 +4,7 @@
 **Repo:** `C:\development\RobotInc` · **Base:** `main` @ `2810e51` (v22.8.0, released) · **Status:** working-tree spec, not committed
 **Track:** hotfix-ASAP (Andrew-approved) · **Rigor:** T3 — consent / persona-boundary property, no shortcuts; scope stays hotfix-sized.
 **Amends:** ruling (a) in `docs/spec-facts-inventory-22.8.0.md` §8a, which shipped and inverted its own intent.
+**Rev:** adds S5 (model-driven hand-write) after Glitchtrap live-reproduced a fifth surface at `4bd3f72`.
 
 ---
 
@@ -34,24 +35,29 @@ separate case 2 from case 3.
 `CLAUDE_CONFIG_DIR` points elsewhere — multi-profile users, CI/eval harnesses, and RobotInc's own documented
 sandbox-testing recipe (self-triggering).
 
-### 1.1 The defect is a discriminator, not a call site — it has four surfaces
+### 1.1 The defect is a discriminator, not a call site — it has five surfaces
 
-The same "compare against the active config dir" logic guards the persona boundary in **four** places. The
+The same "compare against the active config dir" logic guards the persona boundary in **five** places. The
 observed repro ("welcome back **and** the table") already lit up two of them at once. A hotfix that patches only
-step 5 leaves the persona boundary open through the other three — including one that **writes** to the real file:
+step 5 leaves the persona boundary open through the other four — including **two** that **write** to the real
+file, one of which (S5) is a model-driven prose write the S4 hook cannot backstop when the model writes directly:
 
 | # | Surface | File | Op | What leaks in case 3 | Severity |
 |---|---|---|---|---|---|
 | S1 | Step 1, override (a) — card suppression | `agents/otto-foreman.md` | read | reads foreign `otto-state.md` as "we've met" → suppresses the fresh card, emits "welcome back" | high |
-| S2 | Step 5 — brief render *(the named task)* | `agents/otto-foreman.md` | read | renders the foreign work table verbatim | high |
+| S2 | Step 5 — brief render *(the originally-named task)* | `agents/otto-foreman.md` | read | renders the foreign work table verbatim | high |
 | S3 | Inventory `inv_agents_project` double-count guard | `hooks/otto-facts.mjs` | read | enumerates the foreign `~/.claude/agents` ids into the session inventory | low (ids only, first-run only) |
-| S4 | Local relay write guard | `hooks/otto-state.mjs` | **write** | **appends a sandbox relay line into the real `~/.claude/otto-state.md` on every Task dispatch — mutates real data** | **high (one-way door)** |
+| S4 | Local relay write guard (hook backstop) | `hooks/otto-state.mjs` | **write** | **appends a sandbox relay line into the real `~/.claude/otto-state.md` on every Task dispatch — mutates real data** | **high (one-way door)** |
+| S5 | "Announcing a handoff" step 2 — Otto's **own prompt-driven** upsert (the *primary* write; S4 is only its backstop) | `agents/otto-foreman.md` | **write** | **model Read+Edit hand-writes a relay line into the foreign persona's real `otto-state.md`, bypassing the S4 guard entirely — live-reproduced twice at `4bd3f72`, the second time with a HEALTHY hook** | **high (one-way door)** |
 
-> **S4 is why the hotfix cannot stop at step 5.** It is a *write* to another persona's real file — a one-way
-> door, arguably worse than the read the hotfix is named for. Closing S2 alone would let us announce green while
-> the sandbox is still corrupting the real state file. This ruling closes all four surfaces of the one defect;
-> the deferral list (§8) carries only genuinely-separable follow-ups. If Andrew wants to split, **S4 is the one
-> that must not be the one deferred.**
+> **The two write surfaces (S4, S5) are why the hotfix cannot stop at a read guard.** Both mutate another
+> persona's real file — one-way doors, worse than the read the hotfix is named for. S5 is the *primary* write
+> (the model's own hand-write); S4 is its deterministic backstop. Glitchtrap proved they are independent: a
+> healthy S4 hook does **not** save S5, because the model writes the file directly, at relay time, before the
+> hook fires. Closing S2 alone — or even S1–S4 — would let us announce green while the model keeps hand-writing
+> the foreign file. This ruling closes all **five** surfaces of the one defect; §8 carries only
+> genuinely-separable follow-ups. If Andrew splits it, **the two write surfaces (S4, S5) are the ones that must
+> not be deferred.**
 
 ---
 
@@ -70,8 +76,8 @@ cwd_persona_root  =  exists(<cwd>/.claude/otto-profile.json)
                   OR exists(<cwd>/.claude/otto-state-global.md)
 ```
 
-**Blocking condition (all four surfaces).** Treat `<cwd>/.claude` as *not a plain project* — skip the local read,
-skip the local write, omit `inv_agents_project` — when **either**:
+**Blocking condition (all five surfaces).** Treat `<cwd>/.claude` as *not a plain project* — skip the local
+read, skip the local write, omit `inv_agents_project` — when **either**:
 
 ```
 cwd_is_config_dir === true   OR   cwd_persona_root === true
@@ -89,15 +95,16 @@ Local state is project evidence only when **both** are false.
   hand-written or inherited files — block it, and block it *explicitly*, not as an accident of the other guard.
 - `cwd_persona_root` catches `<cwd>/.claude` being *any other* machine's persona root (case 3), which
   `cwd_is_config_dir` is blind to because it compares against the wrong (relocated) config.
-- The union covers both. Two orthogonal blinds spots, one OR.
+- The union covers both. Two orthogonal blind spots, one OR.
 
 **Why OR across the three markers (not AND).** The failure is asymmetric: a false negative (missing a persona
-root) re-opens the leak; a false positive (mis-flagging a genuine project) costs only a skipped brief render —
-cosmetic, self-correcting next session. Fail toward detection. AND would also miss half-onboarded persona roots
-(a migration-gap profile with no `.otto-met`; a `.otto-met` written before seats). Each of the three markers is
-**config-dir-exclusive** — none ever legitimately appears in a genuine project's `.claude/` (they are per-machine
-identity/global-state, not per-project), so any one present is sufficient and decisive. `otto-state.md` is
-deliberately **not** a marker: it is the one file a genuine project legitimately owns, so it cannot discriminate.
+root) re-opens the leak; a false positive (mis-flagging a genuine project) costs only a skipped brief render or a
+skipped convenience write — cosmetic, self-correcting. Fail toward detection. AND would also miss half-onboarded
+persona roots (a migration-gap profile with no `.otto-met`; a `.otto-met` written before seats). Each of the
+three markers is **config-dir-exclusive** — none ever legitimately appears in a genuine project's `.claude/`
+(they are per-machine identity/global-state, not per-project), so any one present is sufficient and decisive.
+`otto-state.md` is deliberately **not** a marker: it is the one file a genuine project legitimately owns, so it
+cannot discriminate.
 
 **realpath / edge cases.**
 
@@ -146,9 +153,10 @@ Do **not** remove it. Consumers verified in this repo:
 
 | Consumer | Uses it for | After this hotfix |
 |---|---|---|
-| `otto-foreman.md` step 1 override (a) | card-suppression guard (S1) | now `... AND cwd_persona_root=false` |
-| `otto-foreman.md` step 5 | local-read guard (S2) | now `... AND cwd_persona_root=false` |
-| `otto-facts.mjs` `gatherInventory` | `inv_agents_project` double-count guard (S3) | omit when `cwdIsConfigDir OR cwdPersonaRoot` |
+| `otto-foreman.md` step 1 override (a) — S1 | card-suppression guard | now `... AND cwd_persona_root=false` |
+| `otto-foreman.md` step 5 — S2 | local-read guard | now `... AND cwd_persona_root=false` |
+| `otto-foreman.md` "Announcing a handoff" step 2 — S5 | *(was unguarded)* local hand-write | now `... AND cwd_persona_root=false`, fail-toward-skip (§4.4) |
+| `otto-facts.mjs` `gatherInventory` — S3 | `inv_agents_project` double-count guard | omit when `cwdIsConfigDir OR cwdPersonaRoot` |
 
 No self-heal / seat-question logic reads `cwd_is_config_dir`; nothing else in `otto-foreman.md` consumes it.
 It remains load-bearing as half of the OR (the markerless-active-config case 1) — removing it re-opens case 1.
@@ -164,7 +172,7 @@ In `gatherInventory(...)`, the `inv_agents_project` scan is currently gated `if 
 
 ## 4. Consumer changes — `agents/otto-foreman.md`
 
-Two prose edits (S1, S2) plus the count updates. Exact wording below.
+Three prose edits (S1, S2, S5) plus the count updates. Exact wording below.
 
 ### 4.1 Step 1 — the "six core keys" language (three spots)
 
@@ -211,9 +219,49 @@ Replace the "Local:" sentence with:
 Override (b) is **not** vulnerable and is unchanged: it reads `<config>/otto-profile.json` (the active config),
 never `<cwd>/.claude/otto-profile.json` — asserted, not assumed (R2 sub-assert).
 
+### 4.4 "Announcing a handoff" step 2 (S5): guard the model's own hand-write
+
+**This is the primary write path** — the model Read+Edits `./.claude/otto-state.md` at relay time; the S4 hook is
+only its deterministic backstop. Step 2 currently carries **no** persona guard: its sole condition is "if this
+project has no `.claude/` directory, skip this step silently." Glitchtrap live-reproduced (twice, `4bd3f72`, the
+second run with a *healthy* facts block and a *healthy* S4 hook) the model hand-writing a sandbox relay line into
+a foreign persona's real `otto-state.md` — the hook guard never gets the chance, because the model writes first.
+
+**Amendment.** Extend the skip condition in step 2. After "never a fallback." and the existing
+no-`.claude/`-dir clause (`If this project has no .claude/ directory, skip this step silently; do not create
+one.`), add:
+
+> **Also skip this local hand-write entirely — silently, creating and writing nothing — when the session's facts
+> block shows `cwd_is_config_dir=true` OR `cwd_persona_root=true`, and equally when the facts block is absent or
+> either of those two keys is missing.** `./.claude` is a legitimate local write target only when the facts
+> *confirm* it is a genuine project directory — not this session's own `<config>`, and not some other machine's
+> persona root (an `otto-profile.json` / `.otto-met` / `otto-state-global.md` holder, reached because
+> `CLAUDE_CONFIG_DIR` was relocated this session). Unlike the step-5 *read*, which degrades **open** (it still
+> renders on a Node-less machine, an accepted residual), this *write* degrades **closed**: when you cannot
+> confirm the target is a plain project, you do not hand-write it. **No relay is lost by skipping** —
+> `hooks/otto-state.mjs` still writes global state (`<config>/otto-state-global.md`) unconditionally, and writes
+> the project-local file itself, under its own persona-root guard, whenever the target is genuine. You remain the
+> sole writer of the local file via this paragraph; the upsert-by-slug, cap-8, no-clear-path semantics are
+> untouched — the guard decides only *whether* to write here at all, never *what*.
+
+The two facts are the same `cwd_is_config_dir` / `cwd_persona_root` that steps 1 and 5 already read from the same
+session-open facts block. **S5 introduces no new marker definition** — it *consumes* the fact the hook already
+computes, so the marker set still lives in exactly two code places (facts hook, writer hook), not three; the
+facts block is the single source of truth for every prose consumer. *(This is the first live application of the
+"named-facts rule" the parallel `docs/spec-hardening-22.9.md` pass is drafting — every cwd-relative
+persona-boundary action, read or write, hook or prose, must gate on the named facts and fail-toward-skip for
+writes. This hotfix applies it to the one prose write that leaked; 22.9 generalizes it. I have not touched that
+file.)*
+
+> **Inherent limitation, noted not fixed here:** the facts block reflects **session-open** cwd. If the user
+> `cd`s mid-session, the hand-write's `cwd_persona_root` value is stale relative to the write target — the model
+> cannot recompute it without shelling out or three extra Reads per relay, which is the whole reason the fact is
+> precomputed. Rare, out of hotfix scope; folded into 22.9-D2's unification. The S4 hook is not affected — it
+> recomputes from the live `payload.cwd` at Task time.
+
 ---
 
-## 5. Writer change — `hooks/otto-state.mjs` (S4, the write-corruption)
+## 5. Writer change — `hooks/otto-state.mjs` (S4, the write-corruption backstop)
 
 The local-write branch currently guards:
 
@@ -237,12 +285,12 @@ if (localDir !== configDir && !isPersonaRoot(localDir) && existsSync(localDir)) 
 ```
 
 The writer computes this itself (it is already a Node hook; no dependency on the facts block). Because the writer
-never runs at all when Node is absent, **S4 has no Node-less residual** — the highest-severity surface is fully
-closed whenever the hook runs.
+never runs at all when Node is absent, **S4 has no Node-less residual** — the highest-severity hook surface is
+fully closed whenever the hook runs.
 
-> Two definitions of "persona root" now exist (facts hook + writer). That drift risk is real; §8-D2 unifies them
-> post-hotfix behind one validate.mjs-gated source of truth. Marker set must be **byte-identical** across both
-> in this hotfix.
+> Two code definitions of "persona root" now exist (facts hook + writer hook — **not** three; S5 reads the fact,
+> §4.4). That drift risk is real; §8-D2 unifies them post-hotfix behind one validate.mjs-gated source of truth.
+> Marker set must be **byte-identical** across both in this hotfix.
 
 ---
 
@@ -254,13 +302,13 @@ closed whenever the hook runs.
 
 | Location | Was | Becomes |
 |---|---|---|
-| `default config: 7 keys...` line 101 | `Object.keys(facts).length === 7` | `=== 8` (7 core + `inv=off`); add `facts.cwd_persona_root === true` (home persona has markers) |
+| `default config: 7 keys...` line 101 | `Object.keys(facts).length === 7` | `=== 8` (7 core + `inv=off`); add `facts.cwd_persona_root === false` — **cwd is a genuine project** here: the fixture writes the identity markers into `configDir` and only `otto-state.md` into `projectDir/.claude`, so this row is the **(F,F)** fixture, not a persona root. *(Glitchtrap adjudication: the earlier annotation read `=== true` / "home persona has markers" and mis-described its own fixture — Bitforge's assertion that flagged it was correct. Table now says so.)* |
 | `formatFacts: exact block shape` line 240 | `lines.length === 8` | `=== 9` (header + 7 core + inv) |
 | same test, line 247 | `lines[7] === 'inv=off'` | add `lines[7] === 'cwd_persona_root=false'`; `inv` moves to `lines[8]` |
 | same test fixture, lines 224-232 | facts literal | add `cwd_persona_root: false` |
 | `formatFacts: spec's own worked example` lines 253-286 | expected array | insert `cwd_persona_root=false` after `cwd_is_config_dir=false`; **also update `docs/spec-facts-inventory-22.8.0.md` §3.1** so the byte-for-byte example stays in lockstep |
 | `real subprocess: ...parseable block` line 301 | `Object.keys(parsed).length === 7` | `=== 8` |
-| `cwd_is_config_dir=true omits inv_agents_project` lines 391-407 | covers only the `(true, *)` omit | keep; assert `facts.cwd_persona_root === true` there too |
+| `cwd_is_config_dir=true omits inv_agents_project` lines 391-407 | covers only the `(true, *)` omit | keep; assert `facts.cwd_persona_root === true` there too (home persona *does* have markers) |
 
 **Assertions to ADD (the cross-product the original matrix missed — see §7):** at minimum one per new acceptance
 row R2–R5, R8–R9, R14–R15 below. Update the final PASS count.
@@ -270,7 +318,13 @@ row R2–R5, R8–R9, R14–R15 below. Update the final PASS count.
 Add: R10 (foreign persona root → real file byte-unchanged after a Task write), R11 (genuine project → local
 write still happens), R12 (cwd==configDir → still skipped). Marker-set parity with the facts hook.
 
-### 6.3 `scripts/validate.mjs`
+### 6.3 S5 is prose — not unit-testable
+
+The hand-write (S5) lives in `otto-foreman.md`, executed by the model, not by code. It has **no unit test**; it is
+verified by the live gate in §7.3. Do not let a green `test-otto-*.mjs` suite read as "S5 covered" — it is not,
+by construction. This is exactly the class of gap that let the original defect ship.
+
+### 6.4 `scripts/validate.mjs`
 
 No shape change required for the hotfix (hook stays one `type: command` entry, same timeout). §8-D2's shared
 persona-root source-of-truth cross-check is the *deferred* addition, not part of this hotfix.
@@ -294,10 +348,10 @@ The original defect survived because the matrix covered **two of three** cases. 
 | R | Scenario | Cell | Proves | Pass |
 |---|---|---|---|---|
 | R1 | Genuine project, `otto-state.md` present, no markers | (F,F) | case 2 not broken | step 5 renders local table; override (a) may fire on real evidence |
-| R2 | Relocated `CLAUDE_CONFIG_DIR`, cwd=home persona root, real `otto-state.md` (**original repro**) | (F,T) | **case 3 closed** | no local render; override (a) does **not** fire; no "welcome back"; fresh card shows; override (b) reads `<config>` not cwd |
+| R2 | Relocated `CLAUDE_CONFIG_DIR`, cwd=home persona root, real `otto-state.md` (**original repro**) | (F,T) | **case 3 closed (reads)** | no local render; override (a) does **not** fire; no "welcome back"; fresh card shows; override (b) reads `<config>` not cwd |
 | R3 | Markerless active config as cwd (new user, session 1, hand-placed `otto-state.md`) | (T,F) | **case 1 blocks even with no markers** | local read skipped |
 | R4 | Default onboarded user at home (cwd==config, markers present) | (T,T) | case 1 default | local read skipped |
-| R5 | (F,T) achieved with **only** `otto-profile.json`; repeat **only** `.otto-met`; repeat **only** `otto-state-global.md` | (F,T) | OR / each marker sufficient | each → `cwd_persona_root=true` → BLOCK |
+| R5 | (F,T) with **only** `otto-profile.json`; repeat **only** `.otto-met`; repeat **only** `otto-state-global.md` | (F,T) | OR / each marker sufficient | each → `cwd_persona_root=true` → BLOCK |
 | R6 | Cloned repo: committed `.claude/otto-state.md`, **no** markers | (F,F) | accepted-risk boundary **unchanged** | PERMIT — renders committed/stale brief; `.gitignore` remains the real prevention; never a per-machine identity (markers are per-machine, not committed) |
 | R7 | Full persona **copied into** a project `.claude/` | (F,T) | fail-safe on pathological copy | BLOCK (skip) — cosmetic loss of a hand-built layout's local brief |
 | R8 | First-run active config (sandbox), cwd=foreign persona root | (F,T) | **S3 inventory leak closed** | `inv_agents_project` **omitted** (does not enumerate `~/.claude/agents`) |
@@ -305,35 +359,70 @@ The original defect survived because the matrix covered **two of three** cases. 
 | R10 | Sandbox session dispatches a Task, cwd=home persona root, configDir=sandbox | (F,T) | **S4 write-corruption closed** | real `~/.claude/otto-state.md` **byte-unchanged**; no line appended |
 | R11 | Genuine project dispatches a Task | (F,F) | S4 fix doesn't break normal relay | local `.claude/otto-state.md` **is** written |
 | R12 | cwd==configDir dispatches a Task | (T,*) | writer's existing `localDir!==configDir` guard intact | local write skipped |
-| R13 | Facts block absent/malformed (Node present, block broken) | — | degrade-open + named residual | reader reverts to pre-fix `cwd_is_config_dir`-only guard (Node-less residual, accepted); session opens; **writer independent** — still guards via its own `isPersonaRoot` |
+| R13 | Facts block absent/malformed | — | **mixed degrade — honest split** | **Reads (S1/S2) degrade OPEN:** revert to pre-fix `cwd_is_config_dir`-only guard (accepted Node-less read residual). **S4 hook write is independent:** guards via its own `isPersonaRoot`, no facts needed. **S5 hand-write degrades CLOSED:** keys missing → model must **skip** the local hand-write (R19). *Correction: the earlier "writer independent — still guards" line was true for S4 only and false for S5 — Glitchtrap's second repro had a healthy hook and still leaked via the hand-write. That is not an R13 residual; it is the S5 gap this rev closes.* |
 | R14 | `cwd_persona_root` computation throws (inject) | — | error polarity + isolation | fact returns **`true`** (fail toward block); six core facts intact; session opens |
 | R15 | `<cwd>/.claude` is a **symlink** to a real config dir | (F,T) | symlink edge | `existsSync` follows link → `cwd_persona_root=true` → BLOCK |
-| R16 | R2 / R8 / R10 re-run on macOS + Linux with `/` separators | (F,T) | platform-invariance | identical BLOCK / omit / no-write |
+| R16 | R2 / R8 / R10 / R18 re-run on macOS + Linux with `/` separators | (F,T) | platform-invariance | identical BLOCK / omit / no-write / no-hand-write |
 | R17 | Full regression | — | nothing else moved | `test-otto-facts.mjs` green (new count), `test-otto-state.mjs` green, `validate.mjs` green |
+| **R18** | **S5, HEALTHY facts:** foreign persona root (F,T), real Task relay, unique canary line already in the foreign `otto-state.md` | (F,T) | **S5 closed with a healthy hook** | model does **not** hand-write; foreign file **hash-identical** before vs after the whole relay (§7.3); S4 hook also skips it |
+| **R19** | **S5, facts absent OR `cwd_persona_root`/`cwd_is_config_dir` key missing**, foreign persona root, real Task relay | — | **write degrades CLOSED** | model **skips** the local hand-write (fail-toward-skip); no foreign write; global still recorded by the S4 hook when Node is present — no relay lost |
+| **R20** | **S5, genuine project (F,F)**, healthy facts, real Task relay | (F,F) | S5 fix doesn't break normal relay | model **does** hand-write the local line; welds with the S4 hook write into one line, as today |
 
-**Row count: 17** (4 cross-product cells fully covered + 13 scenario/edge/regression rows), across 4 code surfaces.
+**Row count: 20** (4 cross-product cells fully covered + 16 scenario/edge/regression rows), across **5 guard
+surfaces (S1–S5)** in 3 files (`otto-foreman.md`, `otto-facts.mjs`, `otto-state.mjs`).
+
+### 7.3 Live gate for the prose guards (S1, S2, S5) — named, repeatable, blocks the ship
+
+S1/S2/S5 are model-executed prose; §6's unit tests cannot reach them. They get a **manual live gate** — the
+procedure Glitchtrap already ran by hand, written down so it is repeatable and re-run on every future change to
+these guards. **This gate is a hard ship blocker for 22.8.1; a green unit suite does not substitute for it.**
+
+**Home:** a new doc, **`docs/persona-guard-live-gate-22.8.1.md`**, referenced by the POSIX addendum (§9) for its
+macOS/Linux runs. A distinct gate is warranted: this is a consent-property leak check, not a latency or
+platform-parity check, and it will be re-run whenever S1/S2/S5 change. The friction/POSIX gate docs point at it
+rather than absorbing it.
+
+**Procedure (one gate, three assertions):**
+
+1. **Fixture.** Create a throwaway "home" dir with a full persona root inside `<home>/.claude/`: all three
+   markers (`otto-profile.json` with a `seats` key, `.otto-met`, `otto-state-global.md`) **and** an
+   `otto-state.md` containing a **unique canary** line, e.g.
+   `· 🟣 Vector (Architect) — CANARY-<uuid>: do-not-leak  (2026-07-15)`.
+2. **Relocate config.** Set `CLAUDE_CONFIG_DIR` to a fresh, empty sandbox dir (sentinel/profile absent there).
+   Launch a session with **cwd = the fixture home**. Confirm the injected facts block reads
+   `cwd_is_config_dir=false` and `cwd_persona_root=true` (the healthy-facts run). For the R19 variant, run again
+   with the facts hook disabled / the two keys stripped.
+3. **Drive a real Task dispatch** (any robot), so both the S5 hand-write path and the S4 hook path execute.
+4. **Assert — reads (S1/S2):** the session-open reply renders **no** row derived from the `CANARY-<uuid>` line
+   and shows a **fresh card / no "welcome back"**.
+5. **Assert — writes (S4/S5):** **SHA-256 hash the fixture's `<home>/.claude/otto-state.md` before step 2 and
+   after step 3; they must be identical.** A changed hash = a foreign write leaked (the exact failure
+   live-reproduced at `4bd3f72`).
+6. **Regression counterpart:** repeat with cwd = a genuine project dir (markers absent) and assert the brief
+   **does** render and the local file **does** gain the relay line (R1/R11/R20) — the guard must not have
+   over-fired into blocking legitimate projects.
 
 ---
 
 ## 8. Scope discipline — what is in this hotfix, what defers to 22.9
 
-**In (closes the one defect across all four surfaces):** S1 override (a), S2 step 5, S3 inventory guard, S4 writer
-guard, the `cwd_persona_root` fact, and the tests above.
+**In (closes the one defect across all five surfaces):** S1 override (a), S2 step 5, **S5 step-2 hand-write**,
+S3 inventory guard, S4 writer guard, the `cwd_persona_root` fact, the tests in §6, and the live gate in §7.3.
 
 **Deferred to a named 22.9 list (genuinely separable, none re-opens case 3):**
 
 - **22.9-D1** — Writer's `localDir !== configDir` is a **raw string compare**, not `realpath`-normalized like the
-  reader's `cwd_is_config_dir`. Latent Windows-casing / separator gap (a home persona on Windows could slip the
-  equality). Low-sev now: the S4 marker test backstops the primary leak regardless of the string compare.
-  Normalize it in 22.9.
-- **22.9-D2** — **Unify** the persona-root definition. It now lives in two places (facts hook + writer); doctrine
-  says a rule held in two spots drifts. Extract one shared source of truth (a marker constant + `isPersonaRoot`)
-  and add a `validate.mjs` cross-check that both consumers use it, mirroring the `STOCK_AGENT_IDS` /
-  `ROBOTS`-map gates. *This is the "correction made twice is a bug in the system" fix — do it before the marker
-  set ever needs to change.*
-- **22.9-D3** — Consider whether `cwd_persona_root` should be re-used to harden other cwd-relative reads if any
-  are added later; document the predicate as the single approved persona-boundary test so new call sites don't
-  reinvent `cwd_is_config_dir`-style comparisons.
+  reader's `cwd_is_config_dir`. Latent Windows-casing / separator gap. Low-sev now: the S4 marker test backstops
+  the primary leak regardless of the string compare. Normalize it in 22.9.
+- **22.9-D2** — **Unify** the persona-root definition. It lives in two code places (facts hook + writer hook);
+  the prose consumers (S1/S2/S5) already read the single fact, which is the right shape — extend that: one shared
+  `isPersonaRoot` + marker constant, a `validate.mjs` cross-check that both hooks use it (mirroring the
+  `STOCK_AGENT_IDS` / `ROBOTS`-map gates), **and** address the session-open-cwd staleness noted in §4.4 (decide
+  whether the hand-write should ever re-probe when cwd is known to have changed). *This is the "correction made
+  twice is a bug in the system" fix — do it before the marker set ever needs to change.*
+- **22.9-D3** — Generalize the **named-facts rule** with `docs/spec-hardening-22.9.md`: no cwd-relative
+  persona-boundary action anywhere may compute its own `cwd_is_config_dir`-style comparison; all consume the
+  named facts and fail-toward-skip for writes. S5 is the first application; 22.9 makes it doctrine.
 
 ---
 
@@ -344,26 +433,31 @@ guard, the `cwd_persona_root` fact, and the tests above.
 2. **Marker-detection parity:** with a planted persona root (each marker) under a POSIX cwd, assert
    `cwd_persona_root=true` identically on Windows, macOS, Linux. Marker filenames are fixed ASCII — no
    separator/case exposure — but assert the `join(cwd, '.claude', marker)` path is built with `/` on POSIX.
-3. **Case-3 BLOCK under POSIX:** R2 (reader skip), R8 (inventory omit), R10 (no foreign write) all re-run with a
-   relocated `CLAUDE_CONFIG_DIR` and `/` separators.
+3. **Case-3 BLOCK under POSIX:** R2 (reader skip), R8 (inventory omit), R10 (no foreign hook write), **R18 (no
+   foreign hand-write)** all re-run with a relocated `CLAUDE_CONFIG_DIR` and `/` separators.
 4. **Symlink edge (R15):** POSIX-relevant — assert `existsSync` follows the link to the real config dir on
    macOS/Linux and flags the persona root.
+5. **Live gate on POSIX:** run `docs/persona-guard-live-gate-22.8.1.md` (§7.3) on macOS and Linux — the
+   SHA-256 before/after hash-compare of the fixture `otto-state.md` is the platform-invariant proof that neither
+   the hook write (S4) nor the model hand-write (S5) mutates a foreign persona file.
 
 ---
 
 ## 10. The 2–3 riskiest calls
 
-1. **Expanding the named scope from step-5-only to all four surfaces.** The task named S2; I ruled S1+S2+S3+S4.
-   The tradeoff is a wider hotfix diff. Chosen because the defect *is* the discriminator, not one call site, and
-   S4 **writes to a real file** — the partial-matrix mistake that let (a) ship is exactly "fix the case you were
-   looking at, miss the sibling." If Andrew wants the minimal patch, S4 must still land (data corruption), so the
-   floor is S2+S4, not S2 alone.
-2. **OR of three markers, fail-toward-block.** A genuine project experiencing a filesystem stat error on a
-   `.claude` marker would falsely skip its brief. Chosen deliberately: a skipped brief is cosmetic and
-   self-corrects; a missed persona root is the leak. The asymmetry sets the polarity. Accepted residual:
-   `existsSync`-EACCES reads absent — identical in class to the shipped `existsFlag` choice, nil blast radius on
-   the primary (fully-readable) leak.
-3. **Two definitions of "persona root" ship in this hotfix (facts hook + writer), unified only in 22.9-D2.**
-   The tradeoff is a one-release drift window. Chosen because unifying now would pull `validate.mjs` and a shared
-   module into a hotfix; the marker set is three lines, byte-identical by review, and D2 closes the window before
-   it can matter.
+1. **Expanding the named scope from step-5-only to five surfaces.** The task named S2; Glitchtrap's find added
+   S5. I ruled S1–S5. The tradeoff is a wider hotfix diff. Chosen because the defect *is* the discriminator, not
+   one call site, and **two surfaces (S4, S5) write to a real file** — the partial-matrix mistake that let (a)
+   ship is exactly "fix the case you were looking at, miss the sibling." If Andrew wants the minimal patch, both
+   writes must still land; the floor is S2+S4+S5, not S2 alone.
+2. **Reads degrade OPEN, writes degrade CLOSED — a deliberate asymmetry.** On a missing facts block, S1/S2 keep
+   rendering (accepting the Node-less read residual) while S5 skips the hand-write. The tradeoff is two different
+   degrade polarities in one feature, which is a comprehension cost. Chosen because a lost convenience-write is
+   recoverable (the file is explicitly best-effort bookkeeping; global still records it) while a foreign write is
+   a one-way door — the polarity follows the reversibility, not a uniform rule. Stated out loud in R13 so it is
+   not read as an inconsistency.
+3. **Two code definitions of "persona root" ship in this hotfix (facts hook + writer hook), unified only in
+   22.9-D2.** The tradeoff is a one-release drift window. Chosen because unifying now would pull `validate.mjs`
+   and a shared module into a hotfix; the marker set is three lines, byte-identical by review, and S5 already
+   consumes the fact rather than adding a third definition, so the surface that drift could touch is smaller than
+   it looks. D2 closes the window before it can matter.

@@ -91,7 +91,14 @@ function parseBlock(text) {
 // §4) keeps inv at 'off' and no inv_* keys appear at all — the 8 is exact,
 // not "8 or more." This project dir has no persona markers, but the CONFIG
 // dir does (sentinel/profile/state_global all present there) — cwd_persona_root
-// checks `<cwd>/.claude`, not `<config>`, so it stays false here.
+// checks `<cwd>/.claude`, not `<config>`, so it stays false here. (Rev 2
+// adjudication, spec §6.1: the earlier table draft said `=== true` /
+// "home persona has markers" for this exact row, which mis-described its
+// own fixture — this row is (F,F), not a home persona. Bitforge's `false`
+// assertion, logged as a deviation at commit `4bd3f72`, was correct; the
+// table now says so. The genuine "home persona has markers" case is the
+// separate `cwd_is_config_dir=true` test below, whose fixture was extended
+// with a real marker for exactly that reason.)
 record('default config: 8 keys present (7 core + inv=off for a returning user), correct present/absent per real files on disk', () => {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);

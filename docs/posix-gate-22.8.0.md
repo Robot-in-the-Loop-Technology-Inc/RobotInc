@@ -243,12 +243,18 @@ separate gate for it. Check out `hotfix/22.8.1-persona-guard` instead of the fea
 is the commit under test; everything else in this doc (steps 1–4, the failure table) applies unchanged.
 
 **What changed:** a cross-persona confidentiality leak (case 3 — a relocated `CLAUDE_CONFIG_DIR` sandbox
-session reading, and even *writing*, another persona's real `~/.claude/otto-state.md`) across all four surfaces
-that shared the broken discriminator. New core fact `cwd_persona_root`; see the spec for the full ruling.
+session reading, and even *writing* — in **two** independent ways — another persona's real
+`~/.claude/otto-state.md`) across all **five** surfaces that shared the broken discriminator. New core fact
+`cwd_persona_root`; see the spec for the full ruling. Rev 2 (Glitchtrap's live-repro at `4bd3f72`) added S5 —
+the model's own prompt-driven hand-write in `agents/otto-foreman.md`'s "Announcing a handoff" step 2, which the
+S4 hook cannot backstop because the model writes the file directly, before the hook ever fires.
 
 1. **Test counts (already reflected above):** `test-otto-facts.mjs` rises from 29/29 to **40/40** (11 new rows
    — R2–R5, R6 regression, R7, R8–R9, R14–R15); `test-otto-state.mjs` rises from 40/40 to **44/44** (4 new rows
-   — R10, R10b, R11, R12, the S4 write-corruption guard). Both counts are already the ones step 2 above expects.
+   — R10, R10b, R11, R12, the S4 write-corruption guard). Both counts are already the ones step 2 above expects,
+   and both are unchanged by S5 — **S5 is prose, not code, and has no unit test by construction** (spec §6.3);
+   it is verified only by the live gate below, never by these two suites. A green `test-otto-*.mjs` run does
+   **not** mean S5 is covered.
 2. **Marker-detection parity:** with a planted persona root (each of the three markers —
    `otto-profile.json`, `.otto-met`, `otto-state-global.md` — individually) under a POSIX cwd,
    `cwd_persona_root=true` must fire identically on Windows, macOS, and Linux (`test-otto-facts.mjs`'s three
@@ -261,9 +267,9 @@ that shared the broken discriminator. New core fact `cwd_persona_root`; see the 
    §4's own note under Session 1 already flags as "verified separately, off this runbook" for the
    `cwd_is_config_dir` collision) — then confirm the card draws fresh (no "welcome back"), the reply never
    contains the planted table content, and `otto-state-global.md` under `$SANDBOX` is unaffected. This is R2
-   (reader skip), R8 (inventory omit — pair with a planted `agents/` dir under that same `.claude`), and R10
-   (no foreign write — confirm the planted `otto-state.md` is byte-unchanged after the dispatch) all in one
-   pass.
+   (reader skip), R8 (inventory omit — pair with a planted `agents/` dir under that same `.claude`), R10 (no
+   foreign hook write), and **R18 (no foreign hand-write — the model must not Read+Edit the planted
+   `otto-state.md` at all)** all in one pass.
 4. **Symlink edge (R15):** POSIX-relevant on purpose — `existsSync` following a symlink is filesystem/OS
    behavior, not Node behavior, so this is the one row most likely to genuinely diverge. `test-otto-facts.mjs`'s
    R15 test creates the symlink itself (`fs.symlinkSync(realConfig, cwdClaudeDir, 'junction')`) and
@@ -271,10 +277,23 @@ that shared the broken discriminator. New core fact `cwd_persona_root`; see the 
    machine — if you see that skip line in the `test-otto-facts.mjs` output, re-run once with elevated
    permissions or report the skip explicitly; a silent skip here is not the same as a verified PASS for this
    specific row.
+5. **Live gate on POSIX — `docs/persona-guard-live-gate-22.8.1.md` — hard ship blocker, not optional:** run
+   the full three-assertion procedure there (fixture + canary, relocated `CLAUDE_CONFIG_DIR`, a real Task
+   dispatch, SHA-256 before/after of the foreign `otto-state.md`) on macOS and Linux. This is the **only**
+   thing in this whole gate that proves S1/S2/S5 — the three prompt-driven guards no unit suite can reach.
+   Bitforge ran it once on Windows (results recorded in that doc's own run log) as the best available proxy for
+   the model-driven S5 half, given no nested `Task` tool in that harness; the Mac/Linux run here is the first
+   time it runs against a *genuine* live Task dispatch end-to-end, and is the one Glitchtrap named as the actual
+   ship gate. **PASS looks like:** the before/after SHA-256 of the fixture's `otto-state.md` are identical in
+   both the healthy-facts (R18) and facts-absent (R19) runs, and the genuine-project regression (R20) shows the
+   local file *gaining* the relay line. Any hash mismatch on R18/R19 is the S5 leak reopening — stop, do not
+   patch it yourself, report the exact before/after content back.
 
 **Deferred to 22.9, not part of this gate:** unifying the two persona-root marker definitions
-(facts hook + writer) behind one shared source of truth, and normalizing the writer's `localDir !== configDir`
-to a `realpath`-based compare like the reader's. See `docs/spec-persona-guard-22.8.1.md` §8 and TASKS.md.
+(facts hook + writer) behind one shared source of truth, normalizing the writer's `localDir !== configDir`
+to a `realpath`-based compare like the reader's, and the session-open-cwd staleness noted in the spec's §4.4
+(the hand-write's facts snapshot goes stale if the user `cd`s mid-session). See
+`docs/spec-persona-guard-22.8.1.md` §8 and TASKS.md.
 
 ---
 

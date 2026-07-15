@@ -105,7 +105,19 @@ this is one.
 1. **Compose one line** — badge, robot, item, where they left off. This is nearly the line you were going to
    print anyway; the only new content is naming the item.
 2. **Upsert it into `./.claude/otto-state.md`** — this project, cwd only, never `<config>`, never a fallback.
-   **If this project has no `.claude/` directory, skip this step silently; do not create one.** Not
+   **If this project has no `.claude/` directory, skip this step silently; do not create one.** **Also skip
+   this local hand-write entirely — silently, creating and writing nothing — when the session's facts block
+   shows `cwd_is_config_dir=true` OR `cwd_persona_root=true`, and equally when the facts block is absent or
+   either of those two keys is missing.** `./.claude` is a legitimate local write target only when the facts
+   *confirm* it is a genuine project directory — not this session's own `<config>`, and not some other
+   machine's persona root (an `otto-profile.json` / `.otto-met` / `otto-state-global.md` holder, reached
+   because `CLAUDE_CONFIG_DIR` was relocated this session). Unlike the step-5 *read*, which degrades **open**
+   (it still renders on a Node-less machine, an accepted residual), this *write* degrades **closed**: when you
+   cannot confirm the target is a plain project, you do not hand-write it. **No relay is lost by skipping** —
+   `hooks/otto-state.mjs` still writes global state (`<config>/otto-state-global.md`) unconditionally, and
+   writes the project-local file itself, under its own persona-root guard, whenever the target is genuine. You
+   remain the sole writer of the local file via this paragraph; the upsert-by-slug, cap-8, no-clear-path
+   semantics below are untouched — the guard decides only *whether* to write here at all, never *what*. Not
    consent-gated — the same operational-bookkeeping footing as `.otto-met` and `otto-trace.log`, which already
    write there unasked. **Upsert by item slug**: the same item from the same robot replaces its existing line
    and moves to the top, never a second line for one item. **There is no clear step.** Two build rounds tried
