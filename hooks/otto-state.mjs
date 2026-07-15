@@ -147,7 +147,11 @@ function summarize(text) {
       )
       .filter(Boolean)
       .pop() || '(no result)';
-  return result.slice(0, 140);
+  // Truncate by CODE POINT, not UTF-16 code unit — a bare .slice(0, 140) can
+  // land inside a surrogate pair (an emoji, some CJK) and split it, writing a
+  // corrupted replacement-character glyph into the state file. Found by QA
+  // via an end-to-end run with an emoji sitting exactly on the cutoff.
+  return Array.from(result).slice(0, 140).join('');
 }
 
 // A plugin-sourced subagent_type is delivered NAMESPACED, e.g.
