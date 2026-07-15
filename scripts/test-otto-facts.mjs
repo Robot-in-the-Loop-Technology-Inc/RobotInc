@@ -17,7 +17,7 @@
 // real SessionStart invocation would produce, not just the exported
 // function in isolation.
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -27,6 +27,7 @@ import {
   formatFacts,
   normalizeForCompare,
   computeInventoryFacts,
+  cwdPersonaRoot,
   STOCK_AGENT_IDS,
   FACTS_HEADER,
 } from '../hooks/otto-facts.mjs';
@@ -83,13 +84,15 @@ function parseBlock(text) {
 
 // ---------------------------------------------------------------- shape: all 6 keys, default config
 
-// v22.8.0 note (spec §6): this assertion was `=== 6` before the inventory
-// block existed. computeFacts() now ALWAYS carries a 7th key, `inv` — every
-// session, gated or not (spec §3.2: "always present when the hook runs").
-// This session is a returning user (sentinel + profile both present), so the
-// gate (spec §4) keeps inv at 'off' and no inv_* keys appear at all — the 7
-// is exact, not "7 or more."
-record('default config: 7 keys present (6 core + inv=off for a returning user), correct present/absent per real files on disk', () => {
+// v22.8.1 note (spec-persona-guard-22.8.1.md §6.1): this assertion was
+// `=== 7` (6 core + inv) before the hotfix. computeFacts() now carries 7
+// CORE keys (cwd_persona_root added) + inv = 8. This session is a returning
+// user (sentinel + profile both present), so the gate (spec-facts-inventory
+// §4) keeps inv at 'off' and no inv_* keys appear at all — the 8 is exact,
+// not "8 or more." This project dir has no persona markers, but the CONFIG
+// dir does (sentinel/profile/state_global all present there) — cwd_persona_root
+// checks `<cwd>/.claude`, not `<config>`, so it stays false here.
+record('default config: 8 keys present (7 core + inv=off for a returning user), correct present/absent per real files on disk', () => {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);
   writeFileSync(join(configDir, '.otto-met'), '2026-07-01\n');
@@ -98,13 +101,14 @@ record('default config: 7 keys present (6 core + inv=off for a returning user), 
   writeFileSync(join(projectDir, '.claude', 'otto-state.md'), '<!-- x --> \n\n· line\n');
 
   const facts = runFacts(configDir, configDir, projectDir);
-  assert(Object.keys(facts).length === 7, `expected exactly 7 keys (6 core + inv), got ${Object.keys(facts).length}: ${Object.keys(facts).join(',')}`);
+  assert(Object.keys(facts).length === 8, `expected exactly 8 keys (7 core + inv), got ${Object.keys(facts).length}: ${Object.keys(facts).join(',')}`);
   assert(facts.config_dir === configDir, `config_dir mismatch: ${facts.config_dir}`);
   assert(facts.sentinel === 'present', `sentinel should be present, got ${facts.sentinel}`);
   assert(facts.profile === 'present', `profile should be present, got ${facts.profile}`);
   assert(facts.state_local === 'present', `state_local should be present, got ${facts.state_local}`);
   assert(facts.state_global === 'present', `state_global should be present, got ${facts.state_global}`);
   assert(facts.cwd_is_config_dir === false, `cwd_is_config_dir should be false for a real project, got ${facts.cwd_is_config_dir}`);
+  assert(facts.cwd_persona_root === false, `cwd_persona_root should be false — the project's own .claude has no persona markers, got ${facts.cwd_persona_root}`);
   assert(facts.inv === 'off', `a returning user (sentinel+profile present) must gate the inventory off, got ${facts.inv}`);
   assert(facts.inv_agents === undefined, 'inv=off must carry no inv_* keys at all');
 });
@@ -195,6 +199,107 @@ record('cwd_is_config_dir with CLAUDE_CONFIG_DIR override: only collides when cw
   assert(facts.cwd_is_config_dir === false, `home dir cwd should NOT collide with an overridden config_dir elsewhere, got ${facts.cwd_is_config_dir}`);
 });
 
+// ---------------------------------------------------------------- cwd_persona_root (v22.8.1 hotfix, spec-persona-guard-22.8.1.md)
+// Acceptance matrix rows R2-R5, R7, R14-R15 (§7). The 2x2 cross-product's
+// (F,F) and (T,T) cells are already covered above/below by the default-config
+// and cwd_is_config_dir=true tests respectively (both now assert
+// cwd_persona_root alongside cwd_is_config_dir).
+
+record('R2: relocated CLAUDE_CONFIG_DIR, cwd=home persona root, real otto-state.md present -- the original repro, case 3 -- cwd_persona_root=true, cwd_is_config_dir=false', () => {
+  const home = mkdtempSync(join(tmpdir(), 'otto-facts-r2-home-'));
+  scratchDirs.push(home);
+  const sandboxConfig = mkdtempSync(join(tmpdir(), 'otto-facts-r2-sandbox-'));
+  scratchDirs.push(sandboxConfig);
+  // home's REAL .claude carries the user's real identity markers and a real work table.
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude', '.otto-met'), '2026-07-01\n');
+  writeFileSync(join(home, '.claude', 'otto-profile.json'), '{"seats":["Generalist / Solo"]}');
+  writeFileSync(join(home, '.claude', 'otto-state.md'), '<!-- x --> \n\n· real work table\n');
+  // CLAUDE_CONFIG_DIR is relocated to a sandbox elsewhere; cwd is still home.
+  const facts = computeFacts({ cwd: home }, { env: { CLAUDE_CONFIG_DIR: sandboxConfig }, home });
+  assert(facts.cwd_is_config_dir === false, `cwd_is_config_dir compares against the RELOCATED config, so it structurally misses this case -- got ${facts.cwd_is_config_dir}`);
+  assert(facts.cwd_persona_root === true, `cwd_persona_root must catch what cwd_is_config_dir cannot: <cwd>/.claude holds real identity markers, got ${facts.cwd_persona_root}`);
+});
+
+record('R3: markerless active config as cwd (new user, session 1, hand-placed otto-state.md) -- cwd_is_config_dir=true blocks even with no markers', () => {
+  const home = mkdtempSync(join(tmpdir(), 'otto-facts-r3-home-'));
+  scratchDirs.push(home);
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  // No .otto-met, no otto-profile.json, no otto-state-global.md -- only a hand-placed local state file.
+  writeFileSync(join(home, '.claude', 'otto-state.md'), '<!-- x --> \n\n· hand-placed\n');
+  const facts = computeFacts({ cwd: home }, { env: {}, home });
+  assert(facts.cwd_is_config_dir === true, `test setup should reproduce cwd_is_config_dir=true, got ${facts.cwd_is_config_dir}`);
+  assert(facts.cwd_persona_root === false, `no markers exist yet -- cwd_persona_root must read false; cwd_is_config_dir alone must still gate the block (R3), got ${facts.cwd_persona_root}`);
+});
+
+record('R5: OR of three markers -- otto-profile.json alone is sufficient', () => {
+  const home = mkdtempSync(join(tmpdir(), 'otto-facts-r5a-'));
+  scratchDirs.push(home);
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude', 'otto-profile.json'), '{}');
+  assert(cwdPersonaRoot(join(home, '.claude')) === true, 'otto-profile.json alone must be sufficient to flag a persona root');
+});
+
+record('R5: OR of three markers -- .otto-met alone is sufficient', () => {
+  const home = mkdtempSync(join(tmpdir(), 'otto-facts-r5b-'));
+  scratchDirs.push(home);
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude', '.otto-met'), '2026-07-01\n');
+  assert(cwdPersonaRoot(join(home, '.claude')) === true, '.otto-met alone must be sufficient to flag a persona root');
+});
+
+record('R5: OR of three markers -- otto-state-global.md alone is sufficient', () => {
+  const home = mkdtempSync(join(tmpdir(), 'otto-facts-r5c-'));
+  scratchDirs.push(home);
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude', 'otto-state-global.md'), '<!-- x -->\n');
+  assert(cwdPersonaRoot(join(home, '.claude')) === true, 'otto-state-global.md alone must be sufficient to flag a persona root');
+});
+
+record('R6 regression: cloned repo -- committed otto-state.md, no markers -- accepted-risk PERMIT boundary unchanged', () => {
+  const { projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  // otto-state.md is per-project evidence, deliberately NOT a marker (spec §2) -- it is the one file a
+  // genuine project legitimately owns, including a committed/cloned one.
+  writeFileSync(join(projectDir, '.claude', 'otto-state.md'), '<!-- x --> \n\n· stale committed brief\n');
+  assert(cwdPersonaRoot(join(projectDir, '.claude')) === false, 'otto-state.md alone (no identity markers) must never flag a persona root -- that would re-close the accepted-risk cloned-repo case');
+});
+
+record('R7: full persona copied into a project .claude/ -- fail-safe on pathological copy, BLOCK', () => {
+  const { projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  // A hand-built layout that copied a real persona's identity files alongside a project-shaped state file.
+  writeFileSync(join(projectDir, '.claude', 'otto-state.md'), '<!-- x --> \n\n· copied-in brief\n');
+  writeFileSync(join(projectDir, '.claude', '.otto-met'), '2026-07-01\n');
+  writeFileSync(join(projectDir, '.claude', 'otto-profile.json'), '{"seats":["Generalist / Solo"]}');
+  assert(cwdPersonaRoot(join(projectDir, '.claude')) === true, 'a persona copied wholesale into a project .claude/ must still flag as a persona root, even though it also looks like a project');
+});
+
+record('R14: cwd_persona_root computation throws (injected) -- fails toward BLOCK (true), not open', () => {
+  // join(undefined, marker) throws a TypeError ("Path must be a string") --
+  // exercises the try/catch's actual catch branch, not just its absence.
+  assert(cwdPersonaRoot(undefined) === true, 'a thrown error inside the persona-root probe must resolve to true (fail-toward-block), never false');
+});
+
+record('R15: symlink edge -- <cwd>/.claude symlinked to a real config dir -- existsSync follows the link, flags the persona root', () => {
+  const realConfig = mkdtempSync(join(tmpdir(), 'otto-facts-r15-real-'));
+  scratchDirs.push(realConfig);
+  writeFileSync(join(realConfig, '.otto-met'), '2026-07-01\n');
+  const projectParent = mkdtempSync(join(tmpdir(), 'otto-facts-r15-proj-'));
+  scratchDirs.push(projectParent);
+  const symlinkedClaude = join(projectParent, '.claude');
+  try {
+    symlinkSync(realConfig, symlinkedClaude, 'junction');
+  } catch (e) {
+    // Symlink/junction creation can be permission-gated on some CI runners;
+    // this row is POSIX-relevant (spec §9.4) and re-verified on the Mac gate
+    // regardless -- degrade to a skip here rather than a false failure.
+    console.log(`  (R15 symlink test skipped -- could not create link: ${e.message})`);
+    return;
+  }
+  assert(cwdPersonaRoot(symlinkedClaude) === true, 'existsSync must follow the symlink to the real config dir and flag the persona root');
+});
+
 // ---------------------------------------------------------------- Windows-style path normalization
 
 record('path normalization: forward-slash and backslash spellings of the same directory compare equal', () => {
@@ -228,23 +333,24 @@ record('formatFacts: exact block shape, header verbatim, core key order fixed, i
     state_local: 'present',
     state_global: 'absent',
     cwd_is_config_dir: false,
+    cwd_persona_root: false,
     inv: 'off',
   };
   const block = formatFacts(facts);
   const lines = block.split('\n');
   assert(lines[0] === FACTS_HEADER, `header line mismatch: ${lines[0]}`);
-  // v22.8.0 note (spec §6): this was `=== 7` (header + 6 core keys, no inv
-  // concept existed). `inv` is now always present as an 8th line; under
-  // `off` it carries no inv_* lines behind it (spec §3.2), so the count
-  // grows by exactly one, not by the whole inventory shape.
-  assert(lines.length === 8, `expected 8 lines (header + 6 core keys + inv=off), got ${lines.length}`);
+  // v22.8.1 note (spec-persona-guard-22.8.1.md §6.1): this was `=== 8`
+  // (header + 7 core keys, before cwd_persona_root existed). `inv` moves down
+  // one slot to make room for the new 7th core line.
+  assert(lines.length === 9, `expected 9 lines (header + 7 core keys + inv=off), got ${lines.length}`);
   assert(lines[1] === 'config_dir=C:\\Users\\andre\\.claude', `config_dir line wrong: ${lines[1]}`);
   assert(lines[2] === 'sentinel=present', `sentinel line wrong: ${lines[2]}`);
   assert(lines[3] === 'profile=absent', `profile line wrong: ${lines[3]}`);
   assert(lines[4] === 'state_local=present', `state_local line wrong: ${lines[4]}`);
   assert(lines[5] === 'state_global=absent', `state_global line wrong: ${lines[5]}`);
   assert(lines[6] === 'cwd_is_config_dir=false', `cwd_is_config_dir line wrong: ${lines[6]}`);
-  assert(lines[7] === 'inv=off', `inv line wrong: ${lines[7]}`);
+  assert(lines[7] === 'cwd_persona_root=false', `cwd_persona_root line wrong: ${lines[7]}`);
+  assert(lines[8] === 'inv=off', `inv line wrong: ${lines[8]}`);
 });
 
 // The exact wire-format sample from docs/spec-facts-inventory-22.8.0.md §3.1,
@@ -258,6 +364,7 @@ record('formatFacts: the spec\'s own worked example, byte-for-byte, field order 
     state_local: 'absent',
     state_global: 'absent',
     cwd_is_config_dir: false,
+    cwd_persona_root: false,
     inv: 'ok',
     inv_agents: ['db-migrator', 'bitforge-engineer*', 'my-planner'],
     inv_agents_project: ['code-reviewer'],
@@ -274,6 +381,7 @@ record('formatFacts: the spec\'s own worked example, byte-for-byte, field order 
     'state_local=absent',
     'state_global=absent',
     'cwd_is_config_dir=false',
+    'cwd_persona_root=false',
     'inv=ok',
     'inv_agents=db-migrator,bitforge-engineer*,my-planner',
     'inv_agents_project=code-reviewer',
@@ -295,10 +403,11 @@ record('real subprocess: hook stdin->stdout produces a well-formed, parseable bl
   const stdout = spawnHook({ CLAUDE_CONFIG_DIR: configDir }, projectDir);
   assert(stdout.trim().startsWith(FACTS_HEADER), `subprocess output should start with the facts header, got: ${stdout.slice(0, 80)}`);
   const parsed = parseBlock(stdout);
-  // v22.8.0 note (spec §6): sentinel is present here, so the inventory gate
-  // (spec §4) is off and the only new line is the bare `inv=off` marker — 7
-  // parsed keys (6 core + inv), not 6.
-  assert(Object.keys(parsed).length === 7, `expected 7 parsed keys from subprocess output (6 core + inv), got ${Object.keys(parsed).length}`);
+  // v22.8.1 note (spec-persona-guard-22.8.1.md §6.1): sentinel is present
+  // here, so the inventory gate is off and the only new line is the bare
+  // `inv=off` marker; core grew from 6 to 7 keys (cwd_persona_root added) —
+  // 8 parsed keys (7 core + inv), not 7.
+  assert(Object.keys(parsed).length === 8, `expected 8 parsed keys from subprocess output (7 core + inv), got ${Object.keys(parsed).length}`);
   assert(parsed.config_dir === configDir, `subprocess config_dir mismatch: ${parsed.config_dir}`);
   assert(parsed.sentinel === 'present', `subprocess sentinel mismatch: ${parsed.sentinel}`);
   assert(parsed.profile === 'absent', `subprocess profile mismatch: ${parsed.profile}`);
@@ -392,18 +501,57 @@ record('inventory: cwd_is_config_dir=true omits inv_agents_project entirely (not
   // Same home-persona setup as the existing "cwd_is_config_dir=true" core-fact
   // test above: no CLAUDE_CONFIG_DIR override, cwd IS the home dir, so
   // internal config_dir resolves to <home>/.claude and cwd/.claude resolves
-  // to that SAME path.
+  // to that SAME path. v22.8.1: this is also acceptance row R4 (T,T) — a
+  // real onboarded home persona plants markers there too. Marker is
+  // otto-state-global.md, deliberately NOT .otto-met/otto-profile.json here:
+  // either of those would also flip the inventory GATE (sentinel/profile
+  // present -> inv=off), which is an orthogonal mechanism this test isn't
+  // about -- cwd_persona_root must read true regardless of which marker
+  // fires, and this keeps inv=ok so the inv_agents_project assertions below
+  // still exercise the S3 omission path they're named for.
   const home = mkdtempSync(join(tmpdir(), 'otto-facts-inv-home-'));
   scratchDirs.push(home);
   mkdirSync(join(home, '.claude', 'agents'), { recursive: true });
   writeFileSync(join(home, '.claude', 'agents', 'db-migrator.md'), 'name: db-migrator\n');
+  writeFileSync(join(home, '.claude', 'otto-state-global.md'), '<!-- x -->\n');
 
   const facts = computeFacts({ cwd: home }, { env: {}, home });
   assert(facts.cwd_is_config_dir === true, 'test setup should reproduce cwd_is_config_dir=true');
+  assert(facts.cwd_persona_root === true, `R4 (T,T): a default onboarded home persona must also read cwd_persona_root=true, got ${facts.cwd_persona_root}`);
   assert(facts.inv === 'ok', `expected inv=ok, got ${facts.inv}`);
   assert(facts.inv_agents.includes('db-migrator'), 'the single agents dir should still enumerate once, under inv_agents');
   assert(!('inv_agents_project' in facts), `inv_agents_project must be entirely absent when cwd_is_config_dir=true, got ${JSON.stringify(facts.inv_agents_project)}`);
   assert(!formatFacts(facts).includes('inv_agents_project'), 'formatFacts must never emit an inv_agents_project line when cwd_is_config_dir=true');
+});
+
+record('R8: first-run active config (sandbox), cwd=foreign persona root -- S3 inventory leak closed, inv_agents_project omitted', () => {
+  const home = mkdtempSync(join(tmpdir(), 'otto-facts-r8-home-'));
+  scratchDirs.push(home);
+  const sandboxConfig = mkdtempSync(join(tmpdir(), 'otto-facts-r8-sandbox-'));
+  scratchDirs.push(sandboxConfig);
+  // home's REAL .claude is a persona root holding a real (foreign, from this sandbox session's point of
+  // view) agents directory -- the exact thing S3 must never enumerate into inv_agents_project.
+  mkdirSync(join(home, '.claude', 'agents'), { recursive: true });
+  writeFileSync(join(home, '.claude', 'agents', 'someones-real-agent.md'), 'name: someones-real-agent\n');
+  writeFileSync(join(home, '.claude', '.otto-met'), '2026-07-01\n');
+  // The sandbox config dir is a genuine first run (nothing written there yet) so the inventory gate fires.
+  const facts = computeFacts({ cwd: home }, { env: { CLAUDE_CONFIG_DIR: sandboxConfig }, home });
+  assert(facts.cwd_is_config_dir === false, `sandbox config differs from home's real .claude, got ${facts.cwd_is_config_dir}`);
+  assert(facts.cwd_persona_root === true, `home's real .claude holds a real marker, got ${facts.cwd_persona_root}`);
+  assert(facts.inv === 'ok', `expected inv=ok (genuine first run for the sandbox config), got ${facts.inv}`);
+  assert(!('inv_agents_project' in facts), `S3: inv_agents_project must be entirely omitted when cwd is a foreign persona root, got ${JSON.stringify(facts.inv_agents_project)}`);
+  assert(!formatFacts(facts).includes('someones-real-agent'), 'the foreign persona\'s real agent id must never leak into the wire format');
+});
+
+record('R9: genuine project, first-run -- S3 fix does not break normal inventory, inv_agents_project still emitted', () => {
+  const { configDir, projectDir } = freshDirs();
+  mkdirSync(join(projectDir, '.claude', 'agents'), { recursive: true });
+  writeFileSync(join(projectDir, '.claude', 'agents', 'code-reviewer.md'), 'name: code-reviewer\n');
+  // No persona markers under projectDir/.claude -- a genuine project, not a persona root.
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.cwd_is_config_dir === false && facts.cwd_persona_root === false, `setup should be a genuine (F,F) project, got cwd_is_config_dir=${facts.cwd_is_config_dir} cwd_persona_root=${facts.cwd_persona_root}`);
+  assert(facts.inv === 'ok', `expected inv=ok, got ${facts.inv}`);
+  assert(Array.isArray(facts.inv_agents_project) && facts.inv_agents_project.includes('code-reviewer'), `a genuine project's own agents/ must still enumerate under inv_agents_project, got ${JSON.stringify(facts.inv_agents_project)}`);
 });
 
 record('inventory: otto-foreman itself collides — the main thread is not exempt from filename collision', () => {

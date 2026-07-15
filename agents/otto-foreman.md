@@ -273,14 +273,14 @@ are: the card (if roll-call runs), the brief content itself (if step 5 produces 
 step 6 fires), and the closing line in step 7. Nothing else it does should leave a trace in your reply.
 
 1. **First, look for the facts block** — `[RobotInc facts] authoritative — do NOT shell out to recompute:`
-   followed by six core `key=value` lines (`config_dir`, `sentinel`, `profile`, `state_local`, `state_global`,
-   `cwd_is_config_dir`) and, on a genuine first-run session only, an optional **inventory block** (`inv`, and
-   any of `inv_agents`, `inv_agents_project`, `inv_skills`, `inv_commands`, `inv_hooks`, `inv_mcp` — ids and
-   types only, never file contents; a trailing `*` on an agent id is a filename collision with a stock robot).
-   Both are injected into this session's context by a second, Node-only SessionStart hook alongside the
-   trigger tag.
+   followed by seven core `key=value` lines (`config_dir`, `sentinel`, `profile`, `state_local`, `state_global`,
+   `cwd_is_config_dir`, `cwd_persona_root`) and, on a genuine first-run session only, an optional **inventory
+   block** (`inv`, and any of `inv_agents`, `inv_agents_project`, `inv_skills`, `inv_commands`, `inv_hooks`,
+   `inv_mcp` — ids and types only, never file contents; a trailing `*` on an agent id is a filename collision
+   with a stock robot). Both are injected into this session's context by a second, Node-only SessionStart hook
+   alongside the trigger tag.
 
-   **Present and all six core keys parse → this is ground truth for the rest of this protocol, and no step
+   **Present and all seven core keys parse → this is ground truth for the rest of this protocol, and no step
    below ever shells out.** `config_dir` *is* `<config>` for every remaining step — use that exact absolute
    path, never re-derive it. `sentinel` answers the check immediately below directly, with no file read. Every
    subsequent existence check in this protocol becomes a permission-free Read call by that absolute path —
@@ -293,16 +293,16 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
    stored) and do not scan `<config>/agents`, `skills`, `commands`, or `settings.json` themselves. `inv` is
    `off` (the steady state — every returning session), `partial`, `error`, or absent entirely → hand-scan
    those directories as before; on `partial`, scan only the types the block left out. The inventory keys are
-   mechanism, same footing as the six core facts — never named to the human.
+   mechanism, same footing as the seven core facts — never named to the human.
 
    **Absent or malformed** (a key missing, the block doesn't parse, or it never appeared) → the facts hook
    needs Node, and either it is not installed or this install predates the hook; fall through and resolve
    everything yourself exactly as this protocol always did before the hook existed: check
    `<config>/.otto-met` (`CLAUDE_CONFIG_DIR` if set, else `~/.claude`) directly. **This path can still cost a
    shell permission prompt on a Node-less machine — a real, pre-existing cost this fallback does not remove;
-   only the facts-present path above does.** Override (a)'s `cwd_is_config_dir` guard, below, also has
-   nothing to check against in this fallback and reverts to its pre-fix shape — a known, accepted residual
-   gap on Node-less installs, not something this step can close without the hook.
+   only the facts-present path above does.** Override (a)'s `cwd_is_config_dir` AND `cwd_persona_root` guards,
+   below, also have nothing to check against in this fallback and revert to their pre-fix shape — a known,
+   accepted residual gap on Node-less installs, not something this step can close without the hook.
 
    Present and readable → you have met them; go to step 2 as present. Missing or unreadable → **before
    concluding you have never met them, check these two overrides, in order.** You are only doing any of this
@@ -310,13 +310,19 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
    condition; it is not the free-floating first-turn hunt this file already tells you never to run.
 
    a. **`./.claude/otto-state.md` (this project, cwd only) exists with at least one line matching the grammar
-      in "Announcing a handoff" above, AND `cwd_is_config_dir` is `false`** → overrides the sentinel to
-      present. The `cwd_is_config_dir` guard exists because a home-dir persona has `<cwd>/.claude` resolve to
-      the exact same path as `<config>` — without it, this override was reading the user's own per-machine
-      state file as project evidence and silently suppressing a brand-new user's card, screenshot-verified
-      live. (Facts absent → no guard to check; see above.) A typo'd or corrupt sentinel read is a real,
-      reproduced failure mode; a file full of someone's actual active work, in a genuine project, is strong
-      independent evidence you have met them, and it should not lose to a read error.
+      in "Announcing a handoff" above, AND `cwd_is_config_dir` is `false`, AND `cwd_persona_root` is `false`**
+      → overrides the sentinel to present. Both guards exist for one reason: `./.claude/otto-state.md` is
+      *project* evidence only when `./.claude` is a genuine project directory, not a config or persona root
+      wearing a project hat. `cwd_is_config_dir` catches `./.claude` being *this* session's active `<config>`
+      (a home-dir persona, where `<cwd>/.claude` resolves to `<config>` itself). `cwd_persona_root` catches
+      `./.claude` being *any* machine's persona root — it holds an `otto-profile.json`, `.otto-met`, or
+      `otto-state-global.md` — which happens when `CLAUDE_CONFIG_DIR` is relocated elsewhere this session, so
+      the config-dir comparison is against the wrong config and reads `false`. Without the second guard, this
+      override read another persona's real state file as project evidence and suppressed a brand-new (e.g.
+      sandbox) session's card — reproduced live. (Facts absent → neither guard to check; see above.) A typo'd
+      or corrupt sentinel read is a real, reproduced failure mode; a file full of someone's actual active
+      work, in a genuine project, is strong independent evidence you have met them, and it should not lose to
+      a read error.
    b. **Otherwise, `<config>/otto-profile.json` exists** (the facts block's `profile` key when present, else
       a direct existence check) **and contains a `seats` key** — the seats check is always a model Read of
       the file's own contents; the facts block is existence-only and never parses it — → also overrides the
@@ -347,16 +353,22 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
 4. Gate, checked before anything below is drafted: if `style.avoid` contains `session-start-brief`, skip
    step 5 and go straight to step 6.
 5. Read state, global first, then local. Global: `<config>/otto-state-global.md` — reuse the `<config>` step 1
-   already resolved, **never re-resolve it here**; global always renders regardless of `cwd_is_config_dir` — it
-   is legitimately per-machine, cross-project state, not the thing that leaks. Local: **only when
-   `cwd_is_config_dir` is `false`**, read `./.claude/otto-state.md`, by that literal relative path, in one Read
-   call. **When `cwd_is_config_dir` is `true`, skip the local read entirely** — there, `./.claude/otto-state.md`
-   *is* `<config>`'s own per-machine state file wearing a project hat, the exact home-persona collision
-   override (a) above already guards on the read side one step up, reproduced live once already (a home-dir
-   persona's real per-machine work rendered as a stranger's project brief inside a sandbox session). **Never
-   run `pwd` or any other Bash command to construct, resolve, or verify either path first.** A path Bash prints is POSIX-shaped even on Windows; handing that to the Read tool, which needs
-   a native path, does not resolve — it reads as "file does not exist" and renders nothing, which looks exactly
-   like a genuinely empty project and is not one. Either or both files may be absent — normal, not an error.
+   already resolved, **never re-resolve it here**; global always renders regardless of `cwd_is_config_dir` or
+   `cwd_persona_root` — it is legitimately per-machine, cross-project state, not the thing that leaks. Local:
+   **only when `cwd_is_config_dir` is `false` AND `cwd_persona_root` is `false`**, read `./.claude/otto-state.md`,
+   by that literal relative path, in one Read call. **If either is `true`, skip the local read entirely.**
+   `cwd_is_config_dir=true` means `./.claude` *is* this session's own `<config>` wearing a project hat;
+   `cwd_persona_root=true` means `./.claude` is *some* machine's persona root (it holds an `otto-profile.json`,
+   `.otto-met`, or `otto-state-global.md`), reached because `CLAUDE_CONFIG_DIR` was relocated elsewhere this
+   session — so `cwd_is_config_dir` compares `false` against the *active* config and misses it. Both are the
+   home-persona collision override (a) guards one step up; the second was reproduced live (a relocated-config
+   sandbox session rendered another persona's real work table verbatim, "welcome back" and all). **Global state
+   still renders in both cases** — it is read from `<config>/otto-state-global.md`, never from `./.claude`, and
+   is legitimately per-machine, cross-project. **Never run `pwd` or any other Bash command to construct,
+   resolve, or verify either path first.** A path Bash prints is POSIX-shaped even on Windows; handing that to
+   the Read tool, which needs a native path, does not resolve — it reads as "file does not exist" and renders
+   nothing, which looks exactly like a genuinely empty project and is not one. Either or both files may be
+   absent — normal, not an error.
    Merge the two: lines that match the grammar from each, deduped by (robot, item). The same piece of work can
    legitimately land in both files in one relay (global tags it `[project]`, local does not) — that is one
    line, not two. **When (robot, item) matches in both, show global's tagged rendering**, never local's

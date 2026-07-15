@@ -228,6 +228,31 @@ function configDirOf(env, home) {
   return env.CLAUDE_CONFIG_DIR || join(home, '.claude');
 }
 
+// Persona-root markers: config-dir-exclusive identity artifacts that never
+// legitimately appear in a genuine project's `.claude/` (byte-identical to
+// hooks/otto-facts.mjs's PERSONA_ROOT_MARKERS — two definitions ship in this
+// hotfix, unified in 22.9-D2; see docs/spec-persona-guard-22.8.1.md §5).
+const PERSONA_ROOT_MARKERS = ['otto-profile.json', '.otto-met', 'otto-state-global.md'];
+
+// v22.8.1 HOTFIX (S4): `localDir !== configDir` alone is the exact same
+// broken discriminator the reader's `cwd_is_config_dir` was — it only
+// catches THIS session's own config dir wearing a project hat. When
+// CLAUDE_CONFIG_DIR is relocated (a sandbox session) and cwd is the user's
+// real home, `localDir` = the user's real `~/.claude`, `configDir` = the
+// sandbox — the guard passes, and this hook WRITES a sandbox relay line into
+// the real `~/.claude/otto-state.md`, mutating another persona's real state.
+// Reproduced live. Fail-toward-block, same polarity and residual as the
+// facts hook's cwdPersonaRoot(): existsSync never throws, so an unstat-able
+// marker reads absent (fail-toward-permit) — nil blast radius on the primary
+// leak, the user's own fully-readable directory.
+function isPersonaRoot(dir) {
+  try {
+    return PERSONA_ROOT_MARKERS.some((marker) => existsSync(join(dir, marker)));
+  } catch {
+    return true;
+  }
+}
+
 function sleepMs(ms) {
   // Genuine synchronous sleep with no busy-wait and no extra dependency —
   // Atomics.wait blocks the thread for real, which is fine here: this script
@@ -375,13 +400,19 @@ export function run(payload, opts = {}) {
   }
 
   // ---- local: only when the project already has a .claude dir, and that dir
-  // is genuinely a project's own, not the config dir wearing a project hat.
-  // A home-dir persona (cwd === the user's home) has `<cwd>/.claude` equal to
+  // is genuinely a project's own — not the config dir wearing a project hat,
+  // and not ANOTHER machine's real persona root reached because
+  // CLAUDE_CONFIG_DIR was relocated this session (v22.8.1 hotfix, S4). A
+  // home-dir persona (cwd === the user's home) has `<cwd>/.claude` equal to
   // `<config>` itself when CLAUDE_CONFIG_DIR is unset — comparing cwd against
   // configDir is not enough to catch that; the path that actually collides is
-  // localDir, not cwd. ----
+  // localDir, not cwd. `isPersonaRoot(localDir)` catches the sibling case the
+  // string compare is structurally blind to: localDir resolves to the user's
+  // OWN real `~/.claude`, holding real identity markers, while configDir
+  // points at a relocated (sandbox) config elsewhere — see
+  // docs/spec-persona-guard-22.8.1.md §5. ----
   const localDir = join(cwd, '.claude');
-  if (localDir !== configDir && existsSync(localDir)) {
+  if (localDir !== configDir && !isPersonaRoot(localDir) && existsSync(localDir)) {
     const localKey = `${identifier}::${slug}`;
     const localRendered = renderLine({
       project: null,
@@ -429,4 +460,4 @@ if (isMainModule()) {
 }
 
 // Exported for tests only — the hook itself never imports these from outside.
-export { slugify, extractText, summarize, classify, bareType, renderLine, keyOfLine, configDirOf, CAP, BUILTINS, ROBOTS };
+export { slugify, extractText, summarize, classify, bareType, renderLine, keyOfLine, configDirOf, isPersonaRoot, CAP, BUILTINS, ROBOTS };

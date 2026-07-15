@@ -914,4 +914,42 @@ pointing at rulings (a) and (b) above instead of sitting open.
 
 ---
 
+# Hotfix v22.8.1: Persona-Root Guard — TASKS
+
+**Spec:** `docs/spec-persona-guard-22.8.1.md` (Vector, ratified) · **Branch:** `hotfix/22.8.1-persona-guard`
+off `main` @ `2810e51` · **Built by:** Bitforge · **Verifies:** Glitchtrap (T3 re-gate)
+
+Amends ruling (a) in `docs/spec-facts-inventory-22.8.0.md` §8a, which shipped and inverted its own intent:
+`cwd_is_config_dir` compares `<cwd>/.claude` against *this session's* active config, not against "is this
+*any* persona root" — a relocated `CLAUDE_CONFIG_DIR` (sandbox) session with `cwd` = the user's real home
+read the real `~/.claude/otto-state.md` as project evidence (a live, screenshot-verified read leak) and, on
+the writer side, appended a sandbox relay line into that same real file (a write-corruption, one-way door).
+New core fact `cwd_persona_root` (existence-only, three markers, fail-toward-block) closes all four surfaces
+that shared the discriminator: `agents/otto-foreman.md` step 1 override (a), step 5 local read,
+`hooks/otto-facts.mjs`'s `inv_agents_project` inventory guard, and `hooks/otto-state.mjs`'s local-write guard.
+
+- [x] `cwd_persona_root` fact added to `hooks/otto-facts.mjs` (core, computed every session)
+- [x] `otto-foreman.md` step 1 override (a) and step 5 gated on `cwd_is_config_dir OR cwd_persona_root`
+- [x] `gatherInventory`'s `inv_agents_project` guard extended the same way (S3)
+- [x] `hooks/otto-state.mjs` local-write guard extended with `isPersonaRoot()` (S4 — the write-corruption)
+- [x] `test-otto-facts.mjs`: 29/29 → 40/40; `test-otto-state.mjs`: 40/40 → 44/44; `validate.mjs` green
+- [x] Live repro: both the original case-3 read leak and the S4 write-corruption reproduced against pre-fix
+      `main` and confirmed closed against the patched branch (real file byte-unchanged after a sandbox
+      dispatch)
+- [x] `docs/posix-gate-22.8.0.md` §5 addendum — folds the hotfix into the already-owed Mac gate, no separate run
+
+**Deferred to 22.9 (genuinely separable, none re-opens case 3 — spec §8):**
+
+- **22.9-D1** — Writer's `localDir !== configDir` (`hooks/otto-state.mjs`) is a raw string compare, not
+  `realpath`-normalized like the reader's `cwd_is_config_dir` (`hooks/otto-facts.mjs`'s `normalizeForCompare`).
+  Latent Windows-casing / separator gap. Low-sev now: the S4 marker test backstops the primary leak regardless.
+- **22.9-D2** — Unify the persona-root marker definition. It now ships in two places
+  (`hooks/otto-facts.mjs`'s `PERSONA_ROOT_MARKERS` + `hooks/otto-state.mjs`'s `PERSONA_ROOT_MARKERS`),
+  byte-identical by review only. Extract one shared module + a `validate.mjs` cross-check, mirroring the
+  `STOCK_AGENT_IDS` / `ROBOTS`-map gates — a rule held in two spots drifts.
+- **22.9-D3** — Consider re-using `cwd_persona_root` to harden other cwd-relative reads if any are added
+  later; document the predicate as the single approved persona-boundary test.
+
+---
+
 **Branch safety:** No force-push. All commits are forward-only. User will explicitly request merge when ready.
