@@ -12,10 +12,12 @@ run. It proves three things Windows cannot: the `mkdir`-based lock behaves the s
 semantics, `node` resolves the same way from a hook spawn, and path resolution (`homedir()`, `CLAUDE_CONFIG_DIR`,
 tilde expansion) doesn't diverge.
 
-**This gate is about portability, not correctness.** The build currently has known, disclosed correctness bugs
-(negation-window false-clear/false-keep — see TASKS.md and the QA report) that are *separately* being fixed and
-are not this gate's job to catch. The test counts below name exactly which failures are already known so you
-can tell a real platform-specific problem apart from an already-filed one.
+**This gate is about portability, not correctness.** An earlier round of this branch had known, disclosed
+correctness bugs in a done/active content classifier (negation-window false-clear/false-keep — see TASKS.md's
+QA round 2). That classifier has since been **deleted entirely** (see TASKS.md's "Option C" section) rather
+than fixed a third time — every relay is now an unconditional upsert, cleanup is cap-8 recency eviction only,
+and there is no clear path for any test to false-positive or false-negative on. The suite below is expected
+**fully green**; any red is real and platform-specific, full stop.
 
 ---
 
@@ -35,21 +37,14 @@ git log --oneline -1
 node scripts/test-otto-state.mjs
 ```
 
-**PASS looks like:** the last line reads `40/45 passed`, and the only lines starting with `✗` are exactly
-these five (all prefixed `REGRESSION (expected to FAIL until fixed)` in the test name — that prefix means
-"known, already filed," not "something you broke"):
+**PASS looks like:** the last line reads `40/40 passed` — **no** `✗` lines at all. There is no known-red list
+for this build; the terminal-inference machinery that produced one (rounds 1 and 2, both since deleted — see
+TASKS.md's "Option C" section) is gone, and every remaining test asserts either pure upsert/eviction mechanics
+or a fact about the payload/grammar, none of which are platform-sensitive by design.
 
-```
-✗ G9b.  ... "we are done waiting on X, still building" must not clear
-✗ G9c.  ... a terminal word inside a quoted ITEM NAME must not clear an unfinished item
-✗ G10b. ... "merged to main, not without drama" must clear
-✗ G10c. ... "done -- nothing left to do" must clear
-✗ G10d. ... "shipped; no issues found" must clear
-```
-
-**Real platform-specific finding:** any `✗` NOT in that list, OR a total other than `40/45`, OR any test that
-is green here and red there (especially `9k` or the new `G7` — both spawn real concurrent `node` child
-processes and are the two most likely to diverge on POSIX lock semantics).
+**Real platform-specific finding:** any `✗` at all, OR a total other than `40/40`, OR any test that is green
+here and red there (especially `9k` or `G7` — both spawn real concurrent `node` child processes and are the
+two most likely to diverge on POSIX lock semantics).
 
 ## 3. Run the validation gate
 
@@ -124,7 +119,7 @@ through the reader (`agents/otto-foreman.md` step 5), not just the writer.
 
 | Symptom | Likely meaning |
 |---|---|
-| Step 2 or 3 differs from the expected counts above, in a test/line NOT on the known-red list | A real regression — stop, do not fix it yourself, report the exact diff back. |
+| Step 2 or 3 differs from the expected counts above (anything less than `40/40`, or `validate.mjs` non-zero) | A real regression — stop, do not fix it yourself, report the exact diff back. |
 | Session 1 replies normally but `otto-state-global.md` never appears (step 4 `cat` shows "No such file") | **The hook didn't fire.** This is the exact failure mode `docs/hook-events.md` documents for Windows (matcher `"Task"` vs delivered `tool_name: "Agent"`, or the `hooks.json` `"type"` trap) — if it resurfaces here, it means one of those traps is Windows-specific and POSIX behaves differently, which would be a significant new finding. |
 | The file appears but is empty, or the reply mentions an error | **`node` not found from the hook's spawn environment.** The hook is fail-silent by design (no crash, no stdout) — an *empty* result with no error text is consistent with `node` resolving fine in your interactive shell but not in the environment Claude Code's hook spawns from (a common PATH gotcha on macOS, less so on Linux). Check `which node` and compare to what a hook subprocess would see. |
 | `G7` or `9k` (the real concurrent-process tests) go red here but were green on Windows, or the live sequence's global file shows a corrupted/duplicate line after Session 1 | **Lock/`mkdir` semantics differ.** The lock is `mkdirSync`-based (atomic on POSIX, atomic on NTFS, but the *retry/backoff and EEXIST error surface* can differ). This is precisely the kind of thing this gate exists to catch — report the exact file contents, not just "it failed." |
