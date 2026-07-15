@@ -24,8 +24,17 @@ and there is no clear path for any test to false-positive or false-negative on. 
 first turn was a Bash permission dialog, because the model had no permission-free way to resolve
 `CLAUDE_CONFIG_DIR`. This gate is exactly where a payload-shape difference across shells would show up (same
 reasoning as the relay-state hook): the facts block it emits should be byte-identical in structure across
-Windows, macOS, and Linux — the six `key=value` lines, same order, same header string. Folded into the same
-test-suite run and the same live sequence below rather than a separate section.
+Windows, macOS, and Linux — the six core `key=value` lines, same order, same header string.
+
+**v22.8.0 adds a first-run inventory block to that same hook** (`docs/spec-facts-inventory-22.8.0.md` —
+`inv`, `inv_agents`, `inv_agents_project`, `inv_skills`, `inv_commands`, `inv_hooks`, `inv_mcp`; ids and types
+only, a trailing `*` for a filename collision). This is exactly where a `readdir` ordering or path-separator
+difference would surface, so it rides this same gate too, with one deliberate exception to the
+byte-identical standard the six core lines hold to: **ids within one `inv_<type>` line may sort differently
+across filesystems — assert on set membership, not line order.** The *field* order (`inv`, `inv_agents`,
+`inv_agents_project`, `inv_skills`, `inv_commands`, `inv_hooks`, `inv_mcp`, `inv_truncated`) and every `*`
+marker still must match exactly. Folded into the same test-suite run and the same live sequence below rather
+than a separate section.
 
 ---
 
@@ -46,18 +55,21 @@ node scripts/test-otto-state.mjs
 node scripts/test-otto-facts.mjs
 ```
 
-**PASS looks like:** both last lines read `40/40 passed` and `17/17 passed` — **no** `✗` lines at all in
+**PASS looks like:** both last lines read `40/40 passed` and `29/29 passed` — **no** `✗` lines at all in
 either. There is no known-red list for this build; the terminal-inference machinery that produced one (rounds
 1 and 2, both since deleted — see TASKS.md's "Option C" section) is gone, and every remaining test asserts
 either pure upsert/eviction mechanics or a fact about the payload/grammar, none of which are platform-sensitive
-by design. `test-otto-facts.mjs` includes real subprocess invocations (stdin JSON in, formatted block out) and
-Windows-vs-POSIX path-separator normalization cases specifically — the ones most likely to actually diverge
-here.
+by design. `test-otto-facts.mjs` includes real subprocess invocations (stdin JSON in, formatted block out),
+Windows-vs-POSIX path-separator normalization cases, and (new in v22.8.0) the first-run inventory — real
+planted agents/skills/commands/settings.json including one deliberate collision, a delimiter-unsafe id, a
+truncation-sized payroll, and a settings.json-as-directory sub-scan failure — the ones most likely to actually
+diverge here.
 
 **Real platform-specific finding:** any `✗` at all in either suite, OR a total other than `40/40` /
-`17/17`, OR any test that is green here and red there (especially `9k` or `G7` in `test-otto-state.mjs` —
+`29/29`, OR any test that is green here and red there (especially `9k` or `G7` in `test-otto-state.mjs` —
 both spawn real concurrent `node` child processes and are the two most likely to diverge on POSIX lock
-semantics).
+semantics; for `test-otto-facts.mjs`, watch the truncation and populated-payroll tests specifically, since
+they're the ones exercising real `readdirSync` enumeration order).
 
 ## 3. Run the validation gate
 
@@ -157,13 +169,62 @@ is checking for. The table format itself is a partial mitigation for this exact 
 less room for a single-item brief to paraphrase), so also worth a plain look: does the row's Robot/Working
 on/Last update content match Session 1's dispatch, regardless of the sentence wrapped around it.
 
+**Session 3 — first-run card draw: no directory-scan proof, and inventory structural parity (v22.8.0, new).**
+Sessions 1 and 2 above prove the relay-writer and the six core facts; neither one actually draws the company
+card, so neither exercises the inventory block or the 31.3s-of-Bash-scanning fix it replaces. This session
+does, in a throwaway sandbox of its own so it doesn't disturb Sessions 1/2's state:
+
+```sh
+export SANDBOX3="$HOME/posix-gate-sandbox-cardread"
+rm -rf "$SANDBOX3"
+mkdir -p "$SANDBOX3/agents" "$SANDBOX3/skills/deploy-helper" "$SANDBOX3/commands" "$SANDBOX3/home-persona"
+printf 'name: bitforge-engineer\n' > "$SANDBOX3/agents/bitforge-engineer.md"   # deliberate collision
+printf 'name: db-migrator\n' > "$SANDBOX3/agents/db-migrator.md"
+printf 'name: deploy-helper\n' > "$SANDBOX3/skills/deploy-helper/SKILL.md"
+printf 'ship\n' > "$SANDBOX3/commands/ship.md"
+cp ~/.claude/.credentials.json "$SANDBOX3/.credentials.json" 2>/dev/null   # local reuse only, same as step 4 above
+
+CLAUDE_CONFIG_DIR="$SANDBOX3" claude plugin marketplace add ~/robotinc-posix-gate
+CLAUDE_CONFIG_DIR="$SANDBOX3" claude plugin install robotinc@robotinc
+
+cd "$SANDBOX3/home-persona"
+CLAUDE_CONFIG_DIR="$SANDBOX3" claude -p "hi" --dangerously-skip-permissions --allowed-tools "Read,Glob,Bash"
+```
+
+**PASS looks like, all four:**
+
+1. **The company card draws** and its "their own staff" table lists `db-migrator`, `deploy-helper`, and
+   `bitforge-engineer` flagged as a collision — content that came from the injected `inv_*` lines, not a scan.
+2. **No Bash directory-listing call fired during the card draw** — the POSIX analogue of the
+   `CLAUDE_CONFIG_DIR` grep above, extended per the spec to catch `ls`/`find`/a `Glob`-as-shell workaround, not
+   just an env-var read:
+   ```sh
+   TRANSCRIPT3=$(find "$SANDBOX3/.claude/projects" -iname "*.jsonl" 2>/dev/null | head -1)
+   grep -oE '"name":"Bash","input":\{"command":"[^"]*(ls |find |readdir)[^"]*"' "$TRANSCRIPT3"   # expect: nothing printed
+   ```
+3. **Inventory structural parity:** confirm the injected block itself carried the expected keys —
+   ```sh
+   grep -o 'inv_agents=[^ ]*' "$TRANSCRIPT3" | head -1   # expect: contains db-migrator and bitforge-engineer*
+   ```
+   Assert on **set membership**, not line order — `readdirSync` ordering is not guaranteed to match Windows'
+   here; the *field* order (`inv`, `inv_agents`, `inv_agents_project`, `inv_skills`, `inv_commands`,
+   `inv_hooks`, `inv_mcp`) and every `*` marker still must match exactly.
+4. **Path reconstruction under POSIX separators:** the staff table's rows render correctly (no "file not
+   found," no broken row) — proof the consumer rebuilt `<config>/agents/<id>.md` with `/` and read it
+   successfully, without ever scanning the directory to find it.
+
+```sh
+rm -rf "$SANDBOX3"
+```
+
 ---
 
 ## Most likely failure signatures
 
 | Symptom | Likely meaning |
 |---|---|
-| Step 2 or 3 differs from the expected counts above (anything less than `40/40` / `17/17`, or `validate.mjs` non-zero) | A real regression — stop, do not fix it yourself, report the exact diff back. |
+| Step 2 or 3 differs from the expected counts above (anything less than `40/40` / `29/29`, or `validate.mjs` non-zero) | A real regression — stop, do not fix it yourself, report the exact diff back. |
+| Session 3's card draw shows a Bash directory-listing call, or the staff table is missing/wrong despite `inv=ok` in the transcript | **The inventory either didn't reach the model or wasn't honored.** Confirm `hooks/otto-facts.mjs` emitted `inv=ok` at all (grep the transcript for `inv=`) before assuming the protocol text is at fault — an `inv=error` or `inv=off` here would mean the gather-gate or a sub-scan itself is the real bug, not the consumer. |
 | Session 1 replies normally but `otto-state-global.md` never appears (step 4 `cat` shows "No such file") | **The relay-state hook didn't fire.** This is the exact failure mode `docs/hook-events.md` documents for Windows (matcher `"Task"` vs delivered `tool_name: "Agent"`, or the `hooks.json` `"type"` trap) — if it resurfaces here, it means one of those traps is Windows-specific and POSIX behaves differently, which would be a significant new finding. |
 | The `CLAUDE_CONFIG_DIR` grep above prints a Bash call, or a reply visibly narrates checking an env var | **The facts hook didn't fire, or its output was malformed.** Two independent SessionStart entries are registered (`hooks.json`) — confirm both exist (`grep -A2 SessionStart hooks/hooks.json` should show two `"matcher": "startup"` blocks) and that `hooks/otto-facts.mjs` is executable by the `node` on this machine's PATH. Protocol text explicitly falls through to the old shell-required path when the facts block is absent or malformed — this is the documented, non-regressive fallback, but it means the OLD bug is still reachable if the new hook fails to run. |
 | The file appears but is empty, or the reply mentions an error | **`node` not found from the hook's spawn environment.** Both `otto-state.mjs` and `otto-facts.mjs` are fail-silent by design (no crash, no stdout) — an *empty* result with no error text is consistent with `node` resolving fine in your interactive shell but not in the environment Claude Code's hook spawns from (a common PATH gotcha on macOS, less so on Linux). Check `which node` and compare to what a hook subprocess would see. |
@@ -183,6 +244,7 @@ rm -rf ~/robotinc-posix-gate
 ## Reporting back
 
 Whatever happens, paste: the `test-otto-state.mjs` last line, the `test-otto-facts.mjs` last line, the
-`validate.mjs` line, the two `cat` outputs from step 4, and the `CLAUDE_CONFIG_DIR` grep result from Session 1
-(or the error, if any step failed). That's enough for Bitforge or Glitchtrap to read the result without
-re-running anything.
+`validate.mjs` line, the two `cat` outputs from step 4, the `CLAUDE_CONFIG_DIR` grep result from Session 1,
+and Session 3's four PASS checks (card content, the directory-listing grep, the `inv_agents` grep, and
+whether the staff table's rows rendered clean) — or the error, if any step failed. That's enough for Bitforge
+or Glitchtrap to read the result without re-running anything.

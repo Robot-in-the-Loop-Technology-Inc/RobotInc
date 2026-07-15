@@ -712,6 +712,97 @@ above).
 
 ---
 
+## Session-open inventory (Bitforge, Vector's ratified spec: `docs/spec-facts-inventory-22.8.0.md`)
+
+**The 58s→~25s cut.** Glitchtrap's transcript decomposition attributed 31.3s (57%) of first-run session-open
+to two model-driven Bash directory scans plus the reasoning around them — roll-call and hiring-round
+inventorying the user's own payroll (agents/skills/commands/settings.json) to build the staff table and check
+for name collisions. Every one of those reads is deterministic; none needed a model or a shell. This build
+folds the enumeration into the same `hooks/otto-facts.mjs` SessionStart hook the facts injector above already
+ships, gated to fire **only** on a genuine first run (`sentinel=absent AND profile=absent` — spec §4); every
+returning session pays one marker line (`inv=off`), never a full scan.
+
+**Wire format** (appended after the six core lines, spec §3): `inv` — `ok`/`off`/`partial`/`error`, always
+present when the hook runs — followed by up to six comma-separated `inv_<type>` lines
+(`inv_agents`, `inv_agents_project`, `inv_skills`, `inv_commands`, `inv_hooks`, `inv_mcp`). Ids and types only,
+never contents — for `settings.json`, only the top-level key names under `hooks`/`mcpServers`, never a value.
+A trailing `*` on an agent id flags a filename collision against a hardcoded `STOCK_AGENT_IDS` set (all 14
+agent basenames, **including `otto-foreman`** — a user file shadowing the main thread is the most serious
+collision there is). Plugin agents surface namespaced (`robotinc:*`); the hook only ever reads the user's own
+`<config>/agents` and `<cwd>/.claude/agents`, so a false collision is structurally impossible, not just rare.
+
+**Truncation (spec §3.4):** hard cap ~1800 chars (~450 tokens). Every collision-marked agent is emitted first
+and never dropped; the remaining budget fills non-colliding agents → commands → mcp → skills → hooks, in that
+order, until the cap is hit; `inv=partial` + `inv_truncated=true` when anything was cut. Delimiter-unsafe ids
+(containing `,` `=` `*` or a newline) are skipped from their list and also force `partial` — a short honest
+list beats a malformed line.
+
+**Failure modes (spec §7, degrade-open, never block):** the inventory is wrapped in its own try/catch,
+isolated from core-fact computation — an unexpected throw there emits `inv=error` with the six core facts
+untouched. One sub-scan failing (an unreadable directory, a malformed `settings.json`) degrades that sub-scan
+only to `inv=partial`; the sub-scans that succeeded still ship. **Deviation flagged, not silently resolved:**
+the spec's own §7 failure-mode table classifies "unreadable directory" / "one sub-scan fails" as `partial`,
+but its §9 acceptance-criteria table (row 7, "make `<config>/agents` unreadable") names the resulting status
+`error` — the two sections of the spec disagree with each other. Implemented to §7 (the detailed,
+per-condition contract, and the more useful behavior: "partial truth beats none" is stated there explicitly);
+`error` is reserved for the true "gather pipeline threw somewhere unexpected" case, which
+`scripts/test-otto-facts.mjs` now exercises directly and separately from the sub-scan-failure case. Glitchtrap
+should read scenario 7's PASS criterion as `inv=partial`, not `inv=error`, when re-verifying.
+
+**Two rulings from the same spec, bundled into this build rather than deferred (§8):**
+
+- **(a) FIXED — home-persona state leak.** `agents/otto-foreman.md` step 5 read `./.claude/otto-state.md`
+  unconditionally, with no `cwd_is_config_dir` guard — a home-persona user (cwd = home, custom
+  `CLAUDE_CONFIG_DIR`) got their own real per-machine state rendered as a stranger's project brief. Andrew
+  reproduced this live (see `docs/interactive-friction-gate-22.8.0.md`'s "Findings filed upstream"). Step 5 now
+  skips the local read entirely when `cwd_is_config_dir=true`; global state (`<config>/otto-state-global.md`)
+  still renders regardless — it's legitimately per-machine and was never the thing that leaked. Zero hook
+  changes; the deciding fact was already in the block.
+- **(b) REWORDED — override + seats-less profile persona chimera.** An override firing (card suppressed,
+  treated as returning) plus a seats-less profile independently triggering step 6 produced a "welcome back"
+  brief stapled to the fresh "Which chair is yours?" first-meeting splash in one reply. Step 6 now uses
+  **returning-user re-offer** wording whenever it's reached by way of override (a) or (b) — *"…and you've never
+  told me which seat to co-pilot — want to pick one?"* — never the first-meeting framing. Fixing (a) removes
+  the acute instance Andrew hit; this covers the rarer, still-legitimate residual (real project state + a
+  genuinely seats-less profile).
+
+**`scripts/validate.mjs`:** new gate cross-checking `hooks/otto-facts.mjs`'s `STOCK_AGENT_IDS` against
+`agents/*.md` basenames, both directions — same shape as the existing `otto-trace.mjs`/`otto-state.mjs`
+ROBOTS-map gates just above it. Negative-tested (temporarily dropped `otto-foreman` from the set, confirmed
+the gate fails with the expected message, restored). Existing hook-shape/timeout gates unaffected — still one
+`hooks/otto-facts.mjs` file, one `"type": "command"` SessionStart entry, `3 hook scripts` in the summary line.
+
+**Tests (`scripts/test-otto-facts.mjs`): 17/17 → 29/29 passing.** Per the spec's own note (§6), the
+`Object.keys(facts).length === 6` and `formatFacts` `lines.length === 7` assertions from the prior round are
+**intentionally superseded**, not regressed — `computeFacts()` now always carries a 7th key (`inv`), and
+`formatFacts()` emits an 8th line for a returning user (`inv=off`) or more under a populated first-run payroll.
+Both updated in place, per the spec's instruction, rather than worked around. Twelve new tests added: the
+`AND` gate (sentinel-only and profile-only present each still read `inv=off`), a populated payroll exercising
+every `inv_<type>` line at once (with a planted `bitforge-engineer.md` collision, a project-level agent, a
+skill directory with no `SKILL.md` correctly excluded, and a rich `settings.json` proven to leak only key
+names, never its nested command strings), `cwd_is_config_dir=true` omitting `inv_agents_project` entirely (not
+just empty), `otto-foreman` itself flagging as a collision, `STOCK_AGENT_IDS` proven bare-only (a namespaced
+`robotinc:bitforge-engineer` id can never match), a delimiter-unsafe id (comma in a filename) skipped and
+forcing `partial`, a 151-agent payroll forcing real truncation with the planted collision never dropped, a
+sub-scan failure (`settings.json` planted as a directory — a portable, cross-platform stand-in for
+"unreadable" that doesn't depend on chmod semantics) degrading to `partial` with the successful sub-scans still
+shipping, and the true `error`-isolation case (`computeInventoryFacts()` called directly with a
+path-breaking input) proving an unexpected throw never reaches the caller and never touches the six core facts.
+Also added the spec's own §3.1 wire-format example as a byte-for-byte test, so a future drift between the
+spec's worked example and the hook's real output fails loudly.
+
+`docs/posix-gate-22.8.0.md` updated: expected test count `17/17` → `29/29`; the facts-injector paragraph
+extended to name the inventory addition and its one deliberate cross-platform exception (assert `inv_*` id
+**set membership**, never line order — `readdirSync` ordering isn't guaranteed to match across filesystems;
+field order and every `*` marker still must match exactly); a new "Session 3" live-sandbox check added
+specifically for the inventory (plants a collision + one of each asset type, greps the transcript for a
+directory-listing Bash call during the card draw — expect none — and for the `inv_agents` line's content).
+`docs/interactive-friction-gate-22.8.0.md`'s Scenario 1 gained a fifth watch item (no `Glob`/directory-listing
+call between the card and the seat question); its "Findings filed upstream" section is now closed out,
+pointing at rulings (a) and (b) above instead of sitting open.
+
+---
+
 - [ ] **10. HARD GATE: macOS/Linux POSIX sh verification**  
   *Owner: Glitchtrap* · *Depends on (9)* · **BLOCKS RELEASE — POLICY GATE**
   - Full sequence run on **macOS or Linux** with POSIX sh (not bash, not zsh — strict sh)
