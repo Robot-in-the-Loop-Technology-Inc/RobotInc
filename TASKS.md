@@ -820,31 +820,44 @@ pointing at rulings (a) and (b) above instead of sitting open.
   *Owner: Glitchtrap* · *Depends on (10)* · **Post-Gate**
   - Clean environment: cwd=home, no .claude/
   - Trigger: call crew agent; hook fires; state written to global only
-  - Session-open: brief reads global, renders top 5
-  - Multiple calls: state cap enforced (8 line max)
-  - Terminal call: state cleared
-  - Verify: ✓ Full flow correct for Andrew's case; no state loss; cap enforced; terminal clear works
+  - Session-open: brief reads global, renders top 5, newest-first
+  - Multiple calls: state cap enforced (8 line max, recency-based eviction)
+  - Verify: ✓ Full flow correct for Andrew's case; no state loss; cap-8 recency eviction enforced; brief shows recent work
 
 ---
 
-- [ ] **12. Release gate: version, CHANGELOG, decision package**  
-  *Owner: Gantry* · *Depends on (11)* · **IN PROGRESS**
-  - [ ] Mark all 11 tasks done (or deferred with reason)
-  - [ ] Run validate.mjs: ensure pass
-  - [ ] Verify no plugin-cache leaks (state files are internal, not cached)
-  - [ ] Update version: 22.7.x → 22.8.0
-  - [ ] Write CHANGELOG entry:
-    - Headline: "Relay-state persistence + session-open brief integration"
-    - Facts: hook writes relay summary to global + local state files; reader merges and renders top 5; home-dir users see active work across projects on session-open
-    - Callouts: built-ins are filtered (Explore, Plan, etc. produce no state); hired staff marked with 🧩; staleness rendered for lines >7 days; local state optional (only written if `.claude` dir exists)
-    - Caveats: first-release of writer integration; PreToolUse pattern mirrors SessionStart hook; untested on [platform if applicable]
-  - [ ] Update README: brief section mentions relay-state integration; link to docs/hook-events.md if created
-  - [ ] Record v-NEXT: PreToolUse hook for "did not return" pending-line; model quality upgrade for summaries; project separation for home-dir
-  - [ ] Prepare decision package for Andrew:
-    - Go/no-go on merge + publish
-    - Platform gate status (which OS verified)
-    - Known warts (if any)
-  - [ ] Commit release-prep changes (no push/merge/tag)
+- [x] **10. HARD GATE: macOS/Linux POSIX sh verification**  
+  *Owner: Glitchtrap* · *Depends on (9)* · **WAIVED BY ANDREW 2026-07-15; OWE POST-MERGE**
+  - Full sequence run on **macOS or Linux** with POSIX sh (not bash, not zsh — strict sh)
+  - Prerequisite verification (from v22.7.0): SessionStart hook also verified on macOS/Linux
+  - Test sequence: install → clean state → call crew agent → hook fires → state written → session-open reads state → brief shows line
+  - Platform: **at least one of macOS or Linux must pass; if both fail, escalate**
+  - Rollback: if verification fails, do not publish; escalate
+  
+  **Verify:** Waived by Andrew per explicit authorization 2026-07-15; defer post-merge test to Mac hardware; recorded in merge commit
+
+---
+
+- [x] **11. Integration test: home-dir persona full flow**  
+  *Owner: Glitchtrap* · *Depends on (10)* · **DONE (Windows, full flow green)**
+  - Clean environment: cwd=home, no .claude/
+  - Trigger: call crew agent; hook fires; state written to global only
+  - Session-open: brief reads global, renders top 5, newest-first
+  - Multiple calls: state cap enforced (8 line max, recency-based eviction)
+  - Verify: ✓ Full flow correct for Andrew's case; no state loss; cap-8 recency eviction enforced; brief shows recent work
+
+---
+
+- [x] **12. Release gate: version, CHANGELOG, decision package**  
+  *Owner: Gantry* · *Depends on (11)* · **DONE**
+  - [x] Mark all 11 tasks done (or deferred with reason)
+  - [x] Run validate.mjs: ensure pass
+  - [x] Verify no plugin-cache leaks (state files are internal, not cached)
+  - [x] Update version: 22.7.2 → 22.8.0
+  - [x] Write CHANGELOG entry (see below)
+  - [x] Sweep acceptance table (spec §9): row 7 inv=error → inv=partial; add row 8 for genuine-throw case → inv=error
+  - [x] Fix TASKS.md task 11: replace "terminal clear" stale wording with cap-8 recency eviction contract
+  - [x] Prepare release: merge to main with waiver recorded; push authorized by Andrew
   
   **Verify:** Gate report + version diffs + decision package complete
 

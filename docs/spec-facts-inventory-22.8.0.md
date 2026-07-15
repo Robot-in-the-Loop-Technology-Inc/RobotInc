@@ -313,12 +313,13 @@ gateable — verified by the same scenario as (a).
 | 4 | Truncation: plant > cap assets | `inv=partial` + `inv_truncated=true`; **all** collisions present; consumer hand-scans only the remainder. |
 | 5 | Returning user (sentinel/profile present) | `inv=off`; no inventory tokens beyond the marker; no scan. |
 | 6 | Mid-session "I added an agent" | plant an agent **after** session start, invoke hiring-round → it re-scans live and finds it (does not trust the stale snapshot). |
-| 7 | Error isolation: make `<config>/agents` unreadable | `inv=error`; six core keys intact; session opens; no Bash-permission regression. |
-| 8 | Delimiter-unsafe id | skipped from list; `inv=partial`. |
-| 9 | `scripts/validate.mjs` | `STOCK_AGENT_IDS` cross-check passes; hook shape/timeout gates still pass; expected line reflects `3 hook scripts`. |
-| 10 | Ruling (a): home-persona state, `cwd_is_config_dir=true` | step 5 does **not** render local state; global state still renders. |
-| 11 | Ruling (b): override fired + seats-less profile | brief + returning-user seat **re-offer** in one voice; no first-meeting splash phrasing. |
-| 12 | Regression | `scripts/test-otto-facts.mjs` green (new count), `scripts/test-otto-state.mjs` green, `scripts/validate.mjs` green. |
+| 7 | Sub-scan failure: make `<config>/agents` unreadable | `inv=partial`; six core keys intact; successful sub-scans still ship; session opens; no Bash-permission regression. |
+| 8 | Error isolation: genuine-throw in inventory gather | `inv=error`; six core keys intact; session opens; no core-fact regression. |
+| 9 | Delimiter-unsafe id | skipped from list; `inv=partial`. |
+| 10 | `scripts/validate.mjs` | `STOCK_AGENT_IDS` cross-check passes; hook shape/timeout gates still pass; expected line reflects `3 hook scripts`. |
+| 11 | Ruling (a): home-persona state, `cwd_is_config_dir=true` | step 5 does **not** render local state; global state still renders. |
+| 12 | Ruling (b): override fired + seats-less profile | brief + returning-user seat **re-offer** in one voice; no first-meeting splash phrasing. |
+| 13 | Regression | `scripts/test-otto-facts.mjs` green (new count), `scripts/test-otto-state.mjs` green, `scripts/validate.mjs` green. |
 
 ---
 
