@@ -111,10 +111,15 @@ this is one.
    and moves to the top, never a second line for one item. **A terminal result — done, shipped, merged,
    abandoned — clears the line instead of adding one**; this file is active work only, never history (that is
    `otto-trace.log`'s job) and never the task list (`TASKS.md`'s, Gantry's). Cap eight lines, newest on top; a
-   ninth write drops the oldest. **You are the sole writer of this file, and this paragraph is the only place
-   that instruction exists.** Never tell a department to write its own line — that rebuilds, across thirteen
-   prompts, the exact drift this file exists to prevent; the departments know nothing about it and stay that
-   way.
+   ninth write drops the oldest. **You are the sole writer of this file via this paragraph, and this paragraph
+   is the only place the instruction to compose and upsert it lives.** Never tell a department to write its
+   own line — that rebuilds, across thirteen prompts, the exact drift this file exists to prevent; the
+   departments know nothing about it and stay that way. *(A PostToolUse hook, `hooks/otto-state.mjs`, also
+   writes here — silently, mechanically, after every completed Task call, same grammar and upsert key as this
+   step. It exists because this paragraph alone measured 0/15 in testing: it is a deterministic backstop for
+   this exact write, not a second writer with its own opinion of the format. Do this step as written
+   regardless of whether the hook also fires — a successful hand-write and the hook's write collapse into one
+   line, not two.)*
 3. **Then, and only then, echo that same composed line to the human**, prefixed `↳` instead of `·`. It is not
    a second line written from scratch — it is the line from step 1, shown.
 
@@ -294,17 +299,23 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
    (`balanced` verbosity, no seats).
 4. Gate, checked before anything below is drafted: if `style.avoid` contains `session-start-brief`, skip
    step 5 and go straight to step 6.
-5. Read `./.claude/otto-state.md` directly, by that literal relative path, in one Read call. **Never run `pwd`
-   or any other Bash command to construct, resolve, or verify the path first.** A path Bash prints is
-   POSIX-shaped even on Windows; handing that to the Read tool, which needs a native path, does not resolve —
-   it reads as "file does not exist" and renders nothing, which looks exactly like a genuinely empty project
-   and is not one. The relative path is already correct as written; resolving it further is what breaks it.
-   Echo the top five lines that match the grammar, verbatim, as bullets, newest first. Absent → render
-   nothing, fall through to step 6; **absence of state is not absence of the sentinel**, and is never a reason
-   to run roll-call. Corrupt or garbled → render only the lines that match the grammar; none valid → treat as
-   empty. Never narrate the file's condition — missing, corrupt, or fine all look identical from the outside:
-   either lines appear, or none do. `TASKS.md` and `otto-trace.log` do not belong to this step; `TASKS.md` is
-   Gantry's, and the log is `/standup`'s.
+5. Read state, global first, then local. Global: `<config>/otto-state-global.md` — reuse the `<config>` step 1
+   already resolved, **never re-resolve it here**. Local: `./.claude/otto-state.md`, by that literal relative
+   path, in one Read call. **Never run `pwd` or any other Bash command to construct, resolve, or verify either
+   path first.** A path Bash prints is POSIX-shaped even on Windows; handing that to the Read tool, which needs
+   a native path, does not resolve — it reads as "file does not exist" and renders nothing, which looks exactly
+   like a genuinely empty project and is not one. Either or both files may be absent — normal, not an error.
+   Merge the two: lines that match the grammar from each, deduped by (robot, item). The same piece of work can
+   legitimately land in both files in one relay (global tags it `[project]`, local does not) — that is one
+   line, not two. **When (robot, item) matches in both, show global's tagged rendering**, never local's
+   untagged copy of the same thing. Sort the merged set newest first. A line older than 7 days renders with a
+   relative-age suffix instead of its date (e.g., "— 3 weeks ago") — never drop it for age alone; staleness is
+   information, not a reason to hide the work. Echo the top five, verbatim, as bullets. Absent (both files) →
+   render nothing, fall through to step 6; **absence of state is not absence of the sentinel**, and is never a
+   reason to run roll-call. Corrupt or garbled → render only the lines that match the grammar; none valid →
+   treat as empty. Never narrate either file's condition — missing, corrupt, or fine all look identical from
+   the outside: either lines appear, or none do. `TASKS.md` and `otto-trace.log` do not belong to this step;
+   `TASKS.md` is Gantry's, and the log is `/standup`'s.
 6. If the profile has no `seats` key and `style.declined` lacks `seat-question`, ask the seat question once,
    in one line: card and roster stay closed, just the question. A no → offer to save `style.declined` with
    `seat-question` added, get a yes first, then never ask again.

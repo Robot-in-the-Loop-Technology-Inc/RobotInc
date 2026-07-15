@@ -21,13 +21,15 @@ a given question is the drift this table exists to prevent.
 | File | Answers | Consent | Written by |
 |---|---|---|---|
 | `<config>/.otto-met` | Have we met this user at all? | Not gated — operational bookkeeping | `roll-call`, the instant the card is drawn |
-| `./.claude/otto-state.md` (this project, cwd only — never `<config>`) | What is each robot's active work, right now? | Not gated — same footing as the trace log | `agents/otto-foreman.md`, at relay time, and **only** there |
+| `./.claude/otto-state.md` (this project, cwd only — never `<config>`) | What is each robot's active work, right now? | Not gated — same footing as the trace log | `agents/otto-foreman.md` (prompt-driven, at relay time), **and** `hooks/otto-state.mjs` (mechanical backstop, after every completed Task call) — same grammar, same upsert key; the hook exists because the prompt-driven write alone measured 0/15 |
+| `<config>/otto-state-global.md` | Same question, across ALL projects on this machine, tagged `[project]` | Not gated — same footing as the trace log | `hooks/otto-state.mjs` only |
 | `./.claude/otto-trace.log` (or `<config>/otto-trace.log` if there is no project) | What did the crew do, historically? | Not gated | `hooks/otto-trace.mjs`, best-effort |
 | `./.claude/otto-ledger.log` (same directory as the trace log) | What did each robot's work cost — tokens, duration? | Not gated — same footing as the trace log; a finance feature, not a safety one | `hooks/otto-trace.mjs`, best-effort; read by 💰 Baudrate on request |
 
 **One file, one question, always:**
 
-- The session-open brief reads `otto-state.md` **only** — never `TASKS.md`, never the trace log directly.
+- The session-open brief reads `otto-state.md` and `otto-state-global.md` **only** — never `TASKS.md`, never
+  the trace log directly.
 - `TASKS.md` is the task list, Gantry's to keep; nothing in the brief's read path touches it.
 - `otto-trace.log` is full history, and `/standup` is the thing that reads it. The brief is not a compressed
   standup and must not quietly grow into one by reading the same source.
