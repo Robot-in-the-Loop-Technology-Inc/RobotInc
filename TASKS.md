@@ -279,11 +279,12 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
   - Built-ins (Explore, general-purpose, Plan, claude, statusline-setup, etc.): skip (no state line)
   - Unknown non-built-in: hired-staff 🧩 line
   - Each line format: `[<robot>] <description> · <summary>` or `[<robot>🧩] <description> · <summary>` (hired staff)
-  - Terminal tokens (explicit done/shipped/merged/abandoned): clear line from state
+  - ~~Terminal tokens (explicit done/shipped/merged/abandoned): clear line from state~~ **SUPERSEDED — see
+    "Option C: terminal inference removed entirely" below. No clear path; every relay is an upsert.**
   - State body: item slug (idempotent key), robot, description, summary, timestamp
   - Rollback: skip or revert classification code
   
-  **Verify:** ✓ Classification matches crew map; built-ins produce zero lines; 🧩 badge appears for unknowns; terminal tokens identified correctly
+  **Verify:** ✓ Classification matches crew map; built-ins produce zero lines; 🧩 badge appears for unknowns; ~~terminal tokens identified correctly~~ (superseded, see Option C)
 
 ---
 
@@ -316,17 +317,20 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
     - Upsert key: (robot, item-slug)
     - Cap: 8 lines
     - Reuse grammar from agents/otto-foreman.md (see "Announcing a handoff" pattern for relay format)
-  - Terminal clear: lines matching done/shipped/merged/abandoned tokens removed from BOTH files
+  - ~~Terminal clear: lines matching done/shipped/merged/abandoned tokens removed from BOTH files~~
+    **SUPERSEDED — see "Option C: terminal inference removed entirely" below. Every relay is an unconditional
+    upsert; cleanup is cap-8 recency eviction only.**
   - Concurrency (global file is cross-process):
     - Lockfile pattern: `mkdir`-based atomic lock, path `<config>/.otto-state.lock` + random suffix
     - Read-modify-write sequence: acquire lock, read, upsert, write temp, atomic rename
     - Bounded retry: ~10 attempts × 50ms = 500ms max
-    - Degradation: if lock exhausted, append-degrade (reader deduplicates; self-heals on next clean write)
+    - Degradation: if lock exhausted, append-degrade (reader deduplicates; self-heals on next clean write) —
+      unconditional now, since there is no clear path to skip
     - Apply same pattern to local if .claude dir exists (but no cross-process risk for local)
   - No node → no write, no error (fail-silent)
   - Rollback: remove write logic from otto-state.mjs (keep script but no-op)
   
-  **Verify:** ✓ Global file created with header; local file created only when dir exists; upsert replaces old line of same key; 9th write evicts oldest (FIFO); lock contention handled; no corruption on concurrent writes; append-degrade readable by reader; terminal token clears both files; false-clear (token not in line) produces no change
+  **Verify:** ✓ Global file created with header; local file created only when dir exists; upsert replaces old line of same key; 9th write evicts oldest (FIFO); lock contention handled; no corruption on concurrent writes; append-degrade readable by reader; ~~terminal token clears both files; false-clear (token not in line) produces no change~~ (superseded — see Option C)
 
 ---
 
@@ -411,13 +415,18 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
     - Expected: 9th write evicts 1st (oldest); file stays ≤8 lines
     - Verify: ✓ After 9th write, file has exactly 8 lines; oldest gone
   
-  - [x] **9e. Terminal clear:** write a line, call a terminal-token robot (done/shipped/merged/abandoned)
-    - Expected: line removed from both global and local
-    - Verify: ✓ Line vanishes from both files after terminal call; no ghost entry
+  - [x] ~~**9e. Terminal clear:** write a line, call a terminal-token robot (done/shipped/merged/abandoned)~~
+    **SUPERSEDED — see "Option C" below.** There is no terminal clear any more; this test and its machinery
+    were removed from `scripts/test-otto-state.mjs`, not left red.
+    - ~~Expected: line removed from both global and local~~
+    - ~~Verify: ✓ Line vanishes from both files after terminal call; no ghost entry~~
   
-  - [x] **9f. False-clear negative test:** write a line, call a robot with "done" in description (not a terminal token)
-    - Expected: line persists (not a terminal token)
-    - Verify: ✓ Line remains in both files; description-match does not clear
+  - [x] ~~**9f. False-clear negative test:** write a line, call a robot with "done" in description (not a
+    terminal token)~~ **SUPERSEDED — see "Option C" below.** Every phrase is upsert content now regardless of
+    where "done" appears; this specific test and its machinery were removed, folded into the broader `G9`
+    coverage.
+    - ~~Expected: line persists (not a terminal token)~~
+    - ~~Verify: ✓ Line remains in both files; description-match does not clear~~
   
   - [x] **9g. First-create header:** delete state files, trigger write
     - Expected: header comment lines added; format documented
@@ -496,18 +505,15 @@ regression tests added alongside it — see below).
 
 **Fixed:**
 
-1. **False-clear (HIGH, tests G1b/G1c).** `TERMINAL`'s bare word-boundary match cleared an active line on
-   realistic negated phrasing — "not done yet, still drafting", "nothing merged yet", "far from done", "half-
-   done", etc. — 7/7 on QA's battery (G1a, still logged as informational). Fixed with `isTerminalSummary()`: a
-   terminal-word match only counts if a small character window around it (covers negation both before AND
-   after the word — "done is not the word for this" negates from the right) is free of `not / n't / never /
-   nothing / no / without / far from / half- / un-`. Deliberately conservative per QA's own framing: a missed
-   clear ages out visibly (7-day staleness render); a wrongful clear vanishes silently. Added true-positive
-   regression tests in the same commit ("merged to main", "shipped in 4 commits", "done — 4 tests green", and
-   the file's own original doc example) so the fix is proven not to have over-corrected.
+1. ~~**False-clear (HIGH, tests G1b/G1c).**~~ **SUPERSEDED — see "Option C: terminal inference removed
+   entirely" below.** The negation-window fix described here (commit `d5814de`) closed G1b/G1c but was itself
+   found broken in the opposite direction by QA round 2 (commit `336d23f`) and subsequently deleted rather than
+   patched a third time. Left here, struck through, as the historical record of what was tried and why it
+   wasn't enough — not as a description of current behavior.
 2. **Surrogate-pair truncation (MEDIUM, test G4).** `summarize()`'s `.slice(0, 140)` truncated by UTF-16 code
    unit and could split a surrogate pair, writing a corrupted replacement-character glyph into the state file.
-   Fixed: truncate by code point (`Array.from(result).slice(0, 140).join('')`).
+   Fixed: truncate by code point (`Array.from(result).slice(0, 140).join('')`). **Still true — unaffected by
+   the Option C change below**, which only concerns the terminal-clear machinery.
 
 **Logged, not fixed this pass (QA: not blocking) — for Vector:**
 
@@ -524,6 +530,74 @@ regression tests added alongside it — see below).
   persona's active-work line sits in a file the reader also treats as valid local state, which is arguably
   correct anyway since there's no *other* project it could belong to), but it is a real inconsistency between
   the two writers. Vector's call whether the prompt instruction needs the same guard in words.
+
+---
+
+## QA round 2 (Glitchtrap, commit `336d23f`) — the fix over-corrected
+
+Re-verified the round-1 fixes from both directions. Truncation (`99d449b`) held clean. The negation-window fix
+(`d5814de`) did not: it closed the original 7/7 false-clear rate without over-correcting the 4 true-positive
+cases, but the 24-char window is wide enough to catch an unrelated negation-shaped word ANYWHERE nearby, not
+just one actually modifying the terminal word —
+
+- **New false-KEEP (worse than the bug it fixed), 8/8 on realistic phrasing:** "shipped; no issues found",
+  "done — nothing left to do", "merged — no conflicts", "merged to main, not without drama" (a double
+  negative — it DID merge) all wrongly KEEP the line forever. A false-clear fails silently once; a false-keep
+  is a persistent, indefinite false signal indistinguishable from real active work.
+- **False-clear, round 2, down but not zero (G9a-c):** semantic distance ("we are done waiting on X, still
+  building") and a terminal word inside a quoted item name ("the \"shipped emails\" feature is still red")
+  still wrongly cleared. The window has no notion of syntactic attachment, only proximity.
+
+Verdict: not ship-ready, back to Bitforge. Full detail in the QA report handed to Otto; a POSIX gate package
+(`docs/posix-gate-22.8.0.md`, commit `db57f44`) was drafted in parallel with these 5 named regressions as
+expected reds, pinned rather than the coordinator's stale green count — refreshed below now that they're gone.
+
+---
+
+## Option C: terminal inference removed entirely (Bitforge, ratified by Vector + Patchbay)
+
+Two measured failures in opposite directions — round 1's bare match false-cleared active work, round 2's fix
+for that false-kept finished work — proved the PREMISE wrong, not the heuristic: natural language announces
+completion *by negating remaining work* ("nothing left to do", "no issues found" — these are how a subagent
+signals **done**, not signals of doubt). No keyword scanner crosses that frontier in both directions at once.
+Escalated via the stuck-loop skill rather than attempting a third heuristic; Vector's ratified call, Patchbay
+confirmed the contract-text implications.
+
+**What changed (`hooks/otto-state.mjs`):**
+
+- `TERMINAL`, `isTerminalSummary()`, `NEGATION_WINDOW`, `NEGATION_CUE` — all removed. No content inspection of
+  any kind on the summary text.
+- `upsertOrClear()` → `upsert()`: every relay is an unconditional upsert. There is no clear path.
+- Cleanup is cap-8 **recency** eviction only — the 9th distinct item displaces the oldest. No age-pruning (a
+  solo user's dormant-but-active thread must not silently disappear).
+- No manual clear command in this pass — named and deliberately deferred, not built.
+- Both file headers (written on first create, global and local) reworded to the new contract: *"recent work,
+  newest first, active among it"* — replacing the false *"active work only, terminal results clear their
+  line"* claim.
+
+**Contract text updated to match** (the file's own header must not lie about its contract — Patchbay flagged
+the prior wording as blocking): `agents/otto-foreman.md`'s "Announcing a handoff" section (the terminal-clear
+clause and the header-comment worked example) and `docs/profile-schema.md`'s sibling-files table. Step 5 (the
+reader) needed no change — it already renders top-5 verbatim with a staleness suffix and performs no
+done/active classification at render time, which is exactly the rendering rule Patchbay named (the robot's own
+wording carries the signal; the existing 7-day relative-age qualifier does double duty). `docs/hook-events.md`
+was checked and does not describe terminal-clear at all (it documents the PostToolUse payload shape, not the
+state-file contract), so it needed no edit.
+
+**Tests:** `scripts/test-otto-state.mjs` fully rewritten for the new contract. Removed: both `TERMINAL` regex
+tests, `9e` (terminal clear), `9f` (false-clear on description text), `G1a-c`, the 4 true-positive "still
+clears" tests, `G6`, `G9a-c`, `G10a-d` — all of these tested behavior of machinery that no longer exists.
+Flipped per the new contract: `G9` (formerly false-clear cases, 7 phrases spanning both QA rounds) now asserts
+each one **persists unchanged, by construction** — no inspection means nothing to false-clear. `G10` (formerly
+false-keep cases, 4 phrases) now asserts each one **persists with correct verbatim content**, plus a dedicated
+`G10e` proving a formerly-false-keep line evicts at cap-8 exactly like anything else — no special immortality
+left over from the deleted "keep" behavior. Added: an explicit `(project, robot, slug)` keying test (same
+robot + same slug in two different projects stays two distinct GLOBAL lines) and an eviction-independence test
+(local and global cap on separate schedules — proved by engineering a 2-project scenario where they diverge).
+Zero prose oracles anywhere in the suite now. **40/40 passing.**
+
+`docs/posix-gate-22.8.0.md` expected-output section refreshed to the new fully-green count (was pinned to
+40/45 with 5 named reds from QA round 2; those 5 tests no longer exist under their old names — see the diff).
 
 ---
 
@@ -607,7 +681,11 @@ regression tests added alongside it — see below).
 
 **PreToolUse hook for "did not return" pending-line**
 - Write-on-dispatch before robot is called, mark as "pending"
-- Terminal-token on robot return clears "pending" line
+- ~~Terminal-token on robot return clears "pending" line~~ **Invalidated by "Option C" (v22.8.0 build notes,
+  above): a content-based done/active classifier was tried twice and deleted after two rounds of measured
+  opposite-direction failure. If this idea is revived, the "pending" line needs a mechanism that isn't a
+  keyword scanner on the robot's own wording — e.g. clearing on the NEXT relay for the same key (a real event
+  this hook already observes), not on inferred content.**
 - Status: unspecified (beyond this release scope)
 
 **Model quality-upgrade for state summaries**
