@@ -680,6 +680,41 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   }
 }
 
+// ------------------------------------------------- facts hook: STOCK_AGENT_IDS <-> agents/*.md
+// v22.8.0's session-open inventory (hooks/otto-facts.mjs) flags a filename collision
+// deterministically, in the hook, by comparing a user's own agent ids against a hardcoded
+// STOCK_AGENT_IDS set — the same "structure beats wording, the machine judges" shape as the
+// otto-trace.mjs / otto-state.mjs ROBOTS-map gates just above, and the same disease those exist
+// to catch: a robot added, removed, or renamed in agents/ without updating the hook's own copy
+// of the list silently produces a WRONG collision verdict for every user from then on (a false
+// negative — a real shadowing agent goes undetected — is the dangerous direction, since it's the
+// one the model has no other way to catch; the hook owns this check specifically because the
+// model no longer scans agents/ itself under inv=ok). Parsed from source text, same technique
+// the ROBOTS-map gates use, since the hook is invoked standalone (`node hooks/otto-facts.mjs`)
+// and cannot import this validator's own agentFiles list.
+{
+  const facts = read('hooks/otto-facts.mjs');
+  const setBlock = (facts.match(/STOCK_AGENT_IDS = new Set\(\[([\s\S]*?)\]\)/) || [])[1];
+  if (!setBlock) {
+    fail('hooks/otto-facts.mjs: no STOCK_AGENT_IDS = new Set([...]) block found — the collision-detection gate below cannot run');
+  } else {
+    const stockIds = new Set([...setBlock.matchAll(/'([a-z][a-z-]*)'/g)].map((m) => m[1]));
+    const treeIds = new Set(agentFiles.map((f) => f.replace(/\.md$/, '')));
+    for (const id of treeIds) {
+      if (!stockIds.has(id)) {
+        fail(`hooks/otto-facts.mjs: STOCK_AGENT_IDS is missing "${id}" (present in agents/) — a user file named `
+           + `${id}.md would silently go undetected as a collision, the exact "robot added, hook not updated" drift this gate exists to catch`);
+      }
+    }
+    for (const id of stockIds) {
+      if (!treeIds.has(id)) {
+        fail(`hooks/otto-facts.mjs: STOCK_AGENT_IDS carries "${id}", which is not a robot in agents/ — a retired `
+           + `or renamed robot left stale here would flag a false collision for a user who legitimately owns that filename`);
+      }
+    }
+  }
+}
+
 // ------------------------------------------------- plugin default settings
 // A plugin's settings.json supports exactly two keys: `agent` and
 // `subagentStatusLine`; anything else is silently ignored by Claude Code —
