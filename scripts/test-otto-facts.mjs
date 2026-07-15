@@ -22,7 +22,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { computeFacts, formatFacts, normalizeForCompare, FACTS_HEADER } from '../hooks/otto-facts.mjs';
+import {
+  computeFacts,
+  formatFacts,
+  normalizeForCompare,
+  computeInventoryFacts,
+  STOCK_AGENT_IDS,
+  FACTS_HEADER,
+} from '../hooks/otto-facts.mjs';
 
 const HOOK_PATH = fileURLToPath(new URL('../hooks/otto-facts.mjs', import.meta.url));
 const results = [];
@@ -76,7 +83,13 @@ function parseBlock(text) {
 
 // ---------------------------------------------------------------- shape: all 6 keys, default config
 
-record('default config: all 6 keys present, correct present/absent per real files on disk', () => {
+// v22.8.0 note (spec §6): this assertion was `=== 6` before the inventory
+// block existed. computeFacts() now ALWAYS carries a 7th key, `inv` — every
+// session, gated or not (spec §3.2: "always present when the hook runs").
+// This session is a returning user (sentinel + profile both present), so the
+// gate (spec §4) keeps inv at 'off' and no inv_* keys appear at all — the 7
+// is exact, not "7 or more."
+record('default config: 7 keys present (6 core + inv=off for a returning user), correct present/absent per real files on disk', () => {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);
   writeFileSync(join(configDir, '.otto-met'), '2026-07-01\n');
@@ -85,22 +98,31 @@ record('default config: all 6 keys present, correct present/absent per real file
   writeFileSync(join(projectDir, '.claude', 'otto-state.md'), '<!-- x --> \n\n· line\n');
 
   const facts = runFacts(configDir, configDir, projectDir);
-  assert(Object.keys(facts).length === 6, `expected exactly 6 keys, got ${Object.keys(facts).length}: ${Object.keys(facts).join(',')}`);
+  assert(Object.keys(facts).length === 7, `expected exactly 7 keys (6 core + inv), got ${Object.keys(facts).length}: ${Object.keys(facts).join(',')}`);
   assert(facts.config_dir === configDir, `config_dir mismatch: ${facts.config_dir}`);
   assert(facts.sentinel === 'present', `sentinel should be present, got ${facts.sentinel}`);
   assert(facts.profile === 'present', `profile should be present, got ${facts.profile}`);
   assert(facts.state_local === 'present', `state_local should be present, got ${facts.state_local}`);
   assert(facts.state_global === 'present', `state_global should be present, got ${facts.state_global}`);
   assert(facts.cwd_is_config_dir === false, `cwd_is_config_dir should be false for a real project, got ${facts.cwd_is_config_dir}`);
+  assert(facts.inv === 'off', `a returning user (sentinel+profile present) must gate the inventory off, got ${facts.inv}`);
+  assert(facts.inv_agents === undefined, 'inv=off must carry no inv_* keys at all');
 });
 
-record('default config: everything absent when nothing exists on disk', () => {
+record('default config: everything absent when nothing exists on disk (genuine first run: inv=ok, empty payroll)', () => {
   const { configDir, projectDir } = freshDirs(); // withClaudeDir NOT called; nothing written
   const facts = runFacts(configDir, configDir, projectDir);
   assert(facts.sentinel === 'absent', `sentinel should be absent, got ${facts.sentinel}`);
   assert(facts.profile === 'absent', `profile should be absent, got ${facts.profile}`);
   assert(facts.state_local === 'absent', `state_local should be absent, got ${facts.state_local}`);
   assert(facts.state_global === 'absent', `state_global should be absent, got ${facts.state_global}`);
+  // Acceptance criterion #1: empty-payroll first run -> inv=ok, no inv_* lines.
+  assert(facts.inv === 'ok', `a genuine first run (sentinel+profile both absent) must gather, got inv=${facts.inv}`);
+  for (const k of ['inv_agents', 'inv_agents_project', 'inv_skills', 'inv_commands', 'inv_hooks', 'inv_mcp', 'inv_truncated']) {
+    assert(facts[k] === undefined || (Array.isArray(facts[k]) && facts[k].length === 0), `${k} should be absent/empty on an empty payroll, got ${JSON.stringify(facts[k])}`);
+  }
+  const block = formatFacts(facts);
+  assert(!block.includes('inv_'), `an empty payroll must emit no inv_* lines at all, got:\n${block}`);
 });
 
 // ---------------------------------------------------------------- custom CLAUDE_CONFIG_DIR
@@ -198,7 +220,7 @@ record('path normalization: non-win32 override does NOT lowercase (case-sensitiv
 
 // ---------------------------------------------------------------- exact wire format
 
-record('formatFacts: exact block shape, header verbatim, key order fixed', () => {
+record('formatFacts: exact block shape, header verbatim, core key order fixed, inv=off carries no inv_* lines', () => {
   const facts = {
     config_dir: 'C:\\Users\\andre\\.claude',
     sentinel: 'present',
@@ -206,17 +228,61 @@ record('formatFacts: exact block shape, header verbatim, key order fixed', () =>
     state_local: 'present',
     state_global: 'absent',
     cwd_is_config_dir: false,
+    inv: 'off',
   };
   const block = formatFacts(facts);
   const lines = block.split('\n');
   assert(lines[0] === FACTS_HEADER, `header line mismatch: ${lines[0]}`);
-  assert(lines.length === 7, `expected 7 lines (header + 6 keys), got ${lines.length}`);
+  // v22.8.0 note (spec §6): this was `=== 7` (header + 6 core keys, no inv
+  // concept existed). `inv` is now always present as an 8th line; under
+  // `off` it carries no inv_* lines behind it (spec §3.2), so the count
+  // grows by exactly one, not by the whole inventory shape.
+  assert(lines.length === 8, `expected 8 lines (header + 6 core keys + inv=off), got ${lines.length}`);
   assert(lines[1] === 'config_dir=C:\\Users\\andre\\.claude', `config_dir line wrong: ${lines[1]}`);
   assert(lines[2] === 'sentinel=present', `sentinel line wrong: ${lines[2]}`);
   assert(lines[3] === 'profile=absent', `profile line wrong: ${lines[3]}`);
   assert(lines[4] === 'state_local=present', `state_local line wrong: ${lines[4]}`);
   assert(lines[5] === 'state_global=absent', `state_global line wrong: ${lines[5]}`);
   assert(lines[6] === 'cwd_is_config_dir=false', `cwd_is_config_dir line wrong: ${lines[6]}`);
+  assert(lines[7] === 'inv=off', `inv line wrong: ${lines[7]}`);
+});
+
+// The exact wire-format sample from docs/spec-facts-inventory-22.8.0.md §3.1,
+// reproduced verbatim as a test — if the spec's own worked example and this
+// hook's actual output ever diverge, this is the assertion that catches it.
+record('formatFacts: the spec\'s own worked example, byte-for-byte, field order fixed', () => {
+  const facts = {
+    config_dir: '/Users/x/.claude',
+    sentinel: 'absent',
+    profile: 'absent',
+    state_local: 'absent',
+    state_global: 'absent',
+    cwd_is_config_dir: false,
+    inv: 'ok',
+    inv_agents: ['db-migrator', 'bitforge-engineer*', 'my-planner'],
+    inv_agents_project: ['code-reviewer'],
+    inv_skills: ['deploy-helper', 'landing-copy'],
+    inv_commands: ['ship'],
+    inv_hooks: ['PreToolUse', 'PostToolUse'],
+    inv_mcp: ['github', 'linear'],
+  };
+  const expected = [
+    FACTS_HEADER,
+    'config_dir=/Users/x/.claude',
+    'sentinel=absent',
+    'profile=absent',
+    'state_local=absent',
+    'state_global=absent',
+    'cwd_is_config_dir=false',
+    'inv=ok',
+    'inv_agents=db-migrator,bitforge-engineer*,my-planner',
+    'inv_agents_project=code-reviewer',
+    'inv_skills=deploy-helper,landing-copy',
+    'inv_commands=ship',
+    'inv_hooks=PreToolUse,PostToolUse',
+    'inv_mcp=github,linear',
+  ].join('\n');
+  assert(formatFacts(facts) === expected, `formatFacts output diverged from the spec's own §3.1 example:\n${formatFacts(facts)}\n---vs---\n${expected}`);
 });
 
 // ---------------------------------------------------------------- real subprocess: the actual hook invocation path
@@ -229,11 +295,15 @@ record('real subprocess: hook stdin->stdout produces a well-formed, parseable bl
   const stdout = spawnHook({ CLAUDE_CONFIG_DIR: configDir }, projectDir);
   assert(stdout.trim().startsWith(FACTS_HEADER), `subprocess output should start with the facts header, got: ${stdout.slice(0, 80)}`);
   const parsed = parseBlock(stdout);
-  assert(Object.keys(parsed).length === 6, `expected 6 parsed keys from subprocess output, got ${Object.keys(parsed).length}`);
+  // v22.8.0 note (spec §6): sentinel is present here, so the inventory gate
+  // (spec §4) is off and the only new line is the bare `inv=off` marker — 7
+  // parsed keys (6 core + inv), not 6.
+  assert(Object.keys(parsed).length === 7, `expected 7 parsed keys from subprocess output (6 core + inv), got ${Object.keys(parsed).length}`);
   assert(parsed.config_dir === configDir, `subprocess config_dir mismatch: ${parsed.config_dir}`);
   assert(parsed.sentinel === 'present', `subprocess sentinel mismatch: ${parsed.sentinel}`);
   assert(parsed.profile === 'absent', `subprocess profile mismatch: ${parsed.profile}`);
   assert(parsed.cwd_is_config_dir === 'false', `subprocess cwd_is_config_dir mismatch: ${parsed.cwd_is_config_dir}`);
+  assert(parsed.inv === 'off', `subprocess should gate the inventory off (sentinel present), got inv=${parsed.inv}`);
 
   const direct = runFacts(configDir, configDir, projectDir);
   assert(parsed.sentinel === direct.sentinel && parsed.profile === direct.profile, 'subprocess and direct computeFacts() should agree');
@@ -259,6 +329,202 @@ record('real subprocess: empty stdin still produces a block, no crash', () => {
   });
   assert(result.status === 0, `hook should exit 0 on empty stdin, got ${result.status}`);
   assert(result.stdout.trim().startsWith(FACTS_HEADER), 'hook should still emit a facts block on empty stdin');
+});
+
+// ---------------------------------------------------------------- inventory: gate on/off
+
+record('gate: sentinel present alone (profile absent) still gates the inventory off', () => {
+  const { configDir, projectDir } = freshDirs();
+  writeFileSync(join(configDir, '.otto-met'), '2026-07-01\n');
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.inv === 'off', `sentinel present alone must gate off (AND, not OR), got inv=${facts.inv}`);
+});
+
+record('gate: profile present alone (sentinel absent) still gates the inventory off', () => {
+  const { configDir, projectDir } = freshDirs();
+  writeFileSync(join(configDir, 'otto-profile.json'), '{"seats":["Generalist / Solo"]}');
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.inv === 'off', `profile present alone must gate off (AND, not OR), got inv=${facts.inv}`);
+});
+
+// ---------------------------------------------------------------- inventory: populated payroll, collision, namespacing
+
+record('inventory: populated payroll enumerates every type; ids only, never contents; collision flagged with a trailing *', () => {
+  const { configDir, projectDir } = freshDirs();
+  mkdirSync(join(configDir, 'agents'), { recursive: true });
+  writeFileSync(join(configDir, 'agents', 'bitforge-engineer.md'), 'name: bitforge-engineer\ndescription: a secret only the frontmatter knows\n');
+  writeFileSync(join(configDir, 'agents', 'db-migrator.md'), 'name: db-migrator\n');
+  mkdirSync(join(projectDir, '.claude', 'agents'), { recursive: true });
+  writeFileSync(join(projectDir, '.claude', 'agents', 'code-reviewer.md'), 'name: code-reviewer\n');
+  mkdirSync(join(configDir, 'skills', 'deploy-helper'), { recursive: true });
+  writeFileSync(join(configDir, 'skills', 'deploy-helper', 'SKILL.md'), 'name: deploy-helper\n');
+  // A skill directory with no SKILL.md is not a skill id (matches validate.mjs's own discovery).
+  mkdirSync(join(configDir, 'skills', 'not-a-skill'), { recursive: true });
+  mkdirSync(join(configDir, 'commands'), { recursive: true });
+  writeFileSync(join(configDir, 'commands', 'ship.md'), 'ship it\n');
+  writeFileSync(
+    join(configDir, 'settings.json'),
+    JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'x' }] }, mcpServers: { github: { command: 'gh-mcp-server --secret-flag' } } })
+  );
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.inv === 'ok', `expected inv=ok, got ${facts.inv}`);
+  assert(
+    new Set(facts.inv_agents).size === 2 && facts.inv_agents.includes('bitforge-engineer*') && facts.inv_agents.includes('db-migrator'),
+    `inv_agents should be exactly {bitforge-engineer*, db-migrator} (set membership, not order — spec §10.2), got ${JSON.stringify(facts.inv_agents)}`
+  );
+  assert(facts.inv_agents_project.includes('code-reviewer'), `inv_agents_project should include code-reviewer, got ${JSON.stringify(facts.inv_agents_project)}`);
+  assert(facts.inv_skills.includes('deploy-helper') && !facts.inv_skills.includes('not-a-skill'), `inv_skills should include only real skills (SKILL.md present), got ${JSON.stringify(facts.inv_skills)}`);
+  assert(facts.inv_commands.includes('ship'), `inv_commands should include ship, got ${JSON.stringify(facts.inv_commands)}`);
+  assert(facts.inv_hooks.includes('PreToolUse'), `inv_hooks should include PreToolUse, got ${JSON.stringify(facts.inv_hooks)}`);
+  assert(facts.inv_mcp.includes('github'), `inv_mcp should include github, got ${JSON.stringify(facts.inv_mcp)}`);
+
+  // Boundary check (spec §2): ids/types only, never authored content. The
+  // agent's description and the MCP command string must never appear
+  // anywhere in the serialized facts, structured or wire-format.
+  const block = formatFacts(facts);
+  assert(!block.includes('a secret only the frontmatter knows'), 'inventory leaked an agent description into the facts block');
+  assert(!block.includes('gh-mcp-server'), 'inventory leaked an MCP server command string into the facts block (settings.json key-name-only read)');
+  assert(!JSON.stringify(facts).includes('gh-mcp-server'), 'inventory leaked an MCP server command string into the structured facts object');
+});
+
+record('inventory: cwd_is_config_dir=true omits inv_agents_project entirely (not just empty) — no double-count of the same dir', () => {
+  // Same home-persona setup as the existing "cwd_is_config_dir=true" core-fact
+  // test above: no CLAUDE_CONFIG_DIR override, cwd IS the home dir, so
+  // internal config_dir resolves to <home>/.claude and cwd/.claude resolves
+  // to that SAME path.
+  const home = mkdtempSync(join(tmpdir(), 'otto-facts-inv-home-'));
+  scratchDirs.push(home);
+  mkdirSync(join(home, '.claude', 'agents'), { recursive: true });
+  writeFileSync(join(home, '.claude', 'agents', 'db-migrator.md'), 'name: db-migrator\n');
+
+  const facts = computeFacts({ cwd: home }, { env: {}, home });
+  assert(facts.cwd_is_config_dir === true, 'test setup should reproduce cwd_is_config_dir=true');
+  assert(facts.inv === 'ok', `expected inv=ok, got ${facts.inv}`);
+  assert(facts.inv_agents.includes('db-migrator'), 'the single agents dir should still enumerate once, under inv_agents');
+  assert(!('inv_agents_project' in facts), `inv_agents_project must be entirely absent when cwd_is_config_dir=true, got ${JSON.stringify(facts.inv_agents_project)}`);
+  assert(!formatFacts(facts).includes('inv_agents_project'), 'formatFacts must never emit an inv_agents_project line when cwd_is_config_dir=true');
+});
+
+record('inventory: otto-foreman itself collides — the main thread is not exempt from filename collision', () => {
+  const { configDir, projectDir } = freshDirs();
+  mkdirSync(join(configDir, 'agents'), { recursive: true });
+  writeFileSync(join(configDir, 'agents', 'otto-foreman.md'), 'name: otto-foreman\n');
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.inv_agents.includes('otto-foreman*'), `a user file shadowing the main thread must still flag, got ${JSON.stringify(facts.inv_agents)}`);
+});
+
+record('namespacing: STOCK_AGENT_IDS holds bare ids only — a plugin-namespaced id can never false-collide', () => {
+  assert(STOCK_AGENT_IDS.has('bitforge-engineer'), 'STOCK_AGENT_IDS should hold the bare stock id');
+  assert(!STOCK_AGENT_IDS.has('robotinc:bitforge-engineer'), 'STOCK_AGENT_IDS must never hold a namespaced id — the hook never reads the plugin\'s own namespaced tree in the first place, so this checks the set stays bare by construction');
+  assert(STOCK_AGENT_IDS.size === 14, `expected all 14 stock agents (13 delegates + otto-foreman), got ${STOCK_AGENT_IDS.size}`);
+});
+
+// ---------------------------------------------------------------- inventory: delimiter safety
+
+record('delimiter-unsafe id: a comma in a filename is skipped from its list and forces inv=partial', () => {
+  const { configDir, projectDir } = freshDirs();
+  mkdirSync(join(configDir, 'commands'), { recursive: true });
+  writeFileSync(join(configDir, 'commands', 'ship.md'), 'ship\n');
+  writeFileSync(join(configDir, 'commands', 'oops,comma.md'), 'bad id\n'); // legal on both NTFS and POSIX filesystems
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.inv === 'partial', `a delimiter-unsafe id must force inv=partial, got ${facts.inv}`);
+  assert(facts.inv_commands.includes('ship'), 'the safe id should still be emitted');
+  assert(!facts.inv_commands.some((c) => c.includes(',')), `the unsafe id must never appear, even malformed, got ${JSON.stringify(facts.inv_commands)}`);
+});
+
+// ---------------------------------------------------------------- inventory: truncation
+
+record('truncation: a huge payroll caps at ~1800 chars, sets inv=partial + inv_truncated=true, and never drops a collision', () => {
+  const { configDir, projectDir } = freshDirs();
+  mkdirSync(join(configDir, 'agents'), { recursive: true });
+  // A collision planted deliberately LAST alphabetically among 150 plain
+  // agents (readdir order is not guaranteed, but priority order in the hook
+  // itself puts every collision first regardless of scan order — spec §3.4).
+  writeFileSync(join(configDir, 'agents', 'bitforge-engineer.md'), 'name: bitforge-engineer\n');
+  for (let i = 0; i < 150; i++) {
+    writeFileSync(join(configDir, 'agents', `user-agent-${String(i).padStart(3, '0')}.md`), `name: user-agent-${i}\n`);
+  }
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.inv === 'partial', `a payroll this large must exceed the cap and read partial, got ${facts.inv}`);
+  assert(facts.inv_truncated === true, 'inv_truncated=true must be set when the cap truncation fires');
+  assert(facts.inv_agents.includes('bitforge-engineer*'), 'a collision-marked agent must never be dropped by truncation, even under a huge payroll');
+  assert(facts.inv_agents.length < 151, `truncation should have dropped SOME of the 151 planted agents, got all ${facts.inv_agents.length}`);
+  const block = formatFacts(facts);
+  assert(block.length < 2200, `serialized block should stay in the neighborhood of the ~1800-char cap (plus core lines/header), got ${block.length} chars`);
+});
+
+// ---------------------------------------------------------------- inventory: degrade-open on a sub-scan failure
+
+record('degrade-open: settings.json unreadable (a directory, not a file) — hooks/mcp omitted, everything else still enumerates, inv=partial not error', () => {
+  const { configDir, projectDir } = freshDirs();
+  mkdirSync(join(configDir, 'agents'), { recursive: true });
+  writeFileSync(join(configDir, 'agents', 'db-migrator.md'), 'name: db-migrator\n');
+  // settings.json exists but can't be read as a file (EISDIR) — a portable,
+  // deterministic stand-in for "unreadable" that works identically on
+  // Windows and POSIX, unlike chmod-based permission denial (spec §7's
+  // "unreadable directory" / "one sub-scan fails" rows: skip it, inv=partial,
+  // not a total error — the sub-scans that DID succeed still ship).
+  mkdirSync(join(configDir, 'settings.json'), { recursive: true });
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.inv === 'partial', `one failed sub-scan should degrade to partial, not error or ok — got ${facts.inv}`);
+  assert(facts.inv_agents.includes('db-migrator'), 'a sub-scan that succeeded (agents) must still be emitted in full');
+  // The key itself may still be present as an empty array (computeFacts's
+  // internal shape) — what must actually be true is the wire format: no
+  // inv_hooks/inv_mcp LINE at all (spec's "empty type -> omit the line").
+  assert(!(facts.inv_hooks?.length), `the failed sub-scan (settings.json) must contribute no hooks, got ${JSON.stringify(facts.inv_hooks)}`);
+  assert(!(facts.inv_mcp?.length), `the failed sub-scan (settings.json) must contribute no mcp, got ${JSON.stringify(facts.inv_mcp)}`);
+  const block = formatFacts(facts);
+  assert(!block.includes('inv_hooks='), 'the wire format must omit the inv_hooks line entirely when the sub-scan failed');
+  assert(!block.includes('inv_mcp='), 'the wire format must omit the inv_mcp line entirely when the sub-scan failed');
+  // Core facts must be completely unaffected by the inventory failure.
+  assert(facts.sentinel === 'absent' && facts.profile === 'absent', 'core facts must never regress when a sub-scan fails');
+
+  // NOTE for Glitchtrap: docs/spec-facts-inventory-22.8.0.md's failure-mode
+  // table (§7) classifies "unreadable directory" / "one sub-scan fails" as
+  // inv=partial, matching this test — but the acceptance-criteria table
+  // (§9, row 7, "make <config>/agents unreadable") names the resulting
+  // status "inv=error". Those two sections of the spec disagree with each
+  // other. Implemented to §7 (the detailed, per-condition failure-mode
+  // contract, and the more useful behavior — "partial truth beats none" is
+  // stated explicitly there): an ordinary, anticipated read failure on one
+  // sub-scan degrades that sub-scan only and reads inv=partial; the
+  // sub-scans that succeeded still ship. `inv=error` is reserved for the
+  // OTHER row in the same table — the gather pipeline throwing somewhere
+  // unexpected, outside any single sub-scan's own try/catch (see the next
+  // test). Flagging this deviation per the task's own instruction rather
+  // than silently picking one reading.
+});
+
+record('error isolation: an unexpected throw inside inventory gathering never reaches the caller and never touches core facts', () => {
+  // computeInventoryFacts() is exported specifically so this can be tested
+  // in isolation from computeFacts() — an unexpected throw (not a plain
+  // sub-scan read failure, which degrades to partial per the test above)
+  // must be caught by the inventory's OWN try/catch and read as inv=error,
+  // never propagate and never take the six core facts down with it (spec §7,
+  // "Inventory gather throws (unexpected)").
+  const core = { sentinel: 'absent', profile: 'absent', config_dir: null, cwd_is_config_dir: false };
+  let result;
+  let threw = false;
+  try {
+    result = computeInventoryFacts(core, '/irrelevant');
+  } catch {
+    threw = true;
+  }
+  assert(!threw, 'an unexpected error inside inventory gathering must never propagate out of computeInventoryFacts()');
+  assert(result.inv === 'error', `expected inv=error on an unexpected throw (config_dir=null breaks path.join internally), got ${JSON.stringify(result)}`);
+  assert(Object.keys(result).length === 1, `inv=error must carry no inv_* fields at all, got ${JSON.stringify(result)}`);
+});
+
+record('real subprocess: an unexpected inventory failure still exits 0 with core facts intact (whole-hook fail-silent stays outermost)', () => {
+  const { configDir, projectDir } = freshDirs();
+  mkdirSync(join(configDir, 'settings.json'), { recursive: true }); // same EISDIR trigger, exercised through the real subprocess
+  const stdout = spawnHook({ CLAUDE_CONFIG_DIR: configDir }, projectDir);
+  assert(stdout.trim().startsWith(FACTS_HEADER), 'the hook must still emit a well-formed facts block when a sub-scan fails');
+  const parsed = parseBlock(stdout);
+  assert(parsed.sentinel === 'absent' && parsed.config_dir === configDir, 'core facts must survive a sub-scan failure over the real subprocess path too');
+  assert(parsed.inv === 'partial', `expected inv=partial over the real subprocess path, got ${parsed.inv}`);
 });
 
 // ---------------------------------------------------------------- run
