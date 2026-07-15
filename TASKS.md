@@ -342,13 +342,15 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
     - Merge: combine, dedup by (robot, slug)
     - Global precedence: when (robot, slug) matches in both, use global's tagged rendering (project identity)
     - Sort: newest first
-    - Staleness rule: lines >7 days old render with relative age suffix (e.g., "— 3 weeks ago"), never auto-dropped
-    - Render: top 5 lines
+    - Staleness rule: relative age, ALWAYS ("today"/"N days ago"/"N weeks ago") — folded into the Last-update
+      column below, not a >7-day-only special case (**UPDATED post-ship, direct product request from Andrew —
+      see "Table render" note after task 12** — was originally >7-days-only with a raw date otherwise)
+    - Render: top 5 lines, ~~as bullets~~ **as a `| Robot | Working on | Last update |` table** (same note)
     - Mute gate: `style.avoid` containing `session-start-brief` skips entire step 5 (existing rule, reuse)
-  - Brief format (existing pattern):
-    - ≤5 state lines as bullets, verbatim
-    - "What can I help with?" closer
-    - Empty case: renders empty (no "no work" commentary)
+  - Brief format (**UPDATED — see "Table render" note**):
+    - ≤5 state rows in a 3-column table, verbatim per cell, only rearranged — not bullets
+    - "What can I help with?" closer (unchanged)
+    - Empty case: renders empty, no zero-row table (no "no work" commentary) (unchanged)
   - Rollback: revert reader changes to pre-state version
   
   **Verify:** ✓ Global read happens before local; dedup by key works; global wins on conflict; staleness renders correctly; top 5 enforced; mute gate skips step; empty case silent; corrupt state lines skipped gracefully
@@ -598,6 +600,33 @@ Zero prose oracles anywhere in the suite now. **40/40 passing.**
 
 `docs/posix-gate-22.8.0.md` expected-output section refreshed to the new fully-green count (was pinned to
 40/45 with 5 named reds from QA round 2; those 5 tests no longer exist under their old names — see the diff).
+
+---
+
+## Table render (Bitforge, direct product request from Andrew, post-build)
+
+Render-only change, same branch: the session-open brief renders as a **table** now, not bullets — `| Robot |
+Working on | Last update |`. Andrew's own words: *"a column for who's responsible — which robot, a column for
+last date touched, a column to state the last thing that was worked on."* Scoped tightly to
+`agents/otto-foreman.md` step 5 only — **the state FILE grammar (the `·` line the hook writes) is untouched
+and stays frozen**; this is purely how the merged top-5 lines get shown to the human.
+
+- **Robot** — badge + Name · Role (reuses the exact shape "Attributing a robot's work" already uses for a
+  block header, not a new format).
+- **Working on** — `[project]` tag if present, then item + the robot's own verbatim closing wording. Still
+  carries the anti-paraphrase force the old "echo verbatim" instruction had — cells are rearranged, never
+  reworded. Still no done/active classifier — the same content-based judgment "Option C" above deleted twice
+  at the writer would just move to the reader if reintroduced here as a status column.
+- **Last update** — relative age, **always** (was: raw date, relative-age suffix only past 7 days). Folds the
+  existing staleness rule into every row consistently instead of switching format partway down the table.
+- **Single row is still a table** — consistency beats a special case, and it doubles as a structural defense
+  against the single-item wrapper-sentence paraphrase drift QA logged earlier (a table's fixed columns leave no
+  loose prose around the fact to drift). Empty state is unchanged: no table at all, bare closer sentence.
+
+`docs/posix-gate-22.8.0.md`'s Session 2 PASS criteria were written around "a `·` bullet containing X" — updated
+to describe a table row instead (same underlying judge-by-content, not by wrapper-sentence, philosophy; only
+the shape of "content" changed from a bullet to a row). `node scripts/validate.mjs` and
+`plugin validate . --strict` both clean after the change.
 
 ---
 

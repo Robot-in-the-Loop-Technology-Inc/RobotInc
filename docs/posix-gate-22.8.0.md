@@ -109,15 +109,20 @@ cd "$SANDBOX/home-persona"
 CLAUDE_CONFIG_DIR="$SANDBOX" claude -p "hi" --dangerously-skip-permissions
 ```
 
-**PASS looks like:** a `·` bullet containing `Bitforge` and `rate limiter skeleton` appears somewhere in the
-reply — i.e., the line written in Session 1 comes back through the reader (`agents/otto-foreman.md` step 5),
-not just the writer. **The wrapper sentence around that bullet will vary and that's expected, not a failure:**
-the reader is an LLM prompt, not code, and re-running this same step three times on this exact build produced
-*"Welcome back. One thing on the board since last time:"*, *"One thing on the board from recent work:"*, and
-once, *"Two things on the board"* (a miscounted preamble with only one bullet under it) — all three showed the
-correct bullet. **Judge PASS by the bullet's content, never by the exact sentence around it, and don't treat an
-occasional wrong count in that sentence as a POSIX-specific finding** — it reproduces on Windows too and is
-already known, disclosed reader non-determinism, not something this gate is checking for.
+**PASS looks like:** a `| Robot | Working on | Last update |` table with one row containing `Bitforge` and
+`rate limiter skeleton` appears somewhere in the reply — i.e., the line written in Session 1 comes back
+through the reader (`agents/otto-foreman.md` step 5), not just the writer, now rendered as a table row instead
+of a bullet (product-requested render change, post-QA — the state file's own `·` line grammar this row is
+built from is unchanged). **The wrapper sentence around that table will vary and that's expected, not a
+failure:** the reader is an LLM prompt, not code, and re-running this same step three times on the
+pre-table-render build produced *"Welcome back. One thing on the board since last time:"*, *"One thing on the
+board from recent work:"*, and once, *"Two things on the board"* (a miscounted preamble with only one item
+under it) — all three showed the correct content. **Judge PASS by the table row's content, never by the exact
+sentence around it, and don't treat an occasional wrong count in that sentence as a POSIX-specific finding** —
+it reproduces on Windows too and is already known, disclosed reader non-determinism, not something this gate
+is checking for. The table format itself is a partial mitigation for this exact drift (fixed columns leave
+less room for a single-item brief to paraphrase), so also worth a plain look: does the row's Robot/Working
+on/Last update content match Session 1's dispatch, regardless of the sentence wrapped around it.
 
 ---
 
