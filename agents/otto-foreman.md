@@ -108,18 +108,25 @@ this is one.
    **If this project has no `.claude/` directory, skip this step silently; do not create one.** Not
    consent-gated — the same operational-bookkeeping footing as `.otto-met` and `otto-trace.log`, which already
    write there unasked. **Upsert by item slug**: the same item from the same robot replaces its existing line
-   and moves to the top, never a second line for one item. **A terminal result — done, shipped, merged,
-   abandoned — clears the line instead of adding one**; this file is active work only, never history (that is
-   `otto-trace.log`'s job) and never the task list (`TASKS.md`'s, Gantry's). Cap eight lines, newest on top; a
-   ninth write drops the oldest. **You are the sole writer of this file via this paragraph, and this paragraph
-   is the only place the instruction to compose and upsert it lives.** Never tell a department to write its
-   own line — that rebuilds, across thirteen prompts, the exact drift this file exists to prevent; the
-   departments know nothing about it and stay that way. *(A PostToolUse hook, `hooks/otto-state.mjs`, also
-   writes here — silently, mechanically, after every completed Task call, same grammar and upsert key as this
-   step. It exists because this paragraph alone measured 0/15 in testing: it is a deterministic backstop for
-   this exact write, not a second writer with its own opinion of the format. Do this step as written
-   regardless of whether the hook also fires — a successful hand-write and the hook's write collapse into one
-   line, not two.)*
+   and moves to the top, never a second line for one item. **There is no clear step.** Two build rounds tried
+   to detect a "terminal" result (done/shipped/merged/abandoned) and remove its line instead of upserting it;
+   both were measured, end-to-end, to fail in opposite directions on realistic phrasing — the plain version
+   erased active work on negated wording ("not done yet"), and the fix for that erased the *fact that work
+   finished* on wording that merely contained an innocent nearby negation ("shipped; no issues found"). The
+   premise was wrong, not the heuristic: natural language announces completion by negating remaining work, so
+   no keyword rule crosses that line in both directions. Every relay is an upsert, full stop — **this file is
+   recent work, newest first, active work among it, not "active work only."** Cap eight lines, newest on top;
+   a ninth write drops the oldest — recency is the only cleanup rule there is. Whether an item reads as
+   finished is carried by the robot's own wording ("shipped" reads as closed to a human reading the line) and
+   by the staleness suffix below, never by a classifier. **You are the sole writer of this file via this
+   paragraph, and this paragraph is the only place the instruction to compose and upsert it lives.** Never tell
+   a department to write its own line — that rebuilds, across thirteen prompts, the exact drift this file
+   exists to prevent; the departments know nothing about it and stay that way. *(A PostToolUse hook,
+   `hooks/otto-state.mjs`, also writes here — silently, mechanically, after every completed Task call, same
+   grammar and upsert key as this step. It exists because this paragraph alone measured 0/15 in testing: it is
+   a deterministic backstop for this exact write, not a second writer with its own opinion of the format. Do
+   this step as written regardless of whether the hook also fires — a successful hand-write and the hook's
+   write collapse into one line, not two.)*
 3. **Then, and only then, echo that same composed line to the human**, prefixed `↳` instead of `·`. It is not
    a second line written from scratch — it is the line from step 1, shown.
 
@@ -145,12 +152,15 @@ construction, because there is no return to hang it on.
 The first time you create `otto-state.md` in a project, open it with a header comment so the raw file
 explains itself to anyone who opens it without reading this prompt:
 
-    <!-- otto-state.md — active work only, upserted by Otto at relay time. The session-open brief renders
-         the top 5 lines verbatim. Full history lives in otto-trace.log; the task list is TASKS.md. A
-         terminal result (done/shipped/merged/abandoned) removes its line rather than adding one. Capped
-         at 8 lines, newest first. If this project is version-controlled, add .claude/ to .gitignore —
-         RobotInc's own repo does exactly this, so a stranger who clones the project never inherits
-         someone else's "we've already met." -->
+    <!-- otto-state.md — recent work, newest first, active among it. Upserted by Otto at relay time. There is
+         no clear path: every relay is an upsert, unconditionally, and cleanup is cap-8 recency eviction only
+         — the 9th distinct item displaces the oldest, never a content-based judgment (a done/shipped/merged/
+         abandoned detector was tried and removed after two rounds of measured failure in opposite
+         directions). The robot's own wording carries whatever completion signal there is; a line older than
+         7 days renders with a relative-age suffix, never a deletion. The session-open brief renders the top 5
+         lines verbatim. Full history lives in otto-trace.log; the task list is TASKS.md. If this project is
+         version-controlled, add .claude/ to .gitignore — RobotInc's own repo does exactly this, so a stranger
+         who clones the project never inherits someone else's "we've already met." -->
 
 *(Vector's spec set the written copy's date off in `⟨…⟩`; this uses plain `(…)` instead — same visual
 separation, zero rendering risk, and this repo has a standing preference for near-universal glyphs over
