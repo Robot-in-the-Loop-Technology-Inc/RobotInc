@@ -407,6 +407,207 @@ record('9m. round-trip: writer output matches agents/otto-foreman.md\'s document
   assert(GRAMMAR.test(line), `writer's line does not match otto-foreman.md's GRAMMAR regex: ${line}`);
 });
 
+// ---------------------------------------------------------------- Glitchtrap: adversarial pass, v22.8.0 QA
+//
+// Everything below was written to attack the build, not confirm it — the priority list Bitforge/Gantry
+// flagged as accepted risks in TASKS.md's build notes, plus edge cases the 23/23 suite above does not cover.
+// Where a test asserts the CORRECT (desired) behaviour and the build does not deliver it, the test is left
+// failing on purpose — that is the regression repro, not a mistake. See the QA report for the verdict.
+
+// ---------------------------------------------------------------- G1: TERMINAL false-clear on realistic negation
+//
+// TERMINAL is a bare word-boundary match (`/\b(done|shipped|merged|abandoned)\b/i`) against the SUMMARY (the
+// subagent's own last non-empty line), with no negation handling — flagged as a known, accepted risk in the
+// file's own header comment. This is not a synthetic gotcha: "not done yet" and "nothing merged" are exactly
+// how a subagent naturally phrases an in-progress result. A false clear is silent — no error, no stdout, the
+// active-work line just vanishes from both files, and nothing else in the product will ever say it happened.
+
+const REALISTIC_NEGATION_CASES = [
+  'not done yet, still drafting the second endpoint',
+  'nothing merged yet -- waiting on review',
+  'far from done, 3 tests still red',
+  'undone work remains, not shipped to prod',
+  'this is not abandoned, just paused for review',
+  'done is not the word for this -- 3 tests failing',
+  'half-done, needs another pass',
+];
+
+record('G1a. TERMINAL false-clear rate on realistic negated subagent phrasing (measured, not asserted-safe)', () => {
+  const falseClears = REALISTIC_NEGATION_CASES.filter((s) => TERMINAL.test(s));
+  // Recorded as informational even if it "passes" zero-tolerance — the number IS the finding.
+  // As of this build: matches on ALL of them (rate logged to stdout below for the report).
+  console.log(`    [G1a] false-clear rate on ${REALISTIC_NEGATION_CASES.length} realistic negated cases: ${falseClears.length}/${REALISTIC_NEGATION_CASES.length}`);
+  assert(true, 'informational only — see logged rate above');
+});
+
+record('G1b. REGRESSION (expected to FAIL until fixed): "not done yet, still drafting" must not clear an active line end-to-end', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'webhook retry logic', text: 'started the backoff handler', cwd: projectDir }));
+  assert(readLines(localPath(projectDir)).length === 1, 'setup: line should exist before the negated call');
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'webhook retry logic', text: 'not done yet, still drafting the second endpoint', cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 1, `FALSE CLEAR: "not done yet" wrongly cleared the active line (TERMINAL matched "done" with no negation handling) — local lines remaining: ${lines.length}`);
+  assert(readLines(globalPath(configDir)).length === 1, 'FALSE CLEAR: global line was also wrongly cleared');
+});
+
+record('G1c. REGRESSION (expected to FAIL until fixed): "nothing merged yet -- waiting on review" must not clear an active line', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'pr queue', text: 'opened the PR', cwd: projectDir }));
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'pr queue', text: 'nothing merged yet -- waiting on review', cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 1, `FALSE CLEAR: "nothing merged" wrongly cleared the active line — local lines remaining: ${lines.length}`);
+});
+
+// ---------------------------------------------------------------- G2: unicode survives description/summary
+
+record('G2. unicode in description and summary survives render + upsert (badge, CJK, emoji, accents)', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({
+    subagentType: 'bitforge-engineer',
+    description: '国际化 façade — résumé import 🎉',
+    text: 'wired the 国际化 façade, café-name edge case fixed 🎉',
+    cwd: projectDir,
+  }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 1, `expected 1 line, got ${lines.length}`);
+  assert(lines[0].includes('国际化 façade — résumé import 🎉'), `unicode description mangled: ${lines[0]}`);
+  assert(lines[0].includes('café-name edge case fixed 🎉'), `unicode summary mangled: ${lines[0]}`);
+  // Upsert a second time with the same unicode description -- key must still match (slugify must be stable
+  // across the same unicode input) or this silently becomes a duplicate line instead of an upsert.
+  runWith(configDir, configDir, payload({
+    subagentType: 'bitforge-engineer',
+    description: '国际化 façade — résumé import 🎉',
+    text: 'second pass, tests green',
+    cwd: projectDir,
+  }));
+  const after = readLines(localPath(projectDir));
+  assert(after.length === 1, `unicode description did not upsert to the same key -- got ${after.length} lines (duplicate instead of replace)`);
+});
+
+// ---------------------------------------------------------------- G3: empty description
+
+record('G3. empty description falls back to (untitled), does not throw, still upserts on repeat', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: '', text: 'started something', cwd: projectDir }));
+  let lines = readLines(localPath(projectDir));
+  assert(lines.length === 1 && lines[0].includes('(untitled)'), `empty description should render as (untitled): ${lines[0]}`);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: '', text: 'finished something', cwd: projectDir }));
+  lines = readLines(localPath(projectDir));
+  assert(lines.length === 1, `two empty-description calls from the same robot should upsert to one line (same slug "item"), got ${lines.length}`);
+});
+
+// ---------------------------------------------------------------- G4: very long result text truncation
+
+record('G4. very long result text truncates at 140 chars without corrupting the line or splitting a surrogate pair', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  const longText = 'x'.repeat(200) + ' end-marker-should-not-appear';
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'long result', text: longText, cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 1, `expected 1 line, got ${lines.length}`);
+  assert(!lines[0].includes('end-marker-should-not-appear'), 'truncation did not cut off the overflow text');
+  const m = lines[0].match(/— long result: (.+?)  \(\d{4}-\d{2}-\d{2}\)$/);
+  assert(m, `line did not parse for truncation check: ${lines[0]}`);
+  assert(m[1].length === 140, `summary should be exactly capped at 140 chars, got ${m[1].length}`);
+
+  // Surrogate-pair boundary: an emoji sits exactly on char 139/140 of the raw text; a naive .slice(0,140)
+  // can split a UTF-16 surrogate pair in half and corrupt the string (renders as a replacement glyph).
+  const emojiBoundaryText = 'y'.repeat(139) + '🎉' + 'trailing text that must be cut';
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'emoji boundary', text: emojiBoundaryText, cwd: projectDir }));
+  const lines2 = readLines(localPath(projectDir));
+  const line2 = lines2.find((l) => l.includes('emoji boundary'));
+  assert(line2, 'emoji-boundary line missing');
+  const m2 = line2.match(/— emoji boundary: (.+?)  \(\d{4}-\d{2}-\d{2}\)$/);
+  assert(m2, `emoji-boundary line did not parse: ${line2}`);
+  assert(!m2[1].includes('�'), `truncation split a surrogate pair and corrupted the string: ${JSON.stringify(m2[1])}`);
+});
+
+// ---------------------------------------------------------------- G5: same item, two different robots
+
+record('G5. the same description dispatched to two different robots produces two distinct lines, not a collision', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'rate limiter', text: 'implementation started', cwd: projectDir }));
+  runWith(configDir, configDir, payload({ subagentType: 'glitchtrap-qa', description: 'rate limiter', text: 'writing tests', cwd: projectDir }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 2, `same description from two different robots should be two lines, got ${lines.length}`);
+  assert(lines.some((l) => l.includes('🔩 Bitforge')), 'Bitforge line missing');
+  assert(lines.some((l) => l.includes('🔘 Glitchtrap')), 'Glitchtrap line missing');
+});
+
+// ---------------------------------------------------------------- G6: terminal result for a line that doesn't exist
+
+record('G6. terminal result for a key with no existing line: no crash, no phantom line added, file stays consistent', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  // No setup write at all for this key -- straight to a terminal call.
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'never started', text: 'shipped to prod', cwd: projectDir }));
+  assert(readLines(localPath(projectDir)).length === 0, 'a terminal result for a nonexistent key should add nothing');
+  assert(readLines(globalPath(configDir)).length === 0, 'a terminal result for a nonexistent key should add nothing (global)');
+  // Header should still exist and be well-formed (upsertOrClear ran against an empty list, saveFile still fires).
+  assert(existsSync(localPath(projectDir)), 'file should still be created (with header, zero body lines)');
+  assert(readFileSync(localPath(projectDir), 'utf8').startsWith('<!--'), 'header should still be present even with zero lines');
+});
+
+// ---------------------------------------------------------------- G7: real concurrent race, same key, forced contention
+
+async function testRealContentionSameKey() {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  const spawnOne = (n) =>
+    new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [HOOK_PATH], { env: { ...process.env, CLAUDE_CONFIG_DIR: configDir } });
+      child.stdin.write(JSON.stringify(payload({ subagentType: 'bitforge-engineer', description: 'same-key race', text: `pass ${n}`, cwd: projectDir })));
+      child.stdin.end();
+      child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`child ${n} exited ${code}`))));
+      child.on('error', reject);
+    });
+  // 6 real processes, SAME upsert key, fired together -- this forces real mkdir-lock contention (not the
+  // manually-staged lock of 9l) and is the actual invocation path a hook spawn uses (stdin JSON, node
+  // subprocess), not the imported run() function. Whichever write lands last should win; the file must stay
+  // parseable and have exactly one line for this key either way (clean win) or show evidence of a degraded
+  // append that a subsequent clean write self-heals (per the documented degrade contract).
+  await Promise.all([1, 2, 3, 4, 5, 6].map(spawnOne));
+  let lines = readLines(localPath(projectDir));
+  assert(lines.length >= 1, 'same-key race under real contention lost every write');
+  for (const l of lines) assert(keyOfLine(l, false) !== null, `corrupted line after real same-key contention: ${l}`);
+  // Self-heal: one more clean write for a DIFFERENT key must succeed and the file must still parse, proving
+  // no lock dir was left orphaned by the contention above.
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'post-race cleanup', text: 'clean write after contention', cwd: projectDir }));
+  lines = readLines(localPath(projectDir));
+  assert(lines.some((l) => l.includes('post-race cleanup')), 'lock was left held after real contention -- next clean write starved');
+  for (const l of lines) assert(keyOfLine(l, false) !== null, `corrupted line after post-race clean write: ${l}`);
+}
+
+// ---------------------------------------------------------------- G8: tagged global line round-trips through keyOfLine and the GRAMMAR the reader uses
+
+record('G8. tagged global line parses with keyOfLine(line, true) and still matches a tag-aware grammar', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'subscription schema', text: 'drafted', cwd: projectDir }));
+  const gLines = readLines(globalPath(configDir));
+  assert(gLines.length === 1, `expected 1 global line, got ${gLines.length}`);
+  const line = gLines[0];
+  const key = keyOfLine(line, true);
+  assert(key !== null, `tagged global line failed to parse via keyOfLine: ${line}`);
+  assert(key.startsWith(`${require_basename(projectDir)}::bitforge-engineer::`), `tagged key missing project prefix: ${key}`);
+  // NOTE: scripts/test-otto-state.mjs's own 9m GRAMMAR constant
+  // (`/^· \S+ [A-Z][A-Za-z]+ \(...\) .../`) does NOT have an optional `[project] ` group, so it does not
+  // actually match a global tagged line -- 9m only ever exercises it against the untagged LOCAL file. Confirmed
+  // here: the local-only GRAMMAR fails against a real global line, which is a gap in the *test's* coverage of
+  // the reader contract, not proof the reader itself is broken (agents/otto-foreman.md's step 5 is prose, not
+  // this regex, and a live session-open run does parse the tag -- see QA report). Left as an explicit,
+  // documented assertion so the gap is visible instead of silently uncovered.
+  const LOCAL_ONLY_GRAMMAR = /^· \S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/;
+  assert(!LOCAL_ONLY_GRAMMAR.test(line), 'expected: the local-only GRAMMAR const does not cover tagged global lines (documents a test-coverage gap, not a writer bug)');
+  const TAG_AWARE_GRAMMAR = /^· (?:\[[^\]]+\] )?\S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/;
+  assert(TAG_AWARE_GRAMMAR.test(line), `tag-aware grammar should match a real global line: ${line}`);
+});
+
 // ---------------------------------------------------------------- run
 
 async function main() {
@@ -415,6 +616,13 @@ async function main() {
     results.push({ name: '9k. cross-process race: no lost line, no corruption', pass: true });
   } catch (e) {
     results.push({ name: '9k. cross-process race: no lost line, no corruption', pass: false, detail: e.message });
+  }
+
+  try {
+    await testRealContentionSameKey();
+    results.push({ name: 'G7. real same-key contention (6 spawned processes): no corruption, self-heals', pass: true });
+  } catch (e) {
+    results.push({ name: 'G7. real same-key contention (6 spawned processes): no corruption, self-heals', pass: false, detail: e.message });
   }
 
   const failed = results.filter((r) => !r.pass);
