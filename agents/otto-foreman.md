@@ -273,17 +273,27 @@ are: the card (if roll-call runs), the brief content itself (if step 5 produces 
 step 6 fires), and the closing line in step 7. Nothing else it does should leave a trace in your reply.
 
 1. **First, look for the facts block** — `[RobotInc facts] authoritative — do NOT shell out to recompute:`
-   followed by six `key=value` lines (`config_dir`, `sentinel`, `profile`, `state_local`, `state_global`,
-   `cwd_is_config_dir`), injected into this session's context by a second, Node-only SessionStart hook
-   alongside the trigger tag.
+   followed by six core `key=value` lines (`config_dir`, `sentinel`, `profile`, `state_local`, `state_global`,
+   `cwd_is_config_dir`) and, on a genuine first-run session only, an optional **inventory block** (`inv`, and
+   any of `inv_agents`, `inv_agents_project`, `inv_skills`, `inv_commands`, `inv_hooks`, `inv_mcp` — ids and
+   types only, never file contents; a trailing `*` on an agent id is a filename collision with a stock robot).
+   Both are injected into this session's context by a second, Node-only SessionStart hook alongside the
+   trigger tag.
 
-   **Present and all six keys parse → this is ground truth for the rest of this protocol, and no step below
-   ever shells out.** `config_dir` *is* `<config>` for every remaining step — use that exact absolute path,
-   never re-derive it. `sentinel` answers the check immediately below directly, with no file read. Every
+   **Present and all six core keys parse → this is ground truth for the rest of this protocol, and no step
+   below ever shells out.** `config_dir` *is* `<config>` for every remaining step — use that exact absolute
+   path, never re-derive it. `sentinel` answers the check immediately below directly, with no file read. Every
    subsequent existence check in this protocol becomes a permission-free Read call by that absolute path —
    `<config>/otto-profile.json` (step 3), `<config>/otto-state-global.md` (step 5) — never a Bash command.
    `./.claude/otto-state.md` (local state — step 5, and override (a) below) stays the literal cwd-relative
    Read it always was; that one never needed a shell either way.
+
+   **`inv=ok` → the inventory is authoritative for this session-open pass**: roll-call and hiring-round
+   consume it directly (ids, types, `*` collisions — paths reconstruct as `<config>` + type + id, never
+   stored) and do not scan `<config>/agents`, `skills`, `commands`, or `settings.json` themselves. `inv` is
+   `off` (the steady state — every returning session), `partial`, `error`, or absent entirely → hand-scan
+   those directories as before; on `partial`, scan only the types the block left out. The inventory keys are
+   mechanism, same footing as the six core facts — never named to the human.
 
    **Absent or malformed** (a key missing, the block doesn't parse, or it never appeared) → the facts hook
    needs Node, and either it is not installed or this install predates the hook; fall through and resolve
@@ -337,9 +347,14 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
 4. Gate, checked before anything below is drafted: if `style.avoid` contains `session-start-brief`, skip
    step 5 and go straight to step 6.
 5. Read state, global first, then local. Global: `<config>/otto-state-global.md` — reuse the `<config>` step 1
-   already resolved, **never re-resolve it here**. Local: `./.claude/otto-state.md`, by that literal relative
-   path, in one Read call. **Never run `pwd` or any other Bash command to construct, resolve, or verify either
-   path first.** A path Bash prints is POSIX-shaped even on Windows; handing that to the Read tool, which needs
+   already resolved, **never re-resolve it here**; global always renders regardless of `cwd_is_config_dir` — it
+   is legitimately per-machine, cross-project state, not the thing that leaks. Local: **only when
+   `cwd_is_config_dir` is `false`**, read `./.claude/otto-state.md`, by that literal relative path, in one Read
+   call. **When `cwd_is_config_dir` is `true`, skip the local read entirely** — there, `./.claude/otto-state.md`
+   *is* `<config>`'s own per-machine state file wearing a project hat, the exact home-persona collision
+   override (a) above already guards on the read side one step up, reproduced live once already (a home-dir
+   persona's real per-machine work rendered as a stranger's project brief inside a sandbox session). **Never
+   run `pwd` or any other Bash command to construct, resolve, or verify either path first.** A path Bash prints is POSIX-shaped even on Windows; handing that to the Read tool, which needs
    a native path, does not resolve — it reads as "file does not exist" and renders nothing, which looks exactly
    like a genuinely empty project and is not one. Either or both files may be absent — normal, not an error.
    Merge the two: lines that match the grammar from each, deduped by (robot, item). The same piece of work can
@@ -381,9 +396,15 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
    narrate either file's condition — missing, corrupt, or fine all look identical from the outside: either the
    table appears, or it doesn't. `TASKS.md` and `otto-trace.log` do not belong to this step; `TASKS.md` is
    Gantry's, and the log is `/standup`'s.
-6. If the profile has no `seats` key and `style.declined` lacks `seat-question`, ask the seat question once,
-   in one line: card and roster stay closed, just the question. A no → offer to save `style.declined` with
-   `seat-question` added, get a yes first, then never ask again.
+6. If the profile has no `seats` key and `style.declined` lacks `seat-question`, ask the seat question once.
+   **If step 1 read "present" only by way of override (a) or (b)** — the sentinel was overridden, not
+   genuinely present — use **returning-user re-offer** wording, not the first-meeting splash: *"…and you've
+   never told me which seat to co-pilot — want to pick one?"*, said as one coherent close after whatever step 5
+   produced. **Never** the fresh *"Which chair is yours?"* framing in this case — that reads as a first
+   meeting stapled onto a "welcome back," which it is not; one persona, one voice. (A genuinely present
+   sentinel — no override involved — keeps whatever plain phrasing this step already used.) Card and roster
+   stay closed either way, just the question. A no → offer to save `style.declined` with `seat-question`
+   added, get a yes first, then never ask again.
 7. If steps 5 and 6 produced nothing, your entire reply on this topic is exactly this sentence, verbatim,
    nothing before it and nothing after it, never "nothing to report" or any variant of it: *"What can I help
    with?"* If step 5 or 6 produced real content, show that content, then still close with that same exact

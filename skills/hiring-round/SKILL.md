@@ -45,9 +45,20 @@ Don't re-derive what the platform already carries. Record only what it doesn't.
 
 ## Steps
 
-### 1. Walk the payroll (read-only)
+### 1. Walk the payroll
 
-`Glob`/`Read`, nothing else:
+**First meeting, session-open pass — `inv=ok` in the facts block, and this is the first hiring-round call
+this session:** consume the injected inventory directly — `inv_agents`, `inv_agents_project`, `inv_skills`,
+`inv_commands`, `inv_hooks`, `inv_mcp`. Paths reconstruct as `<config>` + type + id
+(`<config>/agents/<id>.md`, `./.claude/agents/<id>.md`, `<config>/skills/<id>/SKILL.md`,
+`<config>/commands/<id>.md`); `permissions` and other installed plugins (`<config>/plugins/`) aren't in the
+inventory block — a targeted `Glob`/`Read` on those two is cheap and still worth doing, since they're rarely
+populated.
+
+**Hand-scan instead — `Glob`/`Read`, nothing else — whenever `inv` is `off`, `partial`, `error`, or absent
+(on `partial`, scan only the types the block left out), OR whenever this is not the first-reply session-open
+pass.** Any "I added a new agent" / "why isn't my agent used" re-run **must re-scan live and never trust the
+snapshot** — the whole reason that trigger fires is that the payroll changed since the snapshot was taken:
 
 - `<config>/agents/*.md` and `./.claude/agents/*.md` (project-level outranks user-level, which outranks
   plugin — check both)
@@ -130,8 +141,16 @@ harmless — Claude Code was already going to surface it on its own description.
 
 ### 3. Collision check — the one that actually matters
 
-A collision is a user-level (or project-level) **agent** whose `name:` matches one of the 13 shipped robots.
-Check both the declared `name:` and the filename — a mismatch between the two is itself worth a line.
+A collision is a user-level (or project-level) **agent** whose **filename** matches one of the 14 shipped
+robots (13 delegates + `otto-foreman` — a user file shadowing the main thread is the most serious collision
+of all). **When the facts block carried an inventory (`inv=ok`/`partial`), the `*` suffix on an
+`inv_agents`/`inv_agents_project` id already told you this** — the hook computed it deterministically from
+filenames; don't re-derive it or re-scan to double-check it.
+
+**The one thing the hook cannot see, and stays your job:** it reads no frontmatter, so a file whose declared
+`name:` diverges from its own filename is a real collision only you can catch. Cross-check the declared
+`name:` against the filename for every agent you are classifying — a mismatch between the two is itself worth
+a line, collision or not.
 
 **This is an agent-namespace problem only.** Plugin skills and commands surface namespaced
 (`robotinc:landing-copy`, `/robotinc:otto`); a same-named user skill doesn't mask ours, both are live and the
