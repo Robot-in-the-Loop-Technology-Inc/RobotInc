@@ -630,6 +630,88 @@ the shape of "content" changed from a bullet to a row). `node scripts/validate.m
 
 ---
 
+## Session-open facts injector (Bitforge, Vector's design, rides the pending POSIX gate)
+
+Two real bugs, both live and reproduced, killed in one build. **Bug 1:** the session-open protocol required
+the model to resolve `<config>` (`CLAUDE_CONFIG_DIR` if set, else `~/.claude`) itself before it could even
+check the sentinel — and a model has no permission-free way to inspect its own process environment; the only
+option is a Bash command. **A brand-new user's very first turn, before meeting the crew, was a Bash permission
+dialog.** Andrew hit this live, screenshot-verified. **Bug 2:** the session-open protocol's override (a) read
+`./.claude/otto-state.md` (cwd-relative) as evidence of a prior relationship without checking whether cwd IS
+the config dir wearing a project hat — the exact home-persona collision `hooks/otto-state.mjs` already guards
+against on the write side. A user working from their home directory has `<cwd>/.claude` resolve to the SAME
+path as `<config>`; his home-dir cwd made this override read his own real config-dir state file as "project
+evidence" and silently suppress a new user's card.
+
+**Vector's decision:** a second SessionStart hook, `hooks/otto-facts.mjs`, registered as a SEPARATE entry
+alongside the existing zero-dependency echo trigger, not merged into it. The trigger must keep working with no
+Node on the machine (it is what makes the whole protocol fire at all); the facts hook is Node-only and
+best-effort — Node absent means no facts block, and the protocol falls through to the pre-existing
+resolve-it-yourself path, including its shell cost. **Not a regression** — the exact same cost that path
+already had, just no longer paid by every user, only ones without Node.
+
+**Payload — existence checks only, never contents** (parsing contents into facts is out of scope, a possible
+v22.9.0):
+
+```
+[RobotInc facts] authoritative -- do NOT shell out to recompute:
+config_dir=<resolved: CLAUDE_CONFIG_DIR || ~/.claude>
+sentinel=present|absent
+profile=present|absent
+state_local=present|absent
+state_global=present|absent
+cwd_is_config_dir=true|false   (resolve(cwd/.claude) == resolve(config_dir), realpath-normalized)
+```
+
+**Protocol text** (`agents/otto-foreman.md`, step 1 + overrides only — step 5, the table renderer, untouched,
+sections kept disjoint per Vector): facts present and well-formed → `config_dir` is `<config>` for every
+remaining step, `sentinel` answers the check directly, and every subsequent existence check becomes a
+permission-free Read by the absolute path — never a Bash command. Facts absent or malformed → fall through to
+resolving `<config>` yourself exactly as before, shell cost included. Override (a) now requires
+`state_local=present AND cwd_is_config_dir=false` to suppress the card (was: `state_local=present` alone).
+Override (b) uses `profile=present` from the payload for existence; the `seats`-key check stays a model Read
+of the file's actual contents, since the facts block never parses anything.
+
+**scripts/validate.mjs:** extended to expect exactly 2 SessionStart entries (was 1) and to apply the
+zero-dependency / single-quoted-literal / no-args gates to the TRIGGER entry only — the facts entry is
+explicitly allowed `node` + `args`, gated instead on `"type": "command"` (not `"script"` — the same trap
+documented in `docs/hook-events.md`) and a bounded timeout. `hooks/otto-facts.mjs` added to the allowed
+`hooks/` file list, VS16/personal-tier-leak checks extended to cover it.
+
+**Tests (`scripts/test-otto-facts.mjs`, new, sibling to `test-otto-state.mjs`): 17/17 passing.** Default config
+resolution, a custom `CLAUDE_CONFIG_DIR` override, sentinel/profile present/absent/corrupt-but-existing
+(garbled contents must still read `present` — existence only, never parsed), `cwd_is_config_dir=true` (a real
+home-dir persona) and `=false` (a real project and an overridden-config-dir case), Windows-vs-POSIX path
+separator and case normalization, the exact wire-format shape, and real subprocess invocations (stdin JSON in,
+formatted block out — including malformed and empty stdin, both must still exit 0 and either emit a well-formed
+block or nothing at all). No prose oracles.
+
+**Real end-to-end verification, this machine, both bugs, live:**
+
+- **Bug 1 (shell-out):** installed the branch into a fresh, isolated sandbox (`CLAUDE_CONFIG_DIR`-equivalent
+  via a redirected `USERPROFILE`, real credentials reused locally), ran a genuinely first-time session, and
+  grepped the real transcript for any `Bash` tool call. Zero. The facts block's `config_dir` value was used
+  directly by roll-call's own (legitimate, unrelated) Bash call for writing the sentinel and scanning for
+  hired staff — confirming the model read `config_dir` from the injected facts rather than deriving it.
+- **Bug 2 (home-persona collision):** in that same true home-persona sandbox (no `CLAUDE_CONFIG_DIR`
+  override — a redirected `USERPROFILE` so `os.homedir()` itself resolves inside the sandbox, matching
+  Andrew's real setup exactly), planted `otto-state.md` directly under the config dir with **no** sentinel and
+  **no** profile — the exact shape of his bug. Facts block confirmed `state_local=present` AND
+  `cwd_is_config_dir=true`. **The card drew correctly** — override (a) did not fire, because its new guard
+  requires `cwd_is_config_dir=false`. Re-running the same scenario with the old (pre-fix) guard logic (single
+  earlier probe, before the guard was added) reproduced the suppressed-card bug exactly as Andrew described,
+  confirming both that the bug was real and that the fix closes it.
+
+`docs/posix-gate-22.8.0.md` updated: `test-otto-facts.mjs` folded into the same test-suite run (expect
+`17/17`), `validate.mjs`'s expected line updated to `3 hook scripts`, Session 1 PASS criteria gained a
+transcript grep for `CLAUDE_CONFIG_DIR` inside any `Bash` call (expect nothing — a hit means the facts hook
+didn't fire and the old shell-required path is back), and a note on why the collision bug (2) is intentionally
+NOT re-verified inside that sandbox's `home-persona/` cwd (it's a project-shaped cwd on purpose, for the relay
+assertion that section already makes; the collision needs cwd to equal `<config>` exactly, verified separately
+above).
+
+---
+
 - [ ] **10. HARD GATE: macOS/Linux POSIX sh verification**  
   *Owner: Glitchtrap* · *Depends on (9)* · **BLOCKS RELEASE — POLICY GATE**
   - Full sequence run on **macOS or Linux** with POSIX sh (not bash, not zsh — strict sh)
