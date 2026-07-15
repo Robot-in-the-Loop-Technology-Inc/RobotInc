@@ -257,7 +257,7 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ## Tasks
 
-- [ ] **1. Document hook event structure and payload facts**  
+- [x] **1. Document hook event structure and payload facts**  
   *Owner: Documentation* · **REFERENCE ONLY**
   - Event fired by Otto on PostToolUse hook, Task tool, matcher "Task" (but gate on `tool_name === "Agent"` — this is the trap)
   - Inside event:
@@ -273,7 +273,7 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ---
 
-- [ ] **2. Design state classification logic**  
+- [x] **2. Design state classification logic**  
   *Owner: Bitforge* · *Depends on (1)* · **CRITICAL PATH**
   - Crew map (robots): full state line with robot badge
   - Built-ins (Explore, general-purpose, Plan, claude, statusline-setup, etc.): skip (no state line)
@@ -287,7 +287,7 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ---
 
-- [ ] **3. Implement hooks/otto-state.mjs**  
+- [x] **3. Implement hooks/otto-state.mjs**  
   *Owner: Bitforge* · *Depends on (2)* · **CRITICAL PATH**
   - New hook script file: `hooks/otto-state.mjs`
   - Extend patterns from `hooks/otto-trace.mjs` (ROBOTS map, result-line extraction, config-dir resolution)
@@ -303,7 +303,7 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ---
 
-- [ ] **4. Implement write targets: global + local + concurrency**  
+- [x] **4. Implement write targets: global + local + concurrency**  
   *Owner: Bitforge* · *Depends on (3)* · **CRITICAL PATH**
   - Config path resolution: `process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')`
   - GLOBAL target: `<config>/otto-state-global.md`
@@ -330,7 +330,7 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ---
 
-- [ ] **5. Update agents/otto-foreman.md reader**  
+- [x] **5. Update agents/otto-foreman.md reader**  
   *Owner: Bitforge* · *Depends on (4)* · **CRITICAL PATH**
   - Session-open step 5 (after step 1's config resolution, before brief render):
     - Read global: `<config>/otto-state-global.md` (reuse config path from step 1, NEVER re-resolve)
@@ -351,7 +351,7 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ---
 
-- [ ] **6. Extend scripts/validate.mjs to gate state files**  
+- [x] **6. Extend scripts/validate.mjs to gate state files**  
   *Owner: Bitforge* · *Depends on (4)* · **Can run parallel to (3, 4)**
   - Extend .otto-met gate logic (see existing validate.mjs for pattern)
   - Gate which files may mention/write these state files:
@@ -365,7 +365,7 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ---
 
-- [ ] **7. Register hook in hooks/hooks.json**  
+- [x] **7. Register hook in hooks/hooks.json**  
   *Owner: Bitforge* · *Depends on (3)* · **Can run parallel to (4)**
   - Hook entry: PostToolUse, matcher "Task", script `hooks/otto-state.mjs`
   - Config:
@@ -378,7 +378,7 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ---
 
-- [ ] **8. Smoke test: basic write + read round-trip**  
+- [x] **8. Smoke test: basic write + read round-trip**  
   *Owner: Bitforge* · *Depends on (5)* · **CRITICAL PATH**
   - Setup: home-dir persona (cwd=~), clean state files
   - Trigger: Otto calls a crew agent (e.g., Bitforge); hook fires
@@ -393,61 +393,98 @@ Items 3, 4, 6 can run in parallel after (1, 2). If (9) fails, escalate; do not p
 
 ---
 
-- [ ] **9. Negative test suite (gates release)**  
+- [x] **9. Negative test suite (gates release)**  
   *Owner: Glitchtrap* · *Depends on (8)* · **CRITICAL PATH**
-  - [ ] **9a. Home-dir persona:** cwd=home, no .claude subdir in cwd
+  - [x] **9a. Home-dir persona:** cwd=home, no .claude subdir in cwd
     - Expected: global fires, local skipped, brief non-empty (Andrew's exact case)
     - Verify: ✓ Only global created; local not written; brief shows global line
   
-  - [ ] **9b. Custom CLAUDE_CONFIG_DIR:** set env var to alt path
+  - [x] **9b. Custom CLAUDE_CONFIG_DIR:** set env var to alt path
     - Expected: writer and reader hit the SAME file (config override respected)
     - Verify: ✓ Both writer and reader use env-set path; no cross-target read
   
-  - [ ] **9c. Upsert:** call same crew agent twice with identical description
+  - [x] **9c. Upsert:** call same crew agent twice with identical description
     - Expected: state file has one line (same key), top of list, older timestamp replaced
     - Verify: ✓ Upsert key deduplicates; older line removed; newest timestamp kept
   
-  - [ ] **9d. Cap at 8:** write 9 distinct state lines sequentially
+  - [x] **9d. Cap at 8:** write 9 distinct state lines sequentially
     - Expected: 9th write evicts 1st (oldest); file stays ≤8 lines
     - Verify: ✓ After 9th write, file has exactly 8 lines; oldest gone
   
-  - [ ] **9e. Terminal clear:** write a line, call a terminal-token robot (done/shipped/merged/abandoned)
+  - [x] **9e. Terminal clear:** write a line, call a terminal-token robot (done/shipped/merged/abandoned)
     - Expected: line removed from both global and local
     - Verify: ✓ Line vanishes from both files after terminal call; no ghost entry
   
-  - [ ] **9f. False-clear negative test:** write a line, call a robot with "done" in description (not a terminal token)
+  - [x] **9f. False-clear negative test:** write a line, call a robot with "done" in description (not a terminal token)
     - Expected: line persists (not a terminal token)
     - Verify: ✓ Line remains in both files; description-match does not clear
   
-  - [ ] **9g. First-create header:** delete state files, trigger write
+  - [x] **9g. First-create header:** delete state files, trigger write
     - Expected: header comment lines added; format documented
     - Verify: ✓ Header present on first write; readable by reader; no format ambiguity
   
-  - [ ] **9h. No .claude dir → no write:** cwd=home, no `.claude` subdir
+  - [x] **9h. No .claude dir → no write:** cwd=home, no `.claude` subdir
     - Expected: local file not written; global written (if config allows)
     - Verify: ✓ Local skipped; no error; global proceeds
   
-  - [ ] **9i. Built-ins produce no state:** call Explore, general-purpose, Plan
+  - [x] **9i. Built-ins produce no state:** call Explore, general-purpose, Plan
     - Expected: hook fires (tool_name="Agent"), classification skips built-ins, zero state lines
     - Verify: ✓ Built-in calls produce no state file change
   
-  - [ ] **9j. Hired staff produce 🧩:** call unknown non-built-in agent
+  - [x] **9j. Hired staff produce 🧩:** call unknown non-built-in agent
     - Expected: state line written with 🧩 badge
     - Verify: ✓ Unknown crew agent renders as 🧩 line
   
-  - [ ] **9k. Cross-process race:** two concurrent otto instances, simultaneous Task calls
+  - [x] **9k. Cross-process race:** two concurrent otto instances, simultaneous Task calls
     - Expected: no lost line, no corruption, both lines in file (deduped if same key)
     - Verify: ✓ Lock contention handled; both writes succeed; file readable; no partial lines
   
-  - [ ] **9l. Lock exhaustion degradation:** simulate lock contention, ~12+ retries
+  - [x] **9l. Lock exhaustion degradation:** simulate lock contention, ~12+ retries
     - Expected: lock timeout, append-degrade (raw append), reader deduplicates on next clean write
     - Verify: ✓ Degradation does not corrupt file; reader recovers; self-heals on next write
   
-  - [ ] **9m. Round-trip:** writer output renders verbatim through reader
+  - [x] **9m. Round-trip:** writer output renders verbatim through reader
     - Expected: state line written by otto-state.mjs appears unchanged in brief output
     - Verify: ✓ Byte-for-byte match; no escaping/unescaping artifacts; reader does not mangle format
   
-  - **Verify (all 9a–9m):** ✓ All 13 negative tests pass (0 failures)
+  - **Verify (all 9a–9m):** ✓ 23/23 tests pass (`node scripts/test-otto-state.mjs`), 0 failures — 10 pure
+    classification/grammar tests plus 13 filesystem tests (8, 9a–9m). 9k spawns two real concurrent `node`
+    child processes against the same lock, not a simulated race.
+
+---
+
+## Build notes (tasks 1–9, Bitforge)
+
+**Two doc-vs-reality traps caught before they shipped, same class as the `tool_name`/`"Task"` trap task 1
+already documents — found by testing against a real Claude Code payload, not by re-reading the design:**
+
+1. **`hooks.json` `"type": "script"` never fires.** The design draft for the PostToolUse entry called for
+   `"type": "script"`; empirically it silently never registers. Shipped `"type": "command"` instead — the same
+   convention SessionStart and SubagentStop already use, confirmed firing. `scripts/validate.mjs` now gates
+   this shape directly (rejects `"type": "script"` on the PostToolUse entry) so a future "helpful" edit toward
+   the untested draft trips CI instead of shipping dark. Full writeup: `docs/hook-events.md`.
+2. **Plugin-sourced `subagent_type` is namespaced.** A real Task dispatch to `bitforge-engineer` delivers
+   `tool_input.subagent_type: "robotinc:bitforge-engineer"`, not the bare id every draft (including this
+   script's first pass) assumed. Every real crew dispatch was silently misclassifying as 🧩 hired-staff until
+   caught by an end-to-end run against a real payload and fixed (`bareType()` strips the plugin's own
+   `robotinc:` prefix before crew/built-in matching; a third-party plugin's own namespace is left alone).
+   Regression-tested (`scripts/test-otto-state.mjs`).
+
+**One documentation-honesty fix made in the same pass, flagged for Otto/Vector to confirm, not unilaterally
+decided:** `agents/otto-foreman.md`'s "Announcing a handoff" section said Otto is "the sole writer" of
+`otto-state.md`, and `scripts/validate.mjs` / `docs/profile-schema.md` said the same. That became false the
+moment `hooks/otto-state.mjs` shipped as a second, mechanical writer of the identical file. Rather than
+silently duplicate that claim or silently rewrite Otto's relay instructions, both were updated with a short,
+clearly-marked note: the hook is a **deterministic backstop** for the same write (same grammar, same upsert
+key — the prompt-driven write alone measured 0/15 per this file's own notes above), not an independent second
+writer with its own opinion of the format. Easy to revert if Vector wants a different framing — see the diff
+on `agents/otto-foreman.md` and `docs/profile-schema.md`.
+
+**Scope note:** task 5's edit only touched step 5 (the reader) and the one honesty-note sentence above in
+"Announcing a handoff" (the writer) — nothing else in that section changed.
+
+**NOT done:** task 10 (the macOS/Linux POSIX hard gate) cannot run on this machine. Left unchecked below, on
+purpose. Tasks 11–12 depend on it and were not started.
 
 ---
 
