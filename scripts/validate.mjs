@@ -269,30 +269,54 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
   }
 }
 
-// ------------------------------------------- otto-state.md: single writer, single prompt
-// Vector's spec was explicit: Otto is the SOLE writer, upserting at relay time, and the
-// instruction to do so lives in EXACTLY ONE file (agents/otto-foreman.md). Telling a
-// department to "write your own line" would rebuild — across thirteen prompts instead of
-// one — the exact drift-by-duplication problem this file exists to solve (see the
-// otto-trace.mjs ROBOTS-map gate above for the same disease in an earlier organ). Gated
-// here so the next edit that "helpfully" teaches Bitforge to log its own state gets caught
-// before it ships, not after someone notices Otto's log and a robot's own log disagree.
+// ------------------------------------------- otto-state.md / otto-state-global.md: named writers only
+// Vector's original spec was that Otto is the SOLE writer of otto-state.md, upserting at relay
+// time, instruction living in EXACTLY ONE prompt (agents/otto-foreman.md). v22.8.0 added a second,
+// NAMED writer: hooks/otto-state.mjs, a deterministic mechanical backstop for the same file (see its
+// header comment and agents/otto-foreman.md's "Announcing a handoff" — the prompt-driven write alone
+// measured 0/15). That is a deliberate, documented exception, the same shape as `.otto-met` having
+// exactly two named writers below — NOT a reopening of "any department may log its own state," which
+// is still exactly the drift-by-duplication problem this gate exists to catch (see the otto-trace.mjs
+// ROBOTS-map gate above for the same disease in an earlier organ). otto-state-global.md is newer
+// still and has only ONE writer (the hook; there is no prompt-driven path for it at all). Gated here
+// so the next edit that "helpfully" teaches Bitforge to log its own state — in either file — gets
+// caught before it ships, not after someone notices two logs disagree.
 {
   const MAIN_THREAD_FILE = `agents/${MAIN_THREAD}`;
+  const STATE_FILES = ['otto-state.md', 'otto-state-global.md'];
+  const STATE_WRITER_HOOK = 'otto-state.mjs';
   for (const f of agentFiles) {
     if (f === MAIN_THREAD) continue;
     const s = read(`agents/${f}`);
-    if (/otto-state\.md/.test(s)) {
-      fail(`agents/${f}: mentions otto-state.md — only ${MAIN_THREAD_FILE} may write it (or know it exists). `
-         + `A department that writes its own line rebuilds the drift this file exists to prevent.`);
+    for (const sf of STATE_FILES) {
+      if (s.includes(sf)) {
+        fail(`agents/${f}: mentions ${sf} — only ${MAIN_THREAD_FILE} and hooks/${STATE_WRITER_HOOK} may write `
+           + `or know about it. A department that writes its own line rebuilds the drift this file exists to prevent.`);
+      }
     }
   }
-  // Also refuse the same leak from a skill — the write path is a robot's job, not a skill's.
+  // Also refuse the same leak from a skill or a command — the write path is a robot's job, not theirs.
   for (const d of skillDirs) {
     const s = read(`skills/${d}/SKILL.md`);
-    if (/otto-state\.md/.test(s)) {
-      fail(`skills/${d}: mentions otto-state.md — the write path belongs to agents/${MAIN_THREAD} only.`);
+    for (const sf of STATE_FILES) {
+      if (s.includes(sf)) fail(`skills/${d}: mentions ${sf} — the write path belongs to agents/${MAIN_THREAD} and hooks/${STATE_WRITER_HOOK} only.`);
     }
+  }
+  // `commands` isn't declared until the ---- commands section further down;
+  // read the directory locally rather than depend on load order.
+  for (const f of readdirSync(join(REPO, 'commands')).filter((c) => c.endsWith('.md'))) {
+    const s = read(`commands/${f}`);
+    for (const sf of STATE_FILES) {
+      if (s.includes(sf)) fail(`commands/${f}: mentions ${sf} — the write path belongs to agents/${MAIN_THREAD} and hooks/${STATE_WRITER_HOOK} only.`);
+    }
+  }
+  // otto-state-global.md is hook-only — even Otto's own prompt has no business
+  // naming it anywhere outside step 5 (the read path); if it starts appearing
+  // near "Announcing a handoff" (the write path) that is the same drift with a
+  // new filename. Read the hook file locally rather than depend on the `state`
+  // variable declared later, in the ---- hooks section.
+  if (existsSync(join(REPO, 'hooks/otto-state.mjs')) && !read('hooks/otto-state.mjs').includes('otto-state-global.md')) {
+    fail('hooks/otto-state.mjs: does not mention otto-state-global.md — the hook is meant to be its only writer');
   }
 }
 
@@ -461,17 +485,54 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
 // test, and Glitchtrap should confirm on real Unix hardware before release.
 {
   const hookFiles = readdirSync(join(REPO, 'hooks'));
-  const extra = hookFiles.filter((f) => !['hooks.json', 'otto-trace.mjs'].includes(f));
+  const extra = hookFiles.filter((f) => !['hooks.json', 'otto-trace.mjs', 'otto-state.mjs'].includes(f));
   if (extra.length) fail(`unexpected files in hooks/: ${extra.join(', ')} — a new hook is a new runtime dependency; see README`);
   const trace = read('hooks/otto-trace.mjs');
   if (VS16.test(trace)) fail('hooks/otto-trace.mjs: contains a U+FE0F variation-selector emoji');
   if (/Level[- ]?2|Operator'/.test(trace)) fail('hooks/otto-trace.mjs: personal tier leaked in');
+  const stateHookPath = join(REPO, 'hooks/otto-state.mjs');
+  const state = existsSync(stateHookPath) ? read('hooks/otto-state.mjs') : null;
+  if (state) {
+    if (VS16.test(state)) fail('hooks/otto-state.mjs: contains a U+FE0F variation-selector emoji');
+    if (/Level[- ]?2|Operator'/.test(state)) fail('hooks/otto-state.mjs: personal tier leaked in');
+  }
   const hooks = JSON.parse(read('hooks/hooks.json'));
   const events = Object.keys(hooks.hooks || {});
-  const ALLOWED_EVENTS = new Set(['SessionStart', 'SubagentStop']);
+  const ALLOWED_EVENTS = new Set(['SessionStart', 'SubagentStop', 'PostToolUse']);
   const badEvents = events.filter((e) => !ALLOWED_EVENTS.has(e));
   if (badEvents.length) fail(`hooks.json wires an unreviewed event: ${badEvents.join(', ')} (allowed: ${[...ALLOWED_EVENTS].join(', ')})`);
   if (!events.includes('SubagentStop')) fail('hooks.json is missing the SubagentStop trace hook');
+
+  // PostToolUse (otto-state.mjs, matcher "Task"): a design draft for this exact
+  // entry called for `"type": "script"` instead of the established `"command"`
+  // convention. Tested empirically (not assumed): a hook registered with
+  // `"type": "script"` never fires — silently, same failure class as gating on
+  // `tool_name === "Task"` instead of the delivered `"Agent"` (see
+  // docs/hook-events.md). Gate the working shape directly so a future
+  // "helpful" edit toward the untested draft trips CI instead of shipping dark.
+  if (events.includes('PostToolUse')) {
+    for (const entry of hooks.hooks.PostToolUse || []) {
+      if (entry.matcher !== 'Task') {
+        fail(`hooks.json: PostToolUse matcher is "${entry.matcher}", must be "Task" — this is the ONLY matcher `
+           + `string for the Task tool; the delivered event's own tool_name field is "Agent", a separate fact `
+           + `the hook script itself must gate on (see docs/hook-events.md)`);
+      }
+      for (const h of entry.hooks || []) {
+        if (h.type !== 'command') {
+          fail(`hooks.json: PostToolUse hook has "type": "${h.type}" — must be "command" (the same convention `
+             + `SessionStart and SubagentStop already use). "script" was tried and empirically never fires; `
+             + `see docs/hook-events.md.`);
+        }
+        if (h.command !== 'node' || !(h.args || []).some((a) => /otto-state\.mjs$/.test(a))) {
+          fail('hooks.json: PostToolUse hook does not invoke node on hooks/otto-state.mjs');
+        }
+        if (!(h.timeout > 0 && h.timeout <= 10)) {
+          fail(`hooks.json: PostToolUse timeout is ${h.timeout}, expected a small bounded number (<=10s) — `
+             + `file I/O plus lock contention must never hang a Task return`);
+        }
+      }
+    }
+  }
 
   // The SessionStart hook is the one place a regression could silently smuggle
   // the runtime dependency back in (or fire on the wrong trigger). Gate both.
@@ -539,6 +600,41 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
     const row = new RegExp(`\\|\\s*${badge}\\s*\\|\\s*${name}\\s*\\|\\s*${role.replace(/[&]/g, '\\$&')}\\s*\\|`);
     if (!row.test(ottoSrc)) {
       fail(`hooks/otto-trace.mjs: "${id}" is ${badge} ${name} (${role}), which is not a row in Otto's roster — the log and the live trace would disagree`);
+    }
+  }
+
+  // otto-state.mjs carries its own copy of the same ROBOTS map (hook scripts
+  // are invoked standalone via `node <file>`, so it cannot import otto-trace's
+  // copy) — same disease, same gate: a robot missing from THIS map renders as
+  // an anonymous 🧩 hired-staff line in relay state instead of its own badge.
+  if (state) {
+    const stateMapped = new Map(
+      [...state.matchAll(/^\s*'([a-z-]+)':\s*\['(.+?)',\s*'(.+?)',\s*'(.+?)'\]/gm)]
+        .map((m) => [m[1], { badge: m[2], name: m[3], role: m[4] }])
+    );
+    for (const d of delegates) {
+      if (!stateMapped.has(d)) {
+        fail(`hooks/otto-state.mjs: no entry for "${d}" — its Task calls would render as an anonymous 🧩 hired-staff line instead of its own badge`);
+      }
+    }
+    for (const k of stateMapped.keys()) {
+      if (!delegates.includes(k)) fail(`hooks/otto-state.mjs: maps "${k}", which is not a robot in agents/`);
+    }
+    for (const [id, { badge, name, role }] of stateMapped) {
+      const row = new RegExp(`\\|\\s*${badge}\\s*\\|\\s*${name}\\s*\\|\\s*${role.replace(/[&]/g, '\\$&')}\\s*\\|`);
+      if (!row.test(ottoSrc)) {
+        fail(`hooks/otto-state.mjs: "${id}" is ${badge} ${name} (${role}), which is not a row in Otto's roster — relay state and the roster would disagree`);
+      }
+    }
+    // The two hooks' maps must also agree with EACH OTHER, not just with the
+    // roster independently — two maps that both individually match Otto's
+    // table can still disagree with one another if a row is copy-pasted wrong.
+    for (const [id, entry] of mapped) {
+      const other = stateMapped.get(id);
+      if (other && (other.badge !== entry.badge || other.name !== entry.name || other.role !== entry.role)) {
+        fail(`hooks/otto-trace.mjs and hooks/otto-state.mjs disagree on "${id}": `
+           + `${entry.badge} ${entry.name} (${entry.role}) vs ${other.badge} ${other.name} (${other.role})`);
+      }
     }
   }
 }
@@ -613,4 +709,5 @@ if (errors.length) {
   for (const e of errors) console.error(`  ✗ ${e}`);
   process.exit(1);
 }
-console.log(`valid: ${robotCount} robots + otto-foreman, ${skillDirs.length} skills, ${commands.length} commands, 2 hooks`);
+const shippedHookScripts = readdirSync(join(REPO, 'hooks')).filter((f) => f.endsWith('.mjs')).length;
+console.log(`valid: ${robotCount} robots + otto-foreman, ${skillDirs.length} skills, ${commands.length} commands, ${shippedHookScripts} hook scripts`);

@@ -25,6 +25,21 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/otto-state.mjs"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
