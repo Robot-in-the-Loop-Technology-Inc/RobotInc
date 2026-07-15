@@ -488,6 +488,45 @@ purpose. Tasks 11–12 depend on it and were not started.
 
 ---
 
+## QA pass (Glitchtrap) — 2 defects fixed, 2 findings logged for Vector
+
+Independent adversarial pass added 10 tests (commit `8f48959`, `scripts/test-otto-state.mjs`), 3 red. Both
+real defects fixed on this branch, atomic commits, suite now **37/37** (33 after the fix + 4 true-positive
+regression tests added alongside it — see below).
+
+**Fixed:**
+
+1. **False-clear (HIGH, tests G1b/G1c).** `TERMINAL`'s bare word-boundary match cleared an active line on
+   realistic negated phrasing — "not done yet, still drafting", "nothing merged yet", "far from done", "half-
+   done", etc. — 7/7 on QA's battery (G1a, still logged as informational). Fixed with `isTerminalSummary()`: a
+   terminal-word match only counts if a small character window around it (covers negation both before AND
+   after the word — "done is not the word for this" negates from the right) is free of `not / n't / never /
+   nothing / no / without / far from / half- / un-`. Deliberately conservative per QA's own framing: a missed
+   clear ages out visibly (7-day staleness render); a wrongful clear vanishes silently. Added true-positive
+   regression tests in the same commit ("merged to main", "shipped in 4 commits", "done — 4 tests green", and
+   the file's own original doc example) so the fix is proven not to have over-corrected.
+2. **Surrogate-pair truncation (MEDIUM, test G4).** `summarize()`'s `.slice(0, 140)` truncated by UTF-16 code
+   unit and could split a surrogate pair, writing a corrupted replacement-character glyph into the state file.
+   Fixed: truncate by code point (`Array.from(result).slice(0, 140).join('')`).
+
+**Logged, not fixed this pass (QA: not blocking) — for Vector:**
+
+- **Reader non-determinism, observed live.** A single-item brief had the LLM reader drop the `[project]` tag
+  and slightly paraphrase the line; a two-item brief rendered verbatim. Likely a step-5 wording tightening
+  ("verbatim" may need to be said more forcefully, or the single-item case needs its own explicit instruction),
+  not a code fix. Flagged for Vector.
+- **Home-persona write asymmetry.** The hook's local-write guard (`localDir !== configDir`) exists specifically
+  so a home-dir persona doesn't write project state into what is actually the config dir. Otto's own
+  prompt-driven write (`agents/otto-foreman.md`, "Announcing a handoff") has no equivalent guard — confirmed
+  live on this machine: `~/.claude/otto-state.md` currently holds two real hand-written relay lines from this
+  same session, because `~/.claude` *is* `<config>`, and Otto wrote there anyway. Pre-dates this branch
+  (the guard is new; the gap in the prompt instruction is not), functionally harmless (worst case: a home-dir
+  persona's active-work line sits in a file the reader also treats as valid local state, which is arguably
+  correct anyway since there's no *other* project it could belong to), but it is a real inconsistency between
+  the two writers. Vector's call whether the prompt instruction needs the same guard in words.
+
+---
+
 - [ ] **10. HARD GATE: macOS/Linux POSIX sh verification**  
   *Owner: Glitchtrap* · *Depends on (9)* · **BLOCKS RELEASE — POLICY GATE**
   - Full sequence run on **macOS or Linux** with POSIX sh (not bash, not zsh — strict sh)

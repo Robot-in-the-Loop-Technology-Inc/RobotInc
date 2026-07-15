@@ -76,11 +76,41 @@ const BUILTINS = new Set(['Explore', 'general-purpose', 'Plan', 'claude', 'statu
 
 // Explicit terminal signals only — checked against the extracted SUMMARY
 // (the subagent's own final-message result line), never against the
-// description or prompt. Known limitation, accepted at WORKSHOP tier: a
-// word-boundary match does not understand negation, so a summary reading
-// "not done yet" would false-positive-clear. Flagged for QA (test 9f covers
-// the adjacent, more common case: "done" appearing only in the description).
+// description or prompt. Kept as a plain existence check (no negation
+// awareness) for simple callers; the actual clear-vs-keep decision in run()
+// uses isTerminalSummary() below, which is negation-aware. Do not use this
+// bare regex to decide whether to clear a line.
 const TERMINAL = /\b(done|shipped|merged|abandoned)\b/i;
+
+// A NEGATED terminal word must never clear a line — "not done yet, still
+// drafting" and "nothing merged yet -- waiting on review" are exactly how a
+// subagent naturally phrases in-progress work, and a bare TERMINAL.test()
+// false-cleared 7/7 on a battery of realistic negated phrasing (QA, tests
+// G1a-G1c). The design doctrine here is explicit and asymmetric: a missed
+// clear leaves a stale line that ages out VISIBLY (the 7-day staleness
+// render); a wrongful clear erases active work SILENTLY, with no recovery
+// path. Bias every ambiguous case toward keeping the line.
+//
+// Approach: for each terminal-word match, look at a small character window
+// around it (covers both "not done" — negation before — and "done is not
+// the word for this" — negation after) and require the window be free of
+// every negation cue below before counting the match as unambiguous. A
+// character window rather than a token count on purpose: it catches a
+// negation prefix glued directly onto the word itself ("half-done",
+// "undone") without a separate tokenizer.
+const NEGATION_WINDOW = 24;
+const NEGATION_CUE = /\bnot\b|n't\b|\bnever\b|\bnothing\b|\bno\b|\bwithout\b|far\s+from|half-|un-/i;
+
+function isTerminalSummary(summary) {
+  const re = /\b(done|shipped|merged|abandoned)\b/gi;
+  let m;
+  while ((m = re.exec(summary))) {
+    const start = Math.max(0, m.index - NEGATION_WINDOW);
+    const end = Math.min(summary.length, m.index + m[0].length + NEGATION_WINDOW);
+    if (!NEGATION_CUE.test(summary.slice(start, end))) return true; // one unambiguous signal is enough
+  }
+  return false; // no match, or every match was negated -- keep the line
+}
 
 const CAP = 8;
 const LOCK_RETRY_ATTEMPTS = 10;
@@ -322,7 +352,7 @@ export function run(payload, opts = {}) {
   const description = payload.tool_input?.description || '(untitled)';
   const finalText = extractText(payload.tool_response?.content);
   const summary = summarize(finalText);
-  const isTerminal = TERMINAL.test(summary);
+  const isTerminal = isTerminalSummary(summary);
   const slug = slugify(description);
   const date = new Date().toISOString().slice(0, 10);
 
@@ -414,4 +444,4 @@ if (isMainModule()) {
 }
 
 // Exported for tests only — the hook itself never imports these from outside.
-export { slugify, extractText, summarize, classify, bareType, renderLine, keyOfLine, configDirOf, CAP, TERMINAL, BUILTINS, ROBOTS };
+export { slugify, extractText, summarize, classify, bareType, renderLine, keyOfLine, configDirOf, CAP, TERMINAL, isTerminalSummary, BUILTINS, ROBOTS };

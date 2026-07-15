@@ -460,6 +460,26 @@ record('G1c. REGRESSION (expected to FAIL until fixed): "nothing merged yet -- w
   assert(lines.length === 1, `FALSE CLEAR: "nothing merged" wrongly cleared the active line — local lines remaining: ${lines.length}`);
 });
 
+// ---------------------------------------------------------------- Bitforge fix-verification: true terminal
+// phrasing must still clear, both directions of the negation fix proven together, not just the negative side.
+
+for (const [label, text] of [
+  ['merged to main', 'merged to main'],
+  ['shipped in 4 commits', 'shipped in 4 commits'],
+  ['done -- 4 tests green', 'done -- 4 tests green'],
+  ["QA's original doc example ('Auth middleware done, 4 tests green')", 'Auth middleware done, 4 tests green'],
+]) {
+  record(`true-positive: "${label}" still clears an active line (negation fix must not over-correct)`, () => {
+    const { configDir, projectDir } = freshDirs();
+    withClaudeDir(projectDir);
+    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'true-positive check', text: 'in progress', cwd: projectDir }));
+    assert(readLines(localPath(projectDir)).length === 1, 'setup: line should exist before the terminal call');
+    runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'true-positive check', text, cwd: projectDir }));
+    assert(readLines(localPath(projectDir)).length === 0, `"${text}" should have cleared the local line but did not`);
+    assert(readLines(globalPath(configDir)).length === 0, `"${text}" should have cleared the global line but did not`);
+  });
+}
+
 // ---------------------------------------------------------------- G2: unicode survives description/summary
 
 record('G2. unicode in description and summary survives render + upsert (badge, CJK, emoji, accents)', () => {
