@@ -3,7 +3,7 @@ name: robotinc-spec
 description: The design specification for RobotInc — a company of robots for Claude Code. What it is, why it works the way it does, and the reasoning behind the decisions, including the ones we got wrong and reversed. NOT the product and NOT installable; the product is the plugin in agents/, skills/, commands/, hooks/.
 category: orchestration
 author: Robot in the Loop Technology Inc
-version: 22.8.1
+version: 22.8.2
 spec_version: agentskills.io/v1
 capabilities:
   - profile_based_mode_detection

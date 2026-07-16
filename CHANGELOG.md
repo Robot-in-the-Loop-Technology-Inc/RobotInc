@@ -1,5 +1,32 @@
 # Changelog
 
+## 22.8.2 — 2026-07-15
+
+**Relay-writer fix for background-default subagents (Claude Code 2.1.211 regression).**
+
+CC 2.1.211 runs subagents in the background by default. `PostToolUse(Agent)` now fires at *dispatch* with `status: "async_launched"` and no result content — not at completion. The shipped relay writer (v22.8.0/22.8.1) keyed on that event and, unhandled, stopped producing correct state entirely (confirmed live: zero relay lines across five real dispatches this session). The deterministic writer built to remove the model from the state path was in effect dead — only Otto's manual backstop kept the session-open brief alive.
+
+### The fix: split the write across the two events that each hold half the key
+
+The upsert key is `(project, robot, slug(description))`. Under background execution the dispatch event holds `description` but no result; `SubagentStop` holds the result (`last_assistant_message`) but no `description`. So:
+
+- `PostToolUse(Agent)`, `status:"async_launched"` → writes no state line; drops a correlation marker `<config>/.otto-pending/<agentId>.json` = `{description, subagent_type, cwd, ts}` (agentId sanitized to `[a-zA-Z0-9_-]`, barring path traversal).
+- `SubagentStop` → now also runs through `otto-state.mjs`; recovers the marker, writes the one real state line (summary from `last_assistant_message`), deletes the marker. No marker → no-op.
+- `PostToolUse(Agent)`, `status:"completed"` (foreground) → unchanged.
+
+Exactly one state write per item in every path — the marker's presence is the deterministic "you own this write" flag, so no double-write and no `status` inspection needed at `SubagentStop`. The `.otto-pending/` directory doubles as the live "who's working now" substrate for a future activity view.
+
+Correlator (`agentId` == `SubagentStop.agent_id`) confirmed byte-level against the installed 2.1.211 binary + this session's own transcript — no session restart needed.
+
+### Gates
+- `scripts/test-otto-state.mjs` 51/51 (added H1–H6; H1 is the literal regression test — asserts no `(no result)` anywhere on disk; concurrency tests 9k/G7/R10–R12 re-pointed at the `SubagentStop` entry).
+- `scripts/validate.mjs`: new source-text gates — `hooks.json` `SubagentStop` wires both `otto-trace.mjs` and `otto-state.mjs`; `otto-state.mjs` references `async_launched`, `SubagentStop`/`hook_event_name`, `.otto-pending`.
+- `scripts/test-otto-facts.mjs` 40/40 unchanged.
+
+### Caveat — third Mac/POSIX gate deferral (explicit owner waiver, 2026-07-15)
+
+Shipped on Windows-green evidence with the POSIX gate deferred a third time at Andrew's explicit direction; WSL/Linux was unavailable to run the gate locally. Residual risk assessed **low**: the fix uses Node's cross-platform path APIs; the operations involved (atomic rename, mkdir-lock) are better-behaved on POSIX than the Windows path already tested green; the one real POSIX divergence (case-sensitive filenames) is mooted by hex agentIds. POSIX confirmation still owed on Mac/Linux — scope in `docs/spec-relay-async-fix.md` (sanitized-id filename round-trip, macOS case-fold collision check, concurrency tests re-pointed at `SubagentStop`). This consciously overrides the repo's "no third consecutive POSIX-gate waiver" policy by direct owner instruction.
+
 ## 22.8.1 — 2026-07-15
 
 **Persona-root guard closes cross-persona state leak (read) and corruption (write); five guard surfaces.**
