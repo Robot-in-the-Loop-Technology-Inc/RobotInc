@@ -827,14 +827,24 @@ pointing at rulings (a) and (b) above instead of sitting open.
 ---
 
 - [x] **10. HARD GATE: macOS/Linux POSIX sh verification**  
-  *Owner: Glitchtrap* · *Depends on (9)* · **WAIVED BY ANDREW 2026-07-15; OWE POST-MERGE**
-  - Full sequence run on **macOS or Linux** with POSIX sh (not bash, not zsh — strict sh)
-  - Prerequisite verification (from v22.7.0): SessionStart hook also verified on macOS/Linux
-  - Test sequence: install → clean state → call crew agent → hook fires → state written → session-open reads state → brief shows line
-  - Platform: **at least one of macOS or Linux must pass; if both fail, escalate**
-  - Rollback: if verification fails, do not publish; escalate
+  *Owner: Glitchtrap* · *Depends on (9)* · **WAIVED BY ANDREW 2026-07-15; OWE POST-MERGE (22.8.0 + 22.8.1)**
   
-  **Verify:** Waived by Andrew per explicit authorization 2026-07-15; defer post-merge test to Mac hardware; recorded in merge commit
+  **Scope:** SessionStart hook + facts injection (22.8.0) + persona-guard surfaces S1–S5 (22.8.1)
+  
+  **22.8.0 core tests (existing):**
+  - Full sequence run on **macOS or Linux** with POSIX sh (not bash, not zsh — strict sh)
+  - Prerequisite verification (from v22.7.0): SessionStart echo trigger verified on macOS/Linux
+  - Test sequence: install → clean state → call crew agent → hook fires → state written → session-open reads state → brief shows line
+  
+  **22.8.1 persona-guard live-gate tests (R18–R20, per docs/persona-guard-live-gate-22.8.1.md §7.3):**
+  - **R18:** Relocated `CLAUDE_CONFIG_DIR` (sandbox), `cwd` = foreign persona root (all three markers present). Dispatch a real Task → S5 model hand-write + S4 hook must not corrupt foreign file. Fixture SHA-256 before/after must match; transcript must not leak persona canary; brief must show fresh card, not "welcome back."
+  - **R19:** Facts absent/malformed (facts hook disabled). Same Task dispatch setup as R18 → S5 must fail-toward-skip on missing facts (no write attempt); S4 hook still independent.
+  - **R20:** Genuine project directory (no persona markers in `.claude/`, no `CLAUDE_CONFIG_DIR` override). Same Task dispatch → S5 and S4 must successfully write to the legitimate project-local file.
+  
+  - Platform: **at least one of macOS or Linux must pass; if both fail, escalate**
+  - Rollback: if any test fails, do not publish; escalate
+  
+  **Verify:** Waived by Andrew per explicit authorization 2026-07-15; defer full sequence + R18–R20 to post-merge Mac hardware; recorded in merge commit. POLICY: no third consecutive release with untested POSIX gates.
 
 ---
 

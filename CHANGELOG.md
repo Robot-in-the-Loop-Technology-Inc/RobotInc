@@ -1,5 +1,44 @@
 # Changelog
 
+## 22.8.1 — 2026-07-15
+
+**Persona-root guard closes cross-persona state leak (read) and corruption (write); five guard surfaces.**
+
+Hotfix shipped on proxy evidence: S1–S4 guard surfaces verified by Bitforge (S1/S2 prompt-read, S3/S4 code-unit tests + hook subprocess proxy), S5 model-driven hand-write verified via prompt-decision proxy. Full nested-Task live-fire (R18/R19/R20) deferred to Mac POSIX gate post-merge per policy waiver 2026-07-15.
+
+### The five guard surfaces (S1–S5)
+
+Cross-persona leak affected relocated-`CLAUDE_CONFIG_DIR` sessions launched from a persona-root directory (home with a full identity: `otto-profile.json`, `.otto-met`, `otto-state-global.md`). The session's facts hook compared `cwd_is_config_dir` against the *active* (relocated) config and read `false`, missing the foreign persona root. All five surfaces now gate on **both** `cwd_is_config_dir=false` **AND** a new fact `cwd_persona_root=false`:
+
+- **S1:** Step 1 override (a) — card suppression on foreign state misread as project evidence ✓
+- **S2:** Step 5 — brief render leaked foreign work table verbatim ✓
+- **S3:** Inventory `inv_agents_project` — double-count guard on project-agent enumeration ✓
+- **S4:** Hook backstop — PostToolUse guard prevents appending relay lines to foreign persona's real file ✓
+- **S5:** Model hand-write — "Announcing a handoff" step 2 guard prevents model Read+Edit of foreign file ✓
+
+### New fact: `cwd_persona_root` (core, always-present)
+
+Hooks/otto-facts.mjs now emits a seventh core fact (was six): `cwd_persona_root` — boolean, true when `<cwd>/.claude` holds any persona-identity marker (`otto-profile.json`, `.otto-met`, `otto-state-global.md`). Existence check only; never reads contents. Computed every session (not first-run-gated).
+
+### Verification and caveats
+
+**Read surfaces (S1, S2) + code surfaces (S3, S4):** Glitchtrap verified; unit tests 40/40 + 44/44 (facts + state suites). Bitforge proxy-ran S5 (model decision + hook subprocess against real fixture).
+
+**Caveat (a): Platform gate waived again.** Mac/Linux POSIX sh verification (including R18/R19/R20 full nested-Task live-fire) deferred to post-merge per explicit Andrew authorization 2026-07-15. This hotfix now carries the waiver for *both* 22.8.0 additions (hook payload shape, facts injection) *and* 22.8.1 additions (persona-root fact + five guard surfaces). **POLICY:** no third consecutive release with untested POSIX gates. Mac hardware test is hard-owed before 22.9.0 ships.
+
+**Caveat (b): S5 shipped on proxy evidence.** Model's hand-write (step 2 of "Announcing a handoff") was exercised via Bitforge's decision-prompt against real amended prompt text + real captured facts block, not a nested-Task live dispatch (no permission for real nested-Task from this environment). Full live-fire proof (R18/R19/R20) included in post-merge Mac gate scope.
+
+### Files and line changes
+
+- `hooks/otto-facts.mjs` (+56 lines): compute and emit `cwd_persona_root`
+- `hooks/otto-state.mjs` (+41 lines): gate local write on persona-root + config-dir check
+- `agents/otto-foreman.md` (+84 −, reworded prose): extend overrides (a), step 5, "Announcing a handoff" step 2 with both-guard conditions; update core-facts count (6→7)
+- `docs/spec-persona-guard-22.8.1.md` (+463): design rationale, all five surfaces, error polarity, edge cases
+- `docs/persona-guard-live-gate-22.8.1.md` (+245): runbook + Bitforge Windows run log (S4/S5 proxy evidence)
+- `scripts/test-otto-facts.mjs` (+195): new tests R1–R15 covering persona-root probe, both-guard OR, symlink follows, marker absence, error polarity
+- `scripts/test-otto-state.mjs` (+82): new tests for persona-root gate, genuine project regression
+- `TASKS.md`: updated post-merge debt item (Mac gate scope now lists R18/R19/R20 requirements)
+
 ## 22.8.0 — 2026-07-15
 
 **Deterministic relay-state writer + global state, session-open facts injector, first-run hiring inventory (58s→38.5s).**
