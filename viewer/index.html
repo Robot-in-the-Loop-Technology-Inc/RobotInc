@@ -1,0 +1,211 @@
+<title>RobotInc — Activity Window</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --panel-border: #262b33;
+    --text: #e6e8eb;
+    --dim: #8b93a1;
+    --idle: #4b5563;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  body {
+    padding: 24px;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  h1 {
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0;
+  }
+  #status {
+    font-size: 12px;
+    color: var(--dim);
+  }
+  #status.err { color: #ef4444; }
+  section {
+    margin-bottom: 28px;
+  }
+  h2 {
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0 0 10px 0;
+  }
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-left: 3px solid var(--card-color, var(--idle));
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    align-items: baseline;
+    gap: 4px 10px;
+  }
+  .card .badge { font-size: 16px; line-height: 1; }
+  .card .name {
+    font-weight: 600;
+    color: var(--card-color, var(--text));
+  }
+  .card .role {
+    font-size: 11px;
+    color: var(--dim);
+    grid-column: 2;
+  }
+  .card .desc {
+    grid-column: 1 / -1;
+    color: var(--text);
+    font-size: 13px;
+    margin-top: 2px;
+  }
+  .card .meta {
+    font-size: 11px;
+    color: var(--dim);
+    white-space: nowrap;
+    text-align: right;
+  }
+  .idle {
+    color: var(--dim);
+    font-size: 13px;
+    padding: 14px;
+    border: 1px dashed var(--panel-border);
+    border-radius: 6px;
+  }
+  .recent .card {
+    grid-template-columns: auto auto 1fr auto;
+  }
+  .recent .summary {
+    grid-column: 1 / -1;
+    color: var(--dim);
+    font-size: 12px;
+    margin-top: 2px;
+  }
+</style>
+
+<header>
+  <h1>RobotInc — Activity Window</h1>
+  <span id="status">connecting…</span>
+</header>
+
+<section>
+  <h2>Working now</h2>
+  <div id="working" class="cards"></div>
+</section>
+
+<section class="recent">
+  <h2>Recently finished</h2>
+  <div id="recent" class="cards"></div>
+</section>
+
+<script>
+  const workingEl = document.getElementById('working');
+  const recentEl = document.getElementById('recent');
+  const statusEl = document.getElementById('status');
+
+  function fmtSeconds(s) {
+    if (s === null || s === undefined) return '';
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m > 0 ? m + 'm ' + r + 's' : r + 's';
+  }
+
+  function fmtTokens(t) {
+    if (t === null || t === undefined) return null;
+    if (t >= 1_000_000) return (t / 1_000_000).toFixed(1) + 'M tok';
+    if (t >= 1_000) return (t / 1_000).toFixed(1) + 'K tok';
+    return t + ' tok';
+  }
+
+  function fmtDuration(ms) {
+    if (ms === null || ms === undefined) return null;
+    return fmtSeconds(Math.round(ms / 1000));
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function renderWorking(items) {
+    if (!items.length) {
+      workingEl.innerHTML = '<div class="idle">idle — no robot currently working</div>';
+      return;
+    }
+    workingEl.innerHTML = items.map((r) => `
+      <div class="card" style="--card-color:${escapeHtml(r.color)}">
+        <span class="badge">${escapeHtml(r.badge)}</span>
+        <span class="name">${escapeHtml(r.name)}</span>
+        <span></span>
+        <span class="meta">${escapeHtml(fmtSeconds(r.secondsWorking))}</span>
+        <span class="role">${escapeHtml(r.role || '')}</span>
+        <div class="desc">${escapeHtml(r.description)}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderRecent(items) {
+    if (!items.length) {
+      recentEl.innerHTML = '<div class="idle">nothing in the trace log yet</div>';
+      return;
+    }
+    recentEl.innerHTML = items.map((r) => {
+      const cost = [fmtTokens(r.tokens), fmtDuration(r.duration)].filter(Boolean).join(' · ');
+      return `
+        <div class="card" style="--card-color:${escapeHtml(r.color)}">
+          <span class="badge">${escapeHtml(r.badge)}</span>
+          <span class="name">${escapeHtml(r.name)}${r.project ? ' (' + escapeHtml(r.project) + ')' : ''}</span>
+          <span></span>
+          <span class="meta">${escapeHtml(cost || '—')}</span>
+          <span class="role">${escapeHtml(r.role || '')}</span>
+          <div class="summary">${escapeHtml(r.summary)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch('/state', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      renderWorking(data.working || []);
+      renderRecent(data.recent || []);
+      statusEl.textContent = 'live — updated ' + new Date().toLocaleTimeString();
+      statusEl.classList.remove('err');
+    } catch (err) {
+      statusEl.textContent = 'lost connection to server: ' + err.message;
+      statusEl.classList.add('err');
+    }
+  }
+
+  poll();
+  setInterval(poll, 500);
+</script>

@@ -1,5 +1,36 @@
 # Changelog
 
+## 22.8.3 — 2026-07-16
+
+**Trace attribution fix, honest ledger token counts, per-project cost attribution — plus the activity-window viewer prototype.**
+
+### Fix 1 — crew identity restored in the trace log
+
+`hooks/otto-trace.mjs` indexed `ROBOTS[agentType]` with the raw namespaced `subagent_type` (`robotinc:cathode-design`) against un-prefixed map keys — the lookup never hit for any plugin-sourced robot, so **every crew completion logged as anonymous `🤍 robotinc:<type>` with no role**, and `/standup` (which reads the same log) misattributed every crew result. Fixed with the same `bareType()` strip `otto-state.mjs` already carries (duplicated, not imported — hook scripts run standalone; that is the existing convention). Built-ins and genuine third-party types render exactly as before. Same bug class as the Gantry-badge incident recorded in the file's own header.
+
+### Fix 2 — ledger token counts were inflated ~50–200×
+
+The ledger writer summed the `usage` object across **every** transcript message. Anthropic's per-message `usage` is the *total context that call processed* — under prompt caching it grows every turn, so summing compounds massively (a real 123k-token Bitforge run ledgered as 6.72M; a 55k Sonar run as 1.05M). Fixed: read only the **final** message's usage snapshot (input + output + cache_creation + cache_read), which *is* the run's total — verified within ~1% of Claude Code's own task-completion totals on multiple real runs. The meaning of `tokens=` is now documented in the writer's header. Old inflated lines remain on disk (append-only log; history is history).
+
+### Per-project cost attribution
+
+Every ledger line now carries a `[project]` tag (`basename(cwd)`, same derivation and bracket convention as the state files):
+`<ISO-ts> [<project>] <robot-name> tokens=<N> duration_ms=<M>`
+Old untagged lines still parse everywhere (tag optional in the viewer regex). This gives per-robot-per-project cost for free at read time; *purpose*-level attribution was considered and deliberately rejected as judgment-based rather than mechanical.
+
+### New: `viewer/` — activity-window v0 (prototype-grade, deliberately unstyled)
+
+A dependency-free local viewer for the live crew feed: `node viewer/server.mjs` → http://localhost:4173. "Working now" renders a card per live `.otto-pending/` marker (badge, name in crew color, role, task, running clock — appears at dispatch, clears at completion); "recently finished" joins `otto-trace.log` with `otto-ledger.log` for result summaries, per-project tags, and token cost. Node built-ins only, resilient to mid-read marker deletion and mixed-format ledger history. This is the substance layer of the planned activity window — the pixel render pass (Cathode) comes later, on this proven loop.
+
+### Gates
+
+- **New suite `scripts/test-otto-trace.mjs` 23/23** — attribution (incl. the negative "raw `robotinc:` in a rendered line = fail" gate), token computation against a real-shape transcript fixture (asserts fix ≠ inflated sum), tagged-ledger write, negative tag-missing guard, viewer parse of new/legacy/garbage shapes. `otto-trace.mjs` refactored to the exported-`run()` + `isMainModule()` pattern the other hooks already use.
+- test-otto-state 51/51, test-otto-facts 40/40, validate.mjs clean.
+
+### Caveat — POSIX gate still owed
+
+Same standing waiver as 22.8.2 (third deferral, explicit owner instruction, risk assessed low — Node path APIs, hex ids). POSIX confirmation owed on Mac/Linux; scope unchanged in `docs/spec-relay-async-fix.md` + `docs/posix-gate-22.8.0.md`.
+
 ## 22.8.2 — 2026-07-15
 
 **Relay-writer fix for background-default subagents (Claude Code 2.1.211 regression).**
