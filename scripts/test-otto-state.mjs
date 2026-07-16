@@ -40,6 +40,7 @@ import {
   existsSync,
   readFileSync,
   writeFileSync,
+  readdirSync,
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -55,6 +56,8 @@ import {
   keyOfLine,
   CAP,
   BUILTINS,
+  pendingDir,
+  markerPath,
 } from '../hooks/otto-state.mjs';
 
 const HOOK_PATH = fileURLToPath(new URL('../hooks/otto-state.mjs', import.meta.url));
@@ -119,6 +122,62 @@ function runWith(configDir, home, p) {
 
 function require_basename(p) {
   return p.split(/[\\/]/).filter(Boolean).pop();
+}
+
+// ---------------------------------------------------------- v22.8.2 hotfix fixtures
+// Background-default (Claude Code 2.1.211+) shapes: the dispatch-time
+// PostToolUse(Agent) payload with status "async_launched" (no content, an
+// agentId instead), and the SubagentStop payload that later recovers it via
+// the .otto-pending marker. Field names match docs/spec-relay-async-fix.md's
+// Step 1 evidence, byte-level confirmed against the installed 2.1.211 binary.
+
+function asyncPayload({ subagentType, description, agentId, cwd }) {
+  return {
+    tool_name: 'Agent',
+    tool_input: { subagent_type: subagentType, description, prompt: 'irrelevant prompt body text' },
+    tool_response: { status: 'async_launched', agentId, description, resolvedModel: 'claude-fable-5' },
+    cwd,
+  };
+}
+
+function subagentStopPayload({ agentId, agentType, text }) {
+  return {
+    hook_event_name: 'SubagentStop',
+    agent_id: agentId,
+    agent_type: agentType,
+    last_assistant_message: text,
+  };
+}
+
+function runSubagentStop(configDir, home, p) {
+  run(p, { env: { CLAUDE_CONFIG_DIR: configDir }, home: home || configDir });
+}
+
+function markerFile(configDir, home, agentId) {
+  return markerPath({ CLAUDE_CONFIG_DIR: configDir }, home || configDir, agentId);
+}
+
+function plantMarker(configDir, home, agentId, marker) {
+  mkdirSync(pendingDir({ CLAUDE_CONFIG_DIR: configDir }, home || configDir), { recursive: true });
+  writeFileSync(markerFile(configDir, home, agentId), JSON.stringify(marker));
+}
+
+// Scans every file actually written to configDir/projectDir for the literal
+// string "(no result)" — the regression signature this whole hotfix exists to
+// prevent. Recurses; skips nothing, including the marker directory itself,
+// so a marker that leaked the placeholder text would also be caught.
+function grepNoResultAnywhere(...roots) {
+  const hits = [];
+  const walk = (dir) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else if (readFileSync(p, 'utf8').includes('(no result)')) hits.push(p);
+    }
+  };
+  for (const r of roots) walk(r);
+  return hits;
 }
 
 // ---------------------------------------------------------------- task 2: classification (pure logic)
@@ -212,11 +271,20 @@ record('9a. home-dir persona: global fires, local skipped', () => {
 // `localDir !== configDir` alone is the reader's broken `cwd_is_config_dir`
 // discriminator wearing a writer hat: it only catches THIS session's own
 // config dir, not some OTHER machine's real persona root reached because
-// CLAUDE_CONFIG_DIR was relocated. Before this hotfix, R10 below appended a
-// sandbox relay line into the user's real ~/.claude/otto-state.md on every
-// Task dispatch — a one-way write-corruption, reproduced live.
+// CLAUDE_CONFIG_DIR was relocated. Before the 22.8.1 hotfix, R10 below
+// appended a sandbox relay line into the user's real ~/.claude/otto-state.md
+// on every Task dispatch — a one-way write-corruption, reproduced live.
+//
+// RE-POINTED for v22.8.2 (docs/spec-relay-async-fix.md): background is now
+// the DEFAULT dispatch mode, so the write these tests guard happens through
+// SubagentStop's recovery path in production, not PostToolUse "completed"
+// directly. Each test below plants the pending marker a real async_launched
+// dispatch would have written, then fires SubagentStop -- exercising the
+// SAME writeStateLines()/isPersonaRoot() guard, recomputed against the
+// marker's cwd exactly as production does, per the spec's explicit
+// instruction to re-run S4 on the recomputed local target.
 
-record('R10: sandbox session dispatches a Task, cwd=home persona root, configDir=sandbox -- S4 write-corruption closed, real otto-state.md byte-unchanged', () => {
+record('R10: background dispatch completes with cwd=home persona root, configDir=sandbox -- S4 write-corruption closed, real otto-state.md byte-unchanged', () => {
   const home = mkdtempSync(join(tmpdir(), 'otto-state-r10-home-'));
   scratchDirs.push(home);
   const sandboxConfig = mkdtempSync(join(tmpdir(), 'otto-state-r10-sandbox-'));
@@ -229,15 +297,16 @@ record('R10: sandbox session dispatches a Task, cwd=home persona root, configDir
   const realStateBefore = '<!-- otto-state.md real header --> \n\n· real pre-existing line\n';
   writeFileSync(realStatePath, realStateBefore);
 
-  runWith(sandboxConfig, home, payload({
-    subagentType: 'bitforge-engineer',
-    description: 'sandbox dispatch',
-    text: 'this must never land in the real file',
-    cwd: home,
+  plantMarker(sandboxConfig, home, 'r10sandboxagent', {
+    description: 'sandbox dispatch', subagent_type: 'bitforge-engineer', cwd: home, ts: new Date().toISOString(),
+  });
+  runSubagentStop(sandboxConfig, home, subagentStopPayload({
+    agentId: 'r10sandboxagent', agentType: 'bitforge-engineer', text: 'this must never land in the real file',
   }));
 
   assert(existsSync(globalPath(sandboxConfig)), 'global (sandbox config) should still be written -- global is unaffected by S4');
   assert(readFileSync(realStatePath, 'utf8') === realStateBefore, 'S4: the real ~/.claude/otto-state.md must be byte-unchanged -- no sandbox relay line appended');
+  assert(!existsSync(markerFile(sandboxConfig, home, 'r10sandboxagent')), 'R10: marker should be consumed regardless of the S4 block');
 });
 
 record('R10b: same scenario, no pre-existing real otto-state.md -- S4 must not CREATE one either', () => {
@@ -248,41 +317,41 @@ record('R10b: same scenario, no pre-existing real otto-state.md -- S4 must not C
   mkdirSync(join(home, '.claude'), { recursive: true });
   writeFileSync(join(home, '.claude', 'otto-profile.json'), '{"seats":["Generalist / Solo"]}');
 
-  runWith(sandboxConfig, home, payload({
-    subagentType: 'bitforge-engineer',
-    description: 'sandbox dispatch, no prior file',
-    text: 'must not create a local relay in a foreign persona root',
-    cwd: home,
+  plantMarker(sandboxConfig, home, 'r10bsandboxagent', {
+    description: 'sandbox dispatch, no prior file', subagent_type: 'bitforge-engineer', cwd: home, ts: new Date().toISOString(),
+  });
+  runSubagentStop(sandboxConfig, home, subagentStopPayload({
+    agentId: 'r10bsandboxagent', agentType: 'bitforge-engineer', text: 'must not create a local relay in a foreign persona root',
   }));
 
   assert(!existsSync(localPath(home)), 'S4: no local otto-state.md should be created in a foreign persona root');
 });
 
-record('R11: genuine project dispatches a Task -- S4 fix does not break normal relay, local write still happens', () => {
+record('R11: genuine project background dispatch completes -- S4 fix does not break normal relay, local write still happens', () => {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);
-  runWith(configDir, configDir, payload({
-    subagentType: 'bitforge-engineer',
-    description: 'normal project work',
-    text: 'ordinary relay, no persona markers anywhere near this project',
-    cwd: projectDir,
+  plantMarker(configDir, configDir, 'r11normalagent', {
+    description: 'normal project work', subagent_type: 'bitforge-engineer', cwd: projectDir, ts: new Date().toISOString(),
+  });
+  runSubagentStop(configDir, configDir, subagentStopPayload({
+    agentId: 'r11normalagent', agentType: 'bitforge-engineer', text: 'ordinary relay, no persona markers anywhere near this project',
   }));
   assert(existsSync(localPath(projectDir)), 'R11: a genuine project (no persona markers) must still get its local write');
   assert(readLines(localPath(projectDir)).length === 1, 'R11: local file should carry the one written line');
 });
 
-record('R12: cwd==configDir (via CLAUDE_CONFIG_DIR override) dispatches a Task -- writer\'s existing localDir!==configDir guard intact, local write skipped', () => {
+record('R12: cwd==configDir (via CLAUDE_CONFIG_DIR override) background dispatch completes -- writer\'s existing localDir!==configDir guard intact, local write skipped', () => {
   const projectDir = mkdtempSync(join(tmpdir(), 'otto-state-r12-'));
   scratchDirs.push(projectDir);
   // Point CLAUDE_CONFIG_DIR AT this project's own .claude dir -- localDir === configDir by the string
   // compare alone, independent of the persona-root markers (R12 is about the ORIGINAL guard, not the new one).
   const configDir = join(projectDir, '.claude');
   mkdirSync(configDir, { recursive: true });
-  runWith(configDir, configDir, payload({
-    subagentType: 'bitforge-engineer',
-    description: 'cwd is configDir',
-    text: 'must not write locally -- local IS the config dir here',
-    cwd: projectDir,
+  plantMarker(configDir, configDir, 'r12sameagent', {
+    description: 'cwd is configDir', subagent_type: 'bitforge-engineer', cwd: projectDir, ts: new Date().toISOString(),
+  });
+  runSubagentStop(configDir, configDir, subagentStopPayload({
+    agentId: 'r12sameagent', agentType: 'bitforge-engineer', text: 'must not write locally -- local IS the config dir here',
   }));
   assert(existsSync(globalPath(configDir)), 'global should still be written');
   assert(!existsSync(localPath(projectDir)), 'R12: local write must stay skipped when localDir === configDir, exactly as before this hotfix');
@@ -407,30 +476,39 @@ record('9j. hired staff (unknown non-built-in) renders with 🧩', () => {
 });
 
 // ---------------------------------------------------------------- 9k: cross-process race
+// RE-POINTED for v22.8.2: background is now the default, so this race happens
+// at SubagentStop in production, not at PostToolUse "completed" directly.
+// Each spawned child plants its own marker (a real async_launched dispatch's
+// leftover), then fires the SubagentStop recovery path -- same lock, same
+// writeStateLines(), reached through the route production actually uses.
 
 async function testCrossProcessRace() {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);
-  const spawnOne = (description) =>
-    new Promise((resolve, reject) => {
+  const spawnOne = (description, agentId) => {
+    plantMarker(configDir, configDir, agentId, {
+      description, subagent_type: 'bitforge-engineer', cwd: projectDir, ts: new Date().toISOString(),
+    });
+    return new Promise((resolve, reject) => {
       const child = spawn(process.execPath, [HOOK_PATH], {
         env: { ...process.env, CLAUDE_CONFIG_DIR: configDir },
       });
       child.stdin.write(
-        JSON.stringify(
-          payload({ subagentType: 'bitforge-engineer', description, text: `concurrent write for ${description}`, cwd: projectDir })
-        )
+        JSON.stringify(subagentStopPayload({ agentId, agentType: 'bitforge-engineer', text: `concurrent write for ${description}` }))
       );
       child.stdin.end();
       child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`child exited ${code}`))));
       child.on('error', reject);
     });
-  await Promise.all([spawnOne('race-item-a'), spawnOne('race-item-b')]);
+  };
+  await Promise.all([spawnOne('race-item-a', '9kraceitema'), spawnOne('race-item-b', '9kraceitemb')]);
   const lines = readLines(localPath(projectDir));
   assert(lines.length === 2, `expected 2 lines after concurrent distinct-key writes, got ${lines.length}: ${JSON.stringify(lines)}`);
   assert(lines.some((l) => l.includes('race-item-a')), 'race-item-a line missing — lost write under lock contention');
   assert(lines.some((l) => l.includes('race-item-b')), 'race-item-b line missing — lost write under lock contention');
   for (const l of lines) assert(keyOfLine(l, false) !== null, `corrupted line after concurrent writes: ${l}`);
+  assert(!existsSync(markerFile(configDir, configDir, '9kraceitema')), '9k: race-item-a marker should be consumed');
+  assert(!existsSync(markerFile(configDir, configDir, '9kraceitemb')), '9k: race-item-b marker should be consumed');
 }
 
 // ---------------------------------------------------------------- 9l: lock exhaustion degradation
@@ -479,6 +557,121 @@ record('9m. round-trip: writer output matches agents/otto-foreman.md\'s document
   const GRAMMAR = /^· \S+ [A-Z][A-Za-z]+ \([A-Za-z ]+\) — .+: .+ {2}\(\d{4}-\d{2}-\d{2}\)$/;
   const line = readLines(localPath(projectDir))[0];
   assert(GRAMMAR.test(line), `writer's line does not match otto-foreman.md's GRAMMAR regex: ${line}`);
+});
+
+// ---------------------------------------------------------------- v22.8.2: background-default relay fix
+// Claude Code 2.1.211 runs subagents in the background by default. See file
+// header of hooks/otto-state.mjs and docs/spec-relay-async-fix.md for the
+// full design; the case below is THE regression test — before this hotfix,
+// an async_launched dispatch wrote a real "(no result)" state line.
+
+record('H1 (THE REGRESSION TEST). async_launched writes NO state line anywhere, and "(no result)" appears nowhere on disk', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, asyncPayload({
+    subagentType: 'bitforge-engineer',
+    description: 'background dispatch',
+    agentId: 'h1deadbeef01',
+    cwd: projectDir,
+  }));
+  assert(!existsSync(globalPath(configDir)), 'H1: async_launched must not create otto-state-global.md');
+  assert(!existsSync(localPath(projectDir)), 'H1: async_launched must not create otto-state.md');
+  const hits = grepNoResultAnywhere(configDir, projectDir);
+  assert(hits.length === 0, `H1: "(no result)" leaked into: ${hits.join(', ')}`);
+});
+
+record('H2. async_launched writes the pending marker, with description/subagent_type/cwd/ts recovered correctly', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, asyncPayload({
+    subagentType: 'bitforge-engineer',
+    description: 'marker contents check',
+    agentId: 'h2deadbeef02',
+    cwd: projectDir,
+  }));
+  const path = markerFile(configDir, configDir, 'h2deadbeef02');
+  assert(existsSync(path), `H2: expected marker at ${path}`);
+  const marker = JSON.parse(readFileSync(path, 'utf8'));
+  assert(marker.description === 'marker contents check', `H2: marker description wrong: ${JSON.stringify(marker)}`);
+  assert(marker.subagent_type === 'bitforge-engineer', `H2: marker subagent_type wrong: ${JSON.stringify(marker)}`);
+  assert(marker.cwd === projectDir, `H2: marker cwd wrong: ${JSON.stringify(marker)}`);
+  assert(typeof marker.ts === 'string' && marker.ts.length > 0, `H2: marker ts missing: ${JSON.stringify(marker)}`);
+});
+
+record('H2b. async_launched: built-in agent types (Explore, general-purpose) write no marker either', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, asyncPayload({ subagentType: 'Explore', description: 'x', agentId: 'h2bbuiltin', cwd: projectDir }));
+  assert(!existsSync(markerFile(configDir, configDir, 'h2bbuiltin')), 'H2b: built-in dispatch should not file a marker');
+});
+
+record('H3. full background lifecycle: dispatch (marker only) -> SubagentStop (one real state line, recovered description, real summary, marker deleted)', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, asyncPayload({
+    subagentType: 'bitforge-engineer',
+    description: 'lifecycle item',
+    agentId: 'h3deadbeef03',
+    cwd: projectDir,
+  }));
+  assert(!existsSync(localPath(projectDir)), 'H3: no state line should exist yet -- dispatch only wrote the marker');
+
+  runSubagentStop(configDir, configDir, subagentStopPayload({
+    agentId: 'h3deadbeef03',
+    agentType: 'bitforge-engineer',
+    text: 'middleware on feature/relay-fix, 6 tests green',
+  }));
+
+  const gLines = readLines(globalPath(configDir));
+  const lLines = readLines(localPath(projectDir));
+  assert(gLines.length === 1, `H3: expected 1 global line after SubagentStop, got ${gLines.length}`);
+  assert(lLines.length === 1, `H3: expected 1 local line after SubagentStop, got ${lLines.length}`);
+  assert(lLines[0].includes('lifecycle item'), `H3: recovered description missing: ${lLines[0]}`);
+  assert(lLines[0].includes('middleware on feature/relay-fix, 6 tests green'), `H3: real summary missing: ${lLines[0]}`);
+  assert(lLines[0].includes('🔩 Bitforge (Engineer)'), `H3: badge/name/role missing: ${lLines[0]}`);
+  assert(!existsSync(markerFile(configDir, configDir, 'h3deadbeef03')), 'H3: marker should be deleted after SubagentStop recovers it');
+  const hits = grepNoResultAnywhere(configDir, projectDir);
+  assert(hits.length === 0, `H3: "(no result)" leaked into: ${hits.join(', ')}`);
+});
+
+record('H4. SubagentStop with no marker on file: no write, no crash', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runSubagentStop(configDir, configDir, subagentStopPayload({
+    agentId: 'h4nomarkerhere',
+    agentType: 'bitforge-engineer',
+    text: 'should never land anywhere',
+  }));
+  assert(!existsSync(globalPath(configDir)), 'H4: no marker means no global write');
+  assert(!existsSync(localPath(projectDir)), 'H4: no marker means no local write');
+});
+
+record('H5. SubagentStop recovering a built-in-typed marker (defensive: should not occur in practice, H2b blocks it) still writes nothing and cleans up', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  plantMarker(configDir, configDir, 'h5builtinmarker', {
+    description: 'should not render',
+    subagent_type: 'Explore',
+    cwd: projectDir,
+    ts: new Date().toISOString(),
+  });
+  runSubagentStop(configDir, configDir, subagentStopPayload({ agentId: 'h5builtinmarker', agentType: 'Explore', text: 'irrelevant' }));
+  assert(!existsSync(localPath(projectDir)), 'H5: built-in-typed marker must not produce a state line');
+  assert(!existsSync(markerFile(configDir, configDir, 'h5builtinmarker')), 'H5: stale/invalid marker should still be cleaned up');
+});
+
+record('H6. foreground path (status "completed") still upserts exactly as before the hotfix -- no marker involved', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({
+    subagentType: 'bitforge-engineer',
+    description: 'foreground unchanged',
+    text: 'synchronous run, real content already present',
+    cwd: projectDir,
+  }));
+  const lines = readLines(localPath(projectDir));
+  assert(lines.length === 1 && lines[0].includes('synchronous run, real content already present'), `H6: foreground path regressed: ${JSON.stringify(lines)}`);
+  assert(!existsSync(pendingDir({ CLAUDE_CONFIG_DIR: configDir }, configDir)), 'H6: foreground dispatch should never create .otto-pending at all');
 });
 
 // ---------------------------------------------------------------- G2: unicode survives description/summary
@@ -557,22 +750,34 @@ record('G5. the same description dispatched to two different robots produces two
 });
 
 // ---------------------------------------------------------------- G7: real concurrent race, same key, forced contention
+// RE-POINTED for v22.8.2, same reasoning as 9k: each of the 6 "processes" is
+// its own agentId/marker (a real background dispatch would never reuse one
+// agentId), all sharing the SAME description so they collide on the SAME
+// upsert key -- forcing the real lock contention SubagentStop now owns.
 
 async function testRealContentionSameKey() {
   const { configDir, projectDir } = freshDirs();
   withClaudeDir(projectDir);
-  const spawnOne = (n) =>
-    new Promise((resolve, reject) => {
+  const spawnOne = (n) => {
+    const agentId = `g7samekeyrace${n}`;
+    plantMarker(configDir, configDir, agentId, {
+      description: 'same-key race', subagent_type: 'bitforge-engineer', cwd: projectDir, ts: new Date().toISOString(),
+    });
+    return new Promise((resolve, reject) => {
       const child = spawn(process.execPath, [HOOK_PATH], { env: { ...process.env, CLAUDE_CONFIG_DIR: configDir } });
-      child.stdin.write(JSON.stringify(payload({ subagentType: 'bitforge-engineer', description: 'same-key race', text: `pass ${n}`, cwd: projectDir })));
+      child.stdin.write(JSON.stringify(subagentStopPayload({ agentId, agentType: 'bitforge-engineer', text: `pass ${n}` })));
       child.stdin.end();
       child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`child ${n} exited ${code}`))));
       child.on('error', reject);
     });
+  };
   await Promise.all([1, 2, 3, 4, 5, 6].map(spawnOne));
   let lines = readLines(localPath(projectDir));
   assert(lines.length >= 1, 'same-key race under real contention lost every write');
   for (const l of lines) assert(keyOfLine(l, false) !== null, `corrupted line after real same-key contention: ${l}`);
+  for (let n = 1; n <= 6; n++) {
+    assert(!existsSync(markerFile(configDir, configDir, `g7samekeyrace${n}`)), `G7: marker ${n} should be consumed even under contention`);
+  }
   runWith(configDir, configDir, payload({ subagentType: 'bitforge-engineer', description: 'post-race cleanup', text: 'clean write after contention', cwd: projectDir }));
   lines = readLines(localPath(projectDir));
   assert(lines.some((l) => l.includes('post-race cleanup')), 'lock was left held after real contention -- next clean write starved');

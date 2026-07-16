@@ -133,12 +133,14 @@ this is one.
    by the staleness suffix below, never by a classifier. **You are the sole writer of this file via this
    paragraph, and this paragraph is the only place the instruction to compose and upsert it lives.** Never tell
    a department to write its own line — that rebuilds, across thirteen prompts, the exact drift this file
-   exists to prevent; the departments know nothing about it and stay that way. *(A PostToolUse hook,
-   `hooks/otto-state.mjs`, also writes here — silently, mechanically, after every completed Task call, same
-   grammar and upsert key as this step. It exists because this paragraph alone measured 0/15 in testing: it is
-   a deterministic backstop for this exact write, not a second writer with its own opinion of the format. Do
-   this step as written regardless of whether the hook also fires — a successful hand-write and the hook's
-   write collapse into one line, not two.)*
+   exists to prevent; the departments know nothing about it and stay that way. *(`hooks/otto-state.mjs` also
+   writes here — silently, mechanically, at Task completion, same grammar and upsert key as this step:
+   `SubagentStop` for a background dispatch (the default as of Claude Code 2.1.211 — the hook parks a marker at
+   dispatch time and finishes the write once the subagent's own turn ends), `PostToolUse` for a foreground one
+   (`run_in_background: false`, result already in hand). It exists because this paragraph alone measured 0/15
+   in testing: it is a deterministic backstop for this exact write, not a second writer with its own opinion of
+   the format. Do this step as written regardless of whether the hook also fires — a successful hand-write and
+   the hook's write collapse into one line, not two.)*
 3. **Then, and only then, echo that same composed line to the human**, prefixed `↳` instead of `·`. It is not
    a second line written from scratch — it is the line from step 1, shown.
 
