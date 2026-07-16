@@ -509,6 +509,50 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   if (badEvents.length) fail(`hooks.json wires an unreviewed event: ${badEvents.join(', ')} (allowed: ${[...ALLOWED_EVENTS].join(', ')})`);
   if (!events.includes('SubagentStop')) fail('hooks.json is missing the SubagentStop trace hook');
 
+  // v22.8.2 HOTFIX: SubagentStop must wire BOTH otto-trace.mjs (the
+  // best-effort activity trace, unchanged) AND otto-state.mjs (the relay-
+  // state writer's recovery path for background-default dispatches — see
+  // docs/spec-relay-async-fix.md). One entry per script, both "command"/node,
+  // same shape the PostToolUse gate below already enforces for otto-state.mjs.
+  if (events.includes('SubagentStop')) {
+    const stopScripts = new Set();
+    for (const entry of hooks.hooks.SubagentStop || []) {
+      for (const h of entry.hooks || []) {
+        const match = (h.args || []).find((a) => /otto-(trace|state)\.mjs$/.test(a));
+        if (match) stopScripts.add(match.match(/otto-(trace|state)\.mjs$/)[0]);
+        if (h.type !== 'command') {
+          fail(`hooks.json: SubagentStop hook has "type": "${h.type}" — must be "command", same convention `
+             + `every other hook here uses.`);
+        }
+      }
+    }
+    if (!stopScripts.has('otto-trace.mjs')) fail('hooks.json: SubagentStop no longer wires otto-trace.mjs');
+    if (!stopScripts.has('otto-state.mjs')) {
+      fail('hooks.json: SubagentStop does not wire otto-state.mjs — the v22.8.2 hotfix requires it as the '
+         + 'recovery path for background-default (async_launched) dispatches; see docs/spec-relay-async-fix.md');
+    }
+  }
+
+  // v22.8.2 HOTFIX source-text gates: prove otto-state.mjs actually implements
+  // the background-default recovery path, not just that hooks.json wires it.
+  // Bounded string checks, same footing as the U+FE0F/tier-leak scans above —
+  // cheap, direct, and each tied to one specific fact the fix depends on
+  // (docs/spec-relay-async-fix.md's Step 1 correlator evidence).
+  if (state) {
+    if (!state.includes('async_launched')) {
+      fail('hooks/otto-state.mjs: no reference to "async_launched" — the background-dispatch status this '
+         + 'hotfix exists to handle. See docs/spec-relay-async-fix.md.');
+    }
+    if (!state.includes('SubagentStop') || !state.includes('hook_event_name')) {
+      fail('hooks/otto-state.mjs: missing SubagentStop / hook_event_name dispatch — the hook must branch on '
+         + 'payload.hook_event_name to route the recovery path.');
+    }
+    if (!state.includes('.otto-pending')) {
+      fail('hooks/otto-state.mjs: no reference to ".otto-pending" — the marker directory that carries a '
+         + 'background dispatch\'s description from PostToolUse to SubagentStop.');
+    }
+  }
+
   // PostToolUse (otto-state.mjs, matcher "Task"): a design draft for this exact
   // entry called for `"type": "script"` instead of the established `"command"`
   // convention. Tested empirically (not assumed): a hook registered with

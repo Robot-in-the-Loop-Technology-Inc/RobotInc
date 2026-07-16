@@ -1,19 +1,44 @@
 #!/usr/bin/env node
-// Otto relay-state writer — PostToolUse hook (matcher: Task).
+// Otto relay-state writer — PostToolUse hook (matcher: Task) AND SubagentStop
+// hook (both wired in hooks.json as of the v22.8.2 async-background hotfix).
 //
-// THE TRAP THIS FILE EXISTS TO DODGE: Claude Code's hooks.json matcher string
-// for this event is "Task" (the tool's public/doc name), but the event
-// actually delivered to a PostToolUse hook names it `tool_name: "Agent"` — the
-// tool's internal name. Gate on "Task" here and this script silently never
-// fires, forever, with no error anywhere a human would see. Verified
-// byte-level against two real captures (a built-in Explore call and a
-// built-in general-purpose call) before this file was written; see
-// docs/hook-events.md for the full payload and the doc-vs-reality mismatches
-// found alongside this one (tool_response is a content-block array, not a
-// string; the task body lives in tool_input.prompt, not .description).
+// THE TRAP THIS FILE EXISTS TO DODGE (PostToolUse half): Claude Code's
+// hooks.json matcher string for this event is "Task" (the tool's public/doc
+// name), but the event actually delivered to a PostToolUse hook names it
+// `tool_name: "Agent"` — the tool's internal name. Gate on "Task" here and
+// this script silently never fires, forever, with no error anywhere a human
+// would see. Verified byte-level against two real captures (a built-in
+// Explore call and a built-in general-purpose call) before this file was
+// written; see docs/hook-events.md for the full payload and the
+// doc-vs-reality mismatches found alongside this one (tool_response is a
+// content-block array, not a string; the task body lives in
+// tool_input.prompt, not .description).
 //
-// WHAT THIS SCRIPT DOES: after every completed Task call, mechanically derive
-// one relay-state line and upsert it into two files:
+// THE REGRESSION THIS FILE NOW ALSO DODGES: as of Claude Code 2.1.211,
+// subagents run in the BACKGROUND BY DEFAULT. A backgrounded Task's
+// PostToolUse(Agent) fires immediately at DISPATCH time with
+// `tool_response.status: "async_launched"` and NO `content` field — there is
+// no result yet. Before this hotfix, run() went straight to
+// extractText(tool_response.content), found nothing, and wrote a real state
+// line reading "(no result)" — confirmed live, zero real state lines from
+// four real background dispatches in one session. See
+// docs/spec-relay-async-fix.md for the full fix design and the correlator
+// evidence (agentId at dispatch === agent_id at SubagentStop, byte-level
+// confirmed against the installed 2.1.211 binary).
+//
+// WHAT THIS SCRIPT DOES, now on two entry points:
+//   - PostToolUse(Agent), status "completed" (foreground, has content) —
+//     mechanically derive one relay-state line and upsert it, UNCHANGED PATH.
+//   - PostToolUse(Agent), status "async_launched" (background, no content) —
+//     write NOTHING to state; write a marker at
+//     `<config>/.otto-pending/<agentId>.json` recording description,
+//     subagent_type, cwd and a timestamp, so SubagentStop can recover them.
+//   - SubagentStop — if `.otto-pending/<agent_id>.json` exists, recover the
+//     description from it, build the summary from `last_assistant_message`
+//     (which SubagentStop DOES carry), upsert the state line, delete the
+//     marker. If the marker is absent, do nothing — either the foreground
+//     path already wrote the line, or this is a genuine miss.
+// Net: exactly ONE state write per item, on every path. State lines land in:
 //   - `<config>/otto-state-global.md`  — cross-project, tagged `[project]`
 //   - `<cwd>/.claude/otto-state.md`    — this project only, untagged
 // This is a DETERMINISTIC BACKSTOP for the same file agents/otto-foreman.md's
@@ -41,6 +66,7 @@ import {
   renameSync,
   writeFileSync,
   appendFileSync,
+  unlinkSync,
 } from 'node:fs';
 import { join, basename } from 'node:path';
 import { homedir } from 'node:os';
@@ -101,10 +127,10 @@ const LOCK_RETRY_ATTEMPTS = 10;
 const LOCK_RETRY_DELAY_MS = 50;
 
 const LOCAL_HEADER = `<!-- otto-state.md -- recent work, newest first, active among it. Upserted by Otto at relay
-     time (see agents/otto-foreman.md, "Announcing a handoff"), and mechanically backstopped by the
-     PostToolUse hook hooks/otto-state.mjs after every completed Task call -- same grammar, same upsert key.
-     The hook does not replace Otto's own composition; it welds it. There is no clear path: every relay is an
-     upsert, unconditionally, and cleanup is cap-8 RECENCY eviction only -- the 9th distinct item displaces the
+     time (see agents/otto-foreman.md, "Announcing a handoff"), and mechanically backstopped by
+     hooks/otto-state.mjs at Task completion -- SubagentStop for background, PostToolUse for foreground --
+     same grammar, same upsert key. The hook does not replace Otto's own composition; it welds it. There is no clear
+     path: every relay is an upsert, unconditionally, and cleanup is cap-8 RECENCY eviction only -- the 9th distinct item displaces the
      oldest, never a content-based judgment (an earlier design tried to detect "done/shipped/merged/abandoned"
      wording and clear those lines; two rounds of testing found it fails in opposite directions on realistic
      phrasing, so it was removed rather than patched a third time). The robot's own wording carries whatever
@@ -115,8 +141,8 @@ const LOCAL_HEADER = `<!-- otto-state.md -- recent work, newest first, active am
      who clones the project never inherits someone else's "we've already met." -->`;
 
 const GLOBAL_HEADER = `<!-- otto-state-global.md -- recent work across ALL projects on this machine, newest first,
-     active among it. Upserted only by the PostToolUse hook hooks/otto-state.mjs after every completed Task
-     call. Lines are tagged [project] so state from other projects stays identifiable. There is no clear
+     active among it. Upserted only by hooks/otto-state.mjs at Task completion -- SubagentStop for background,
+     PostToolUse for foreground. Lines are tagged [project] so state from other projects stays identifiable. There is no clear
      path: every relay is an upsert, unconditionally, and cleanup is cap-8 RECENCY eviction only across all
      projects combined -- the 9th distinct item displaces the oldest, never a content-based judgment (see
      otto-state.md's header for why a done/shipped/merged/abandoned detector was tried and removed). The
@@ -345,30 +371,84 @@ function writeTarget(path, lockDir, header, key, rendered, tagged) {
   }
 }
 
-// ---------------------------------------------------------------- entry point
+// -------------------------------------------------------- async-pending marker
+// v22.8.2 HOTFIX: Claude Code 2.1.211 runs subagents in the background by
+// default. A backgrounded Task's PostToolUse(Agent) fires at DISPATCH time
+// with tool_response.status "async_launched" and no content — writing a
+// state line from that payload produces "(no result)", not a miss (see file
+// header and docs/spec-relay-async-fix.md). The fix: write nothing at
+// dispatch, park a marker keyed by agentId, and let SubagentStop (which DOES
+// carry the real last_assistant_message, confirmed byte-level against the
+// installed binary) finish the write and clear the marker.
 
-// Takes an already-parsed hook payload and performs the writes. Exported for
-// direct testing (scripts/test-otto-state.mjs) — real filesystem I/O against
-// a scratch config dir and scratch cwd, no mocking.
-export function run(payload, opts = {}) {
-  const env = opts.env || process.env;
-  const home = opts.home || homedir();
+function pendingDir(env, home) {
+  return join(configDirOf(env, home), '.otto-pending');
+}
 
-  if (payload.tool_name !== 'Agent') return; // NOT "Task" — see file header
+// Bars path separators AND `..` traversal by construction — `.` is not in the
+// allowed set, so a sanitized id can never spell a relative path segment.
+// Real agentIds observed in production are lowercase hex (e.g.
+// "a3ca870d880d69a8f"); this is deliberately more permissive than "hex only"
+// so a future id format that adds, say, a dash still files a marker instead
+// of silently vanishing.
+function sanitizeAgentId(id) {
+  const s = String(id ?? '').replace(/[^a-zA-Z0-9_-]/g, '');
+  return s ? s.slice(0, 128) : null;
+}
 
-  const subagentType = payload.tool_input?.subagent_type;
-  if (!subagentType) return;
+function markerPath(env, home, agentId) {
+  return join(pendingDir(env, home), `${agentId}.json`);
+}
 
-  const cls = classify(subagentType);
-  if (cls.skip) return;
+// Fail-silent, same footing as every other write in this file: a marker that
+// fails to write means the eventual SubagentStop finds no marker and no-ops
+// — the item is silently missed, never crashes, never corrupts state.
+function writePendingMarker(payload, subagentType, env, home) {
+  const agentId = sanitizeAgentId(payload.tool_response?.agentId);
+  if (!agentId) return;
+  try {
+    const dir = pendingDir(env, home);
+    mkdirSync(dir, { recursive: true });
+    const marker = {
+      description: payload.tool_input?.description || '(untitled)',
+      subagent_type: subagentType,
+      cwd: payload.cwd || process.cwd(),
+      ts: new Date().toISOString(),
+    };
+    atomicWrite(markerPath(env, home, agentId), JSON.stringify(marker, null, 2));
+  } catch {
+    // Fail soft — a missing marker degrades to "SubagentStop finds nothing,
+    // no-ops," never a crash.
+  }
+}
 
-  const description = payload.tool_input?.description || '(untitled)';
-  const finalText = extractText(payload.tool_response?.content);
-  const summary = summarize(finalText); // verbatim (truncated) — no content inspection, no clear path
+function readPendingMarker(path) {
+  try {
+    if (!existsSync(path)) return null;
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null; // corrupt marker — treated identically to "absent" by the caller
+  }
+}
+
+function deletePendingMarker(path) {
+  try {
+    unlinkSync(path);
+  } catch {
+    // Fail soft: a marker that won't delete is a wart for a future run to
+    // find already-consumed content in, never a crash for this one.
+  }
+}
+
+// ---------------------------------------------------------------- the one write
+
+// Shared by both entry points below so there is exactly one place that ever
+// upserts a state line — the PostToolUse "completed" path and the
+// SubagentStop-recovered path both funnel through this.
+function writeStateLines({ subagentType, cls, description, summary, cwd, env, home }) {
   const slug = slugify(description);
   const date = new Date().toISOString().slice(0, 10);
-
-  const cwd = payload.cwd || process.cwd();
   const configDir = configDirOf(env, home);
   const project = basename(cwd);
 
@@ -410,7 +490,11 @@ export function run(payload, opts = {}) {
   // string compare is structurally blind to: localDir resolves to the user's
   // OWN real `~/.claude`, holding real identity markers, while configDir
   // points at a relocated (sandbox) config elsewhere — see
-  // docs/spec-persona-guard-22.8.1.md §5. ----
+  // docs/spec-persona-guard-22.8.1.md §5. For the SubagentStop-recovered path
+  // `cwd` comes from the marker (the ORIGINAL dispatching session's cwd), so
+  // this guard is re-run here against that recomputed localDir, not assumed
+  // from the dispatch-time check (there wasn't one — dispatch wrote no state
+  // at all, only the marker). ----
   const localDir = join(cwd, '.claude');
   if (localDir !== configDir && !isPersonaRoot(localDir) && existsSync(localDir)) {
     const localKey = `${identifier}::${slug}`;
@@ -433,6 +517,82 @@ export function run(payload, opts = {}) {
       false
     );
   }
+}
+
+// ---------------------------------------------------------------- entry points
+
+// PostToolUse(Agent). "completed" (foreground, has content) upserts a state
+// line exactly as before. "async_launched" (background, no content) writes
+// no state at all — only the pending marker; SubagentStop finishes it.
+function handlePostToolUse(payload, env, home) {
+  if (payload.tool_name !== 'Agent') return; // NOT "Task" — see file header
+
+  const subagentType = payload.tool_input?.subagent_type;
+  if (!subagentType) return;
+
+  const cls = classify(subagentType);
+  if (cls.skip) return;
+
+  if (payload.tool_response?.status === 'async_launched') {
+    writePendingMarker(payload, subagentType, env, home);
+    return; // THE FIX: no state write here — no content exists yet to summarize.
+  }
+
+  const description = payload.tool_input?.description || '(untitled)';
+  const finalText = extractText(payload.tool_response?.content);
+  const summary = summarize(finalText); // verbatim (truncated) — no content inspection, no clear path
+  const cwd = payload.cwd || process.cwd();
+
+  writeStateLines({ subagentType, cls, description, summary, cwd, env, home });
+}
+
+// SubagentStop. Recovers a background dispatch's description/subagent_type/
+// cwd from its marker and finishes the write it deferred; recovers nothing
+// and no-ops if no marker exists (foreground already wrote it via
+// handlePostToolUse's "completed" path, or this is a genuine miss).
+function handleSubagentStop(payload, env, home) {
+  const agentId = sanitizeAgentId(payload.agent_id);
+  if (!agentId) return;
+
+  const path = markerPath(env, home, agentId);
+  const marker = readPendingMarker(path);
+  if (!marker) return; // no marker: foreground already wrote it, or a genuine miss
+
+  const subagentType = marker.subagent_type;
+  if (!subagentType) {
+    deletePendingMarker(path);
+    return;
+  }
+
+  const cls = classify(subagentType);
+  if (cls.skip) {
+    deletePendingMarker(path);
+    return;
+  }
+
+  const description = marker.description || '(untitled)';
+  const summary = summarize(payload.last_assistant_message || '');
+  const cwd = marker.cwd || payload.cwd || process.cwd();
+
+  writeStateLines({ subagentType, cls, description, summary, cwd, env, home });
+  deletePendingMarker(path);
+}
+
+// Takes an already-parsed hook payload and performs the writes. Exported for
+// direct testing (scripts/test-otto-state.mjs) — real filesystem I/O against
+// a scratch config dir and scratch cwd, no mocking. Dispatches on
+// hook_event_name: "SubagentStop" routes to the recovery path; anything else
+// (including payloads with no hook_event_name at all, e.g. every pre-hotfix
+// test fixture) routes to the PostToolUse path unchanged.
+export function run(payload, opts = {}) {
+  const env = opts.env || process.env;
+  const home = opts.home || homedir();
+
+  if (payload.hook_event_name === 'SubagentStop') {
+    handleSubagentStop(payload, env, home);
+    return;
+  }
+  handlePostToolUse(payload, env, home);
 }
 
 function readStdin() {
@@ -460,4 +620,7 @@ if (isMainModule()) {
 }
 
 // Exported for tests only — the hook itself never imports these from outside.
-export { slugify, extractText, summarize, classify, bareType, renderLine, keyOfLine, configDirOf, isPersonaRoot, CAP, BUILTINS, ROBOTS };
+export {
+  slugify, extractText, summarize, classify, bareType, renderLine, keyOfLine, configDirOf,
+  isPersonaRoot, CAP, BUILTINS, ROBOTS, sanitizeAgentId, pendingDir, markerPath,
+};
