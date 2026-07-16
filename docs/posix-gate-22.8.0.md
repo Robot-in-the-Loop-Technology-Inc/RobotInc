@@ -24,7 +24,8 @@ and there is no clear path for any test to false-positive or false-negative on. 
 first turn was a Bash permission dialog, because the model had no permission-free way to resolve
 `CLAUDE_CONFIG_DIR`. This gate is exactly where a payload-shape difference across shells would show up (same
 reasoning as the relay-state hook): the facts block it emits should be byte-identical in structure across
-Windows, macOS, and Linux — the six core `key=value` lines, same order, same header string.
+Windows, macOS, and Linux — the seven core `key=value` lines (six original + `cwd_persona_root`, v22.8.1 —
+see §5 below), same order, same header string.
 
 **v22.8.0 adds a first-run inventory block to that same hook** (`docs/spec-facts-inventory-22.8.0.md` —
 `inv`, `inv_agents`, `inv_agents_project`, `inv_skills`, `inv_commands`, `inv_hooks`, `inv_mcp`; ids and types
@@ -55,21 +56,24 @@ node scripts/test-otto-state.mjs
 node scripts/test-otto-facts.mjs
 ```
 
-**PASS looks like:** both last lines read `40/40 passed` and `29/29 passed` — **no** `✗` lines at all in
-either. There is no known-red list for this build; the terminal-inference machinery that produced one (rounds
-1 and 2, both since deleted — see TASKS.md's "Option C" section) is gone, and every remaining test asserts
-either pure upsert/eviction mechanics or a fact about the payload/grammar, none of which are platform-sensitive
-by design. `test-otto-facts.mjs` includes real subprocess invocations (stdin JSON in, formatted block out),
-Windows-vs-POSIX path-separator normalization cases, and (new in v22.8.0) the first-run inventory — real
-planted agents/skills/commands/settings.json including one deliberate collision, a delimiter-unsafe id, a
-truncation-sized payroll, and a settings.json-as-directory sub-scan failure — the ones most likely to actually
-diverge here.
+**PASS looks like:** both last lines read `44/44 passed` and `40/40 passed` — **no** `✗` lines at all in
+either. (v22.8.1 hotfix note: these were `40/40` / `29/29` before the persona-guard hotfix — see §5 below for
+what the extra 4 + 11 rows cover; a count of `40/40` / `29/29` here means you checked out a pre-hotfix commit,
+not a pass.) There is no known-red list for this build; the terminal-inference machinery that produced one
+(rounds 1 and 2, both since deleted — see TASKS.md's "Option C" section) is gone, and every remaining test
+asserts either pure upsert/eviction mechanics or a fact about the payload/grammar, none of which are
+platform-sensitive by design. `test-otto-facts.mjs` includes real subprocess invocations (stdin JSON in,
+formatted block out), Windows-vs-POSIX path-separator normalization cases, (v22.8.0) the first-run inventory —
+real planted agents/skills/commands/settings.json including one deliberate collision, a delimiter-unsafe id, a
+truncation-sized payroll, and a settings.json-as-directory sub-scan failure — and (v22.8.1) the persona-root
+marker/symlink/injected-throw cases, the ones most likely to actually diverge here.
 
-**Real platform-specific finding:** any `✗` at all in either suite, OR a total other than `40/40` /
-`29/29`, OR any test that is green here and red there (especially `9k` or `G7` in `test-otto-state.mjs` —
+**Real platform-specific finding:** any `✗` at all in either suite, OR a total other than `44/44` /
+`40/40`, OR any test that is green here and red there (especially `9k` or `G7` in `test-otto-state.mjs` —
 both spawn real concurrent `node` child processes and are the two most likely to diverge on POSIX lock
 semantics; for `test-otto-facts.mjs`, watch the truncation and populated-payroll tests specifically, since
-they're the ones exercising real `readdirSync` enumeration order).
+they're the ones exercising real `readdirSync` enumeration order — and, new in v22.8.1, the `R15` symlink test,
+which is the one row in this whole suite most likely to behave differently across platforms on purpose, see §5).
 
 ## 3. Run the validation gate
 
@@ -223,12 +227,73 @@ rm -rf "$SANDBOX3"
 
 | Symptom | Likely meaning |
 |---|---|
-| Step 2 or 3 differs from the expected counts above (anything less than `40/40` / `29/29`, or `validate.mjs` non-zero) | A real regression — stop, do not fix it yourself, report the exact diff back. |
+| Step 2 or 3 differs from the expected counts above (anything less than `44/44` / `40/40`, or `validate.mjs` non-zero) | A real regression — stop, do not fix it yourself, report the exact diff back. |
 | Session 3's card draw shows a Bash directory-listing call, or the staff table is missing/wrong despite `inv=ok` in the transcript | **The inventory either didn't reach the model or wasn't honored.** Confirm `hooks/otto-facts.mjs` emitted `inv=ok` at all (grep the transcript for `inv=`) before assuming the protocol text is at fault — an `inv=error` or `inv=off` here would mean the gather-gate or a sub-scan itself is the real bug, not the consumer. |
 | Session 1 replies normally but `otto-state-global.md` never appears (step 4 `cat` shows "No such file") | **The relay-state hook didn't fire.** This is the exact failure mode `docs/hook-events.md` documents for Windows (matcher `"Task"` vs delivered `tool_name: "Agent"`, or the `hooks.json` `"type"` trap) — if it resurfaces here, it means one of those traps is Windows-specific and POSIX behaves differently, which would be a significant new finding. |
 | The `CLAUDE_CONFIG_DIR` grep above prints a Bash call, or a reply visibly narrates checking an env var | **The facts hook didn't fire, or its output was malformed.** Two independent SessionStart entries are registered (`hooks.json`) — confirm both exist (`grep -A2 SessionStart hooks/hooks.json` should show two `"matcher": "startup"` blocks) and that `hooks/otto-facts.mjs` is executable by the `node` on this machine's PATH. Protocol text explicitly falls through to the old shell-required path when the facts block is absent or malformed — this is the documented, non-regressive fallback, but it means the OLD bug is still reachable if the new hook fails to run. |
 | The file appears but is empty, or the reply mentions an error | **`node` not found from the hook's spawn environment.** Both `otto-state.mjs` and `otto-facts.mjs` are fail-silent by design (no crash, no stdout) — an *empty* result with no error text is consistent with `node` resolving fine in your interactive shell but not in the environment Claude Code's hook spawns from (a common PATH gotcha on macOS, less so on Linux). Check `which node` and compare to what a hook subprocess would see. |
 | `G7` or `9k` (the real concurrent-process tests) go red here but were green on Windows, or the live sequence's global file shows a corrupted/duplicate line after Session 1 | **Lock/`mkdir` semantics differ.** The lock is `mkdirSync`-based (atomic on POSIX, atomic on NTFS, but the *retry/backoff and EEXIST error surface* can differ). This is precisely the kind of thing this gate exists to catch — report the exact file contents, not just "it failed." |
+
+---
+
+## 5. Addendum — v22.8.1 hotfix (`hotfix/22.8.1-persona-guard`, `docs/spec-persona-guard-22.8.1.md`)
+
+Folded in per that spec's §9, so the Mac run already owed above also covers this hotfix — do not run a
+separate gate for it. Check out `hotfix/22.8.1-persona-guard` instead of the feature branch in step 1 if this
+is the commit under test; everything else in this doc (steps 1–4, the failure table) applies unchanged.
+
+**What changed:** a cross-persona confidentiality leak (case 3 — a relocated `CLAUDE_CONFIG_DIR` sandbox
+session reading, and even *writing* — in **two** independent ways — another persona's real
+`~/.claude/otto-state.md`) across all **five** surfaces that shared the broken discriminator. New core fact
+`cwd_persona_root`; see the spec for the full ruling. Rev 2 (Glitchtrap's live-repro at `4bd3f72`) added S5 —
+the model's own prompt-driven hand-write in `agents/otto-foreman.md`'s "Announcing a handoff" step 2, which the
+S4 hook cannot backstop because the model writes the file directly, before the hook ever fires.
+
+1. **Test counts (already reflected above):** `test-otto-facts.mjs` rises from 29/29 to **40/40** (11 new rows
+   — R2–R5, R6 regression, R7, R8–R9, R14–R15); `test-otto-state.mjs` rises from 40/40 to **44/44** (4 new rows
+   — R10, R10b, R11, R12, the S4 write-corruption guard). Both counts are already the ones step 2 above expects,
+   and both are unchanged by S5 — **S5 is prose, not code, and has no unit test by construction** (spec §6.3);
+   it is verified only by the live gate below, never by these two suites. A green `test-otto-*.mjs` run does
+   **not** mean S5 is covered.
+2. **Marker-detection parity:** with a planted persona root (each of the three markers —
+   `otto-profile.json`, `.otto-met`, `otto-state-global.md` — individually) under a POSIX cwd,
+   `cwd_persona_root=true` must fire identically on Windows, macOS, and Linux (`test-otto-facts.mjs`'s three
+   R5 rows exercise this already; nothing extra to run by hand). Marker filenames are fixed ASCII — no
+   separator/case exposure — the one thing worth an eyeball check is that the `join(cwd, '.claude', marker)`
+   path in a failure message (if any) is built with `/` on this machine, not a stray `\`.
+3. **Case-3 BLOCK under POSIX:** re-confirm via the live sequence's Session 1 setup — plant real identity
+   markers (`.otto-met`, `otto-profile.json`) plus a real `otto-state.md` under `$SANDBOX/home-persona/.claude`
+   *before* running Session 1's dispatch (i.e. treat `home-persona/` as if it were the user's real home, the way
+   §4's own note under Session 1 already flags as "verified separately, off this runbook" for the
+   `cwd_is_config_dir` collision) — then confirm the card draws fresh (no "welcome back"), the reply never
+   contains the planted table content, and `otto-state-global.md` under `$SANDBOX` is unaffected. This is R2
+   (reader skip), R8 (inventory omit — pair with a planted `agents/` dir under that same `.claude`), R10 (no
+   foreign hook write), and **R18 (no foreign hand-write — the model must not Read+Edit the planted
+   `otto-state.md` at all)** all in one pass.
+4. **Symlink edge (R15):** POSIX-relevant on purpose — `existsSync` following a symlink is filesystem/OS
+   behavior, not Node behavior, so this is the one row most likely to genuinely diverge. `test-otto-facts.mjs`'s
+   R15 test creates the symlink itself (`fs.symlinkSync(realConfig, cwdClaudeDir, 'junction')`) and
+   self-skips with a logged line rather than failing red if link creation is permission-gated on this
+   machine — if you see that skip line in the `test-otto-facts.mjs` output, re-run once with elevated
+   permissions or report the skip explicitly; a silent skip here is not the same as a verified PASS for this
+   specific row.
+5. **Live gate on POSIX — `docs/persona-guard-live-gate-22.8.1.md` — hard ship blocker, not optional:** run
+   the full three-assertion procedure there (fixture + canary, relocated `CLAUDE_CONFIG_DIR`, a real Task
+   dispatch, SHA-256 before/after of the foreign `otto-state.md`) on macOS and Linux. This is the **only**
+   thing in this whole gate that proves S1/S2/S5 — the three prompt-driven guards no unit suite can reach.
+   Bitforge ran it once on Windows (results recorded in that doc's own run log) as the best available proxy for
+   the model-driven S5 half, given no nested `Task` tool in that harness; the Mac/Linux run here is the first
+   time it runs against a *genuine* live Task dispatch end-to-end, and is the one Glitchtrap named as the actual
+   ship gate. **PASS looks like:** the before/after SHA-256 of the fixture's `otto-state.md` are identical in
+   both the healthy-facts (R18) and facts-absent (R19) runs, and the genuine-project regression (R20) shows the
+   local file *gaining* the relay line. Any hash mismatch on R18/R19 is the S5 leak reopening — stop, do not
+   patch it yourself, report the exact before/after content back.
+
+**Deferred to 22.9, not part of this gate:** unifying the two persona-root marker definitions
+(facts hook + writer) behind one shared source of truth, normalizing the writer's `localDir !== configDir`
+to a `realpath`-based compare like the reader's, and the session-open-cwd staleness noted in the spec's §4.4
+(the hand-write's facts snapshot goes stale if the user `cd`s mid-session). See
+`docs/spec-persona-guard-22.8.1.md` §8 and TASKS.md.
 
 ---
 

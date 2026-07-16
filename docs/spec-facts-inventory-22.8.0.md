@@ -70,6 +70,7 @@ profile=absent
 state_local=absent
 state_global=absent
 cwd_is_config_dir=false
+cwd_persona_root=false
 inv=ok
 inv_agents=db-migrator,bitforge-engineer*,my-planner
 inv_agents_project=code-reviewer
@@ -78,6 +79,11 @@ inv_commands=ship
 inv_hooks=PreToolUse,PostToolUse
 inv_mcp=github,linear
 ```
+
+> **v22.8.1 hotfix note:** `cwd_persona_root` (7th core line, wired immediately after `cwd_is_config_dir`) was
+> added by `docs/spec-persona-guard-22.8.1.md` to close a cross-persona confidentiality leak that ruling (a)
+> below (§8a) inverted rather than fixed. See that spec for the full discriminator; this example is kept in
+> lockstep with `scripts/test-otto-facts.mjs`'s byte-for-byte assertion of the same block.
 
 ### 3.2 Field rules
 

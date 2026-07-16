@@ -39,6 +39,7 @@ import {
   mkdirSync,
   existsSync,
   readFileSync,
+  writeFileSync,
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -204,6 +205,87 @@ record('9a. home-dir persona: global fires, local skipped', () => {
   }), { env: {}, home: homeDir });
   assert(existsSync(globalPath(realConfigDir)), 'global should be written for home-dir persona');
   assert(!existsSync(localPath(homeDir)), 'local (<home>/.claude/otto-state.md) must NOT be written — that path IS the config dir');
+});
+
+// ---------------------------------------------------------------- R10-R12: persona-root write guard (v22.8.1 hotfix, S4)
+// docs/spec-persona-guard-22.8.1.md §5, §7 — the write-corruption surface.
+// `localDir !== configDir` alone is the reader's broken `cwd_is_config_dir`
+// discriminator wearing a writer hat: it only catches THIS session's own
+// config dir, not some OTHER machine's real persona root reached because
+// CLAUDE_CONFIG_DIR was relocated. Before this hotfix, R10 below appended a
+// sandbox relay line into the user's real ~/.claude/otto-state.md on every
+// Task dispatch — a one-way write-corruption, reproduced live.
+
+record('R10: sandbox session dispatches a Task, cwd=home persona root, configDir=sandbox -- S4 write-corruption closed, real otto-state.md byte-unchanged', () => {
+  const home = mkdtempSync(join(tmpdir(), 'otto-state-r10-home-'));
+  scratchDirs.push(home);
+  const sandboxConfig = mkdtempSync(join(tmpdir(), 'otto-state-r10-sandbox-'));
+  scratchDirs.push(sandboxConfig);
+  // home's REAL .claude is a persona root (holds a real identity marker) AND already has a real, pre-existing
+  // otto-state.md with the user's own actual work on it -- exactly the file S4 must never touch.
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude', '.otto-met'), '2026-07-01\n');
+  const realStatePath = localPath(home);
+  const realStateBefore = '<!-- otto-state.md real header --> \n\n· real pre-existing line\n';
+  writeFileSync(realStatePath, realStateBefore);
+
+  runWith(sandboxConfig, home, payload({
+    subagentType: 'bitforge-engineer',
+    description: 'sandbox dispatch',
+    text: 'this must never land in the real file',
+    cwd: home,
+  }));
+
+  assert(existsSync(globalPath(sandboxConfig)), 'global (sandbox config) should still be written -- global is unaffected by S4');
+  assert(readFileSync(realStatePath, 'utf8') === realStateBefore, 'S4: the real ~/.claude/otto-state.md must be byte-unchanged -- no sandbox relay line appended');
+});
+
+record('R10b: same scenario, no pre-existing real otto-state.md -- S4 must not CREATE one either', () => {
+  const home = mkdtempSync(join(tmpdir(), 'otto-state-r10b-home-'));
+  scratchDirs.push(home);
+  const sandboxConfig = mkdtempSync(join(tmpdir(), 'otto-state-r10b-sandbox-'));
+  scratchDirs.push(sandboxConfig);
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude', 'otto-profile.json'), '{"seats":["Generalist / Solo"]}');
+
+  runWith(sandboxConfig, home, payload({
+    subagentType: 'bitforge-engineer',
+    description: 'sandbox dispatch, no prior file',
+    text: 'must not create a local relay in a foreign persona root',
+    cwd: home,
+  }));
+
+  assert(!existsSync(localPath(home)), 'S4: no local otto-state.md should be created in a foreign persona root');
+});
+
+record('R11: genuine project dispatches a Task -- S4 fix does not break normal relay, local write still happens', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  runWith(configDir, configDir, payload({
+    subagentType: 'bitforge-engineer',
+    description: 'normal project work',
+    text: 'ordinary relay, no persona markers anywhere near this project',
+    cwd: projectDir,
+  }));
+  assert(existsSync(localPath(projectDir)), 'R11: a genuine project (no persona markers) must still get its local write');
+  assert(readLines(localPath(projectDir)).length === 1, 'R11: local file should carry the one written line');
+});
+
+record('R12: cwd==configDir (via CLAUDE_CONFIG_DIR override) dispatches a Task -- writer\'s existing localDir!==configDir guard intact, local write skipped', () => {
+  const projectDir = mkdtempSync(join(tmpdir(), 'otto-state-r12-'));
+  scratchDirs.push(projectDir);
+  // Point CLAUDE_CONFIG_DIR AT this project's own .claude dir -- localDir === configDir by the string
+  // compare alone, independent of the persona-root markers (R12 is about the ORIGINAL guard, not the new one).
+  const configDir = join(projectDir, '.claude');
+  mkdirSync(configDir, { recursive: true });
+  runWith(configDir, configDir, payload({
+    subagentType: 'bitforge-engineer',
+    description: 'cwd is configDir',
+    text: 'must not write locally -- local IS the config dir here',
+    cwd: projectDir,
+  }));
+  assert(existsSync(globalPath(configDir)), 'global should still be written');
+  assert(!existsSync(localPath(projectDir)), 'R12: local write must stay skipped when localDir === configDir, exactly as before this hotfix');
 });
 
 // ---------------------------------------------------------------- 9b: custom CLAUDE_CONFIG_DIR (writer half only)

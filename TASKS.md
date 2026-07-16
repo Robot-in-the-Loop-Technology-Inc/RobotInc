@@ -827,14 +827,24 @@ pointing at rulings (a) and (b) above instead of sitting open.
 ---
 
 - [x] **10. HARD GATE: macOS/Linux POSIX sh verification**  
-  *Owner: Glitchtrap* · *Depends on (9)* · **WAIVED BY ANDREW 2026-07-15; OWE POST-MERGE**
-  - Full sequence run on **macOS or Linux** with POSIX sh (not bash, not zsh — strict sh)
-  - Prerequisite verification (from v22.7.0): SessionStart hook also verified on macOS/Linux
-  - Test sequence: install → clean state → call crew agent → hook fires → state written → session-open reads state → brief shows line
-  - Platform: **at least one of macOS or Linux must pass; if both fail, escalate**
-  - Rollback: if verification fails, do not publish; escalate
+  *Owner: Glitchtrap* · *Depends on (9)* · **WAIVED BY ANDREW 2026-07-15; OWE POST-MERGE (22.8.0 + 22.8.1)**
   
-  **Verify:** Waived by Andrew per explicit authorization 2026-07-15; defer post-merge test to Mac hardware; recorded in merge commit
+  **Scope:** SessionStart hook + facts injection (22.8.0) + persona-guard surfaces S1–S5 (22.8.1)
+  
+  **22.8.0 core tests (existing):**
+  - Full sequence run on **macOS or Linux** with POSIX sh (not bash, not zsh — strict sh)
+  - Prerequisite verification (from v22.7.0): SessionStart echo trigger verified on macOS/Linux
+  - Test sequence: install → clean state → call crew agent → hook fires → state written → session-open reads state → brief shows line
+  
+  **22.8.1 persona-guard live-gate tests (R18–R20, per docs/persona-guard-live-gate-22.8.1.md §7.3):**
+  - **R18:** Relocated `CLAUDE_CONFIG_DIR` (sandbox), `cwd` = foreign persona root (all three markers present). Dispatch a real Task → S5 model hand-write + S4 hook must not corrupt foreign file. Fixture SHA-256 before/after must match; transcript must not leak persona canary; brief must show fresh card, not "welcome back."
+  - **R19:** Facts absent/malformed (facts hook disabled). Same Task dispatch setup as R18 → S5 must fail-toward-skip on missing facts (no write attempt); S4 hook still independent.
+  - **R20:** Genuine project directory (no persona markers in `.claude/`, no `CLAUDE_CONFIG_DIR` override). Same Task dispatch → S5 and S4 must successfully write to the legitimate project-local file.
+  
+  - Platform: **at least one of macOS or Linux must pass; if both fail, escalate**
+  - Rollback: if any test fails, do not publish; escalate
+  
+  **Verify:** Waived by Andrew per explicit authorization 2026-07-15; defer full sequence + R18–R20 to post-merge Mac hardware; recorded in merge commit. POLICY: no third consecutive release with untested POSIX gates.
 
 ---
 
@@ -911,6 +921,59 @@ pointing at rulings (a) and (b) above instead of sitting open.
 - Tag separation by project in global state (already scoped for v22.8.0)
 - Full project-aware filtering in brief reader
 - Status: tagged structure ready; filtering deferred (Phase 3)
+
+---
+
+# Hotfix v22.8.1: Persona-Root Guard — TASKS
+
+**Spec:** `docs/spec-persona-guard-22.8.1.md` (Vector, ratified, rev 2) · **Branch:**
+`hotfix/22.8.1-persona-guard` off `main` @ `2810e51` · **Built by:** Bitforge · **Verifies:** Glitchtrap
+(T3 re-gate)
+
+Amends ruling (a) in `docs/spec-facts-inventory-22.8.0.md` §8a, which shipped and inverted its own intent:
+`cwd_is_config_dir` compares `<cwd>/.claude` against *this session's* active config, not against "is this
+*any* persona root" — a relocated `CLAUDE_CONFIG_DIR` (sandbox) session with `cwd` = the user's real home
+read the real `~/.claude/otto-state.md` as project evidence (a live, screenshot-verified read leak). New core
+fact `cwd_persona_root` (existence-only, three markers, fail-toward-block) closes **all five surfaces** that
+shared the discriminator, across two write paths (**S4**, the hook backstop, **S5**, the model's own
+prompt-driven hand-write — Glitchtrap live-reproduced S5 leaking twice at `4bd3f72`, once with a fully healthy
+hook, proving S4 alone cannot save it) and three read/inventory paths (S1, S2, S3).
+
+- [x] `cwd_persona_root` fact added to `hooks/otto-facts.mjs` (core, computed every session)
+- [x] `otto-foreman.md` step 1 override (a) and step 5 gated on `cwd_is_config_dir OR cwd_persona_root` (S1, S2)
+- [x] `gatherInventory`'s `inv_agents_project` guard extended the same way (S3)
+- [x] `hooks/otto-state.mjs` local-write guard extended with `isPersonaRoot()` (S4 — the hook write-corruption)
+- [x] `agents/otto-foreman.md` "Announcing a handoff" step 2 gated the same way, fail-toward-**skip** on
+      absent/partial facts (S5 — the model's own hand-write; the primary write path, S4 is only its backstop)
+- [x] `test-otto-facts.mjs`: 29/29 → 40/40; `test-otto-state.mjs`: 40/40 → 44/44; `validate.mjs` green — S5 is
+      prose, has no unit test by construction (spec §6.3), verified only by the live gate below
+- [x] `docs/persona-guard-live-gate-22.8.1.md` created (spec §7.3) and run once on this branch: R18
+      (healthy facts, foreign persona root) and R19 (facts absent) both hash-identical before/after on the
+      fixture's `otto-state.md`; R20 (genuine project) shows the local file correctly gaining the relay line.
+      Run methodology note: no nested `Task` tool available in Bitforge's harness, so S4 ran as a real hook
+      subprocess and S5 was exercised by applying the amended prompt text directly (as the acting model) with
+      SHA-256 hash proof of restraint/action — **Glitchtrap should re-run this against a genuine live Task
+      dispatch** (the same setup as the original `4bd3f72` repro) as the actual ship-gate confirmation.
+- [x] Live repro (S1-S4, prior rev): both the original case-3 read leak and the S4 write-corruption reproduced
+      against pre-fix `main` and confirmed closed against the patched branch
+- [x] `docs/posix-gate-22.8.0.md` §5 addendum — folds the hotfix (now including the live gate) into the
+      already-owed Mac gate, no separate run
+
+**Deferred to 22.9 (genuinely separable, none re-opens case 3 — spec §8):**
+
+- **22.9-D1** — Writer's `localDir !== configDir` (`hooks/otto-state.mjs`) is a raw string compare, not
+  `realpath`-normalized like the reader's `cwd_is_config_dir` (`hooks/otto-facts.mjs`'s `normalizeForCompare`).
+  Latent Windows-casing / separator gap. Low-sev now: the S4 marker test backstops the primary leak regardless.
+- **22.9-D2** — Unify the persona-root marker definition. It now ships in two **code** places
+  (`hooks/otto-facts.mjs`'s `PERSONA_ROOT_MARKERS` + `hooks/otto-state.mjs`'s `PERSONA_ROOT_MARKERS`),
+  byte-identical by review only — S5 already consumes the fact rather than adding a third definition. Extract
+  one shared module + a `validate.mjs` cross-check, mirroring the `STOCK_AGENT_IDS` / `ROBOTS`-map gates — a
+  rule held in two spots drifts. Also address the session-open-cwd staleness noted in spec §4.4: the
+  hand-write's facts snapshot goes stale if the user `cd`s mid-session (decide whether S5 should ever re-probe).
+- **22.9-D3** — Generalize the **named-facts rule** (`docs/spec-hardening-22.9.md`, in progress, not yet
+  touched by this hotfix): no cwd-relative persona-boundary action anywhere computes its own
+  `cwd_is_config_dir`-style comparison; all consume the named facts, fail-toward-skip for writes. S5 is the
+  first application; 22.9 makes it doctrine.
 
 ---
 

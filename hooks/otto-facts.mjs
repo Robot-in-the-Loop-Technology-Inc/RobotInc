@@ -38,8 +38,17 @@
 // convenience layered on top, same footing as otto-trace.mjs and
 // otto-state.mjs.
 //
-// EXISTENCE CHECKS ONLY, for the six core facts — not the sentinel's
+// EXISTENCE CHECKS ONLY, for the seven core facts — not the sentinel's
 // timestamp, not the profile's seats key, nothing.
+//
+// v22.8.1 HOTFIX ADDS cwd_persona_root: `cwd_is_config_dir` alone answers
+// "is <cwd>/.claude THIS session's active config" — it is blind to <cwd>/.claude
+// being SOME OTHER machine's real persona root when CLAUDE_CONFIG_DIR is
+// relocated (a sandbox session, cwd=home). That gap let a relocated-config
+// session read and even WRITE a foreign persona's real otto-state.md,
+// reproduced live (see docs/spec-persona-guard-22.8.1.md). `cwd_persona_root`
+// closes it: an OR of the two predicates, never a replacement for either
+// (see cwdPersonaRoot() below).
 //
 // v22.8.0 ADDS ONE narrower, separately-scoped capability: a first-run-only
 // INVENTORY of the user's own payroll (agent/skill/command ids, settings.json
@@ -137,6 +146,33 @@ function existsFlag(p) {
   }
 }
 
+// Config-dir-exclusive identity artifacts (spec-persona-guard-22.8.1.md §2).
+// None of these ever legitimately appears in a genuine project's `.claude/`
+// — they are per-machine identity/global-state, not per-project — so any one
+// present is sufficient and decisive. `otto-state.md` is deliberately NOT a
+// marker: it is the one file a genuine project legitimately owns.
+// Byte-identical to hooks/otto-state.mjs's own marker list (isPersonaRoot) —
+// two definitions of "persona root" ship in this hotfix, unified in 22.9-D2.
+const PERSONA_ROOT_MARKERS = ['otto-profile.json', '.otto-met', 'otto-state-global.md'];
+
+// `<cwd>/.claude` is a persona root iff it holds any of the three markers.
+// Existence checks only, three of them — no path comparison, no
+// normalizeForCompare (spec §2, "realpath / edge cases"). Fail-toward-BLOCK,
+// the OPPOSITE polarity of existsFlag() above: a missed persona root
+// re-opens the case-3 leak; a false positive only skips a local read/write,
+// cosmetic and self-correcting next session (spec §2's asymmetry argument).
+// existsSync itself never throws — an EACCES marker reads absent, not an
+// error, an accepted residual identical in class to existsFlag's own
+// fail-closed choice above; the try/catch here is for anything else that
+// could throw while resolving the three paths.
+export function cwdPersonaRoot(cwdClaudeDir) {
+  try {
+    return PERSONA_ROOT_MARKERS.some((marker) => existsSync(join(cwdClaudeDir, marker)));
+  } catch {
+    return true;
+  }
+}
+
 // ------------------------------------------------------------- inventory
 
 // Basenames of `*.md` files directly under `dir` (agents, commands — same
@@ -210,10 +246,12 @@ function withCollisionFlags(ids) {
 }
 
 // Raw gather, no cap applied yet. `agentsProject` is `null` (not `[]`) when
-// `cwdIsConfigDir` is true — omitted from the wire format entirely per spec
-// §3.2, not just rendered empty, because cwd IS the config dir there and a
-// second scan would double-count the same directory.
-function gatherInventory(configDir, cwd, cwdIsConfigDir) {
+// `cwdIsConfigDir` OR `cwdPersonaRoot` is true — omitted from the wire format
+// entirely per spec §3.2/§3.3(22.8.1), not just rendered empty: cwd IS the
+// config dir (double-count) or `<cwd>/.claude` is some OTHER machine's real
+// persona root (S3, spec-persona-guard-22.8.1.md §1.1) — either way, not this
+// project's own agents directory.
+function gatherInventory(configDir, cwd, cwdIsConfigDir, cwdPersonaRootFlag) {
   let subScanFailed = false;
   let delimiterUnsafe = false;
 
@@ -231,7 +269,7 @@ function gatherInventory(configDir, cwd, cwdIsConfigDir) {
   const agents = withCollisionFlags(sanitize(agentsRes.ids));
 
   let agentsProject = null;
-  if (!cwdIsConfigDir) {
+  if (!cwdIsConfigDir && !cwdPersonaRootFlag) {
     const projectRes = listMdBasenames(join(cwd, '.claude', 'agents'));
     noteScan(projectRes);
     agentsProject = withCollisionFlags(sanitize(projectRes.ids));
@@ -323,14 +361,14 @@ function applyTruncation(gathered) {
 // Gate: gather ONLY on a genuine first run (spec §4). Every other session —
 // the overwhelming majority, steady-state — pays exactly one marker line.
 // Wrapped in its own try/catch, isolated from core-fact computation: an
-// unexpected throw here must never take the six core facts down with it
+// unexpected throw here must never take the seven core facts down with it
 // (spec §7). Exported for direct testing of that isolation.
 export function computeInventoryFacts(core, cwd) {
   if (!(core.sentinel === 'absent' && core.profile === 'absent')) {
     return { inv: 'off' };
   }
   try {
-    const gathered = gatherInventory(core.config_dir, cwd, core.cwd_is_config_dir);
+    const gathered = gatherInventory(core.config_dir, cwd, core.cwd_is_config_dir, core.cwd_persona_root);
     const capped = applyTruncation(gathered);
     const status = capped.truncated || gathered.subScanFailed || gathered.delimiterUnsafe ? 'partial' : 'ok';
     const result = {
@@ -368,6 +406,7 @@ export function computeFacts(payload, opts = {}) {
     state_local: existsFlag(join(cwd, '.claude', 'otto-state.md')),
     state_global: existsFlag(join(configDir, 'otto-state-global.md')),
     cwd_is_config_dir: normalizeForCompare(join(cwd, '.claude')) === normalizeForCompare(configDir),
+    cwd_persona_root: cwdPersonaRoot(join(cwd, '.claude')),
   };
 
   return { ...core, ...computeInventoryFacts(core, cwd) };
@@ -385,6 +424,7 @@ export function formatFacts(facts) {
     `state_local=${facts.state_local}`,
     `state_global=${facts.state_global}`,
     `cwd_is_config_dir=${facts.cwd_is_config_dir}`,
+    `cwd_persona_root=${facts.cwd_persona_root}`,
   ];
   if (facts.inv !== undefined) {
     // Under off/error there are no inv_* lines at all (spec §3.2) — pass an
