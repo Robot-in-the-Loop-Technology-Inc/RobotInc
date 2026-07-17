@@ -124,6 +124,16 @@ Its load-bearing rule is a consequence of (B)'s *blindfolded painter*: **the fre
 the ruled-out list — never the failed reasoning.** Hand over the thinking that produced three wrong answers and
 you have not brought in fresh eyes, **you have transplanted the anchor.**
 
+**RESOLVED (2026-07-17) — escalation is two moves, not one, and both are re-dispatch, never self-switch.**
+Otto runs `model: inherit` and cannot change his own model — that stands. But we had it backwards on whether
+Otto could change a *robot's* model: a Task dispatch carries a per-invocation `model` override that **beats
+the subagent's frontmatter pin** (confirmed against Claude Code's own model-resolution order), so Otto can put
+any robot on opus at dispatch time. That gives two levers, not one — route the hard *design* call to the robot
+already pinned high (🟣 Vector), or **dispatch the owning robot on opus** for a hard *build*, since no robot
+but Vector runs opus by default. A robot still cannot upgrade itself mid-task; it stops, reports the symptom
+and the ruled-out list, and Otto re-dispatches it. **STANDING RULE (Andrew-approved): a genuinely hard build,
+and any robot that trips the stuck-loop ladder, goes back out on opus.**
+
 **Somebody owns it.** Any work crossing two departments has **one named owner** — a single robot accountable for
 the *outcome*, not merely for its own turn of it. Owning does not mean doing; it means **it is not finished until
 it works**, and when it comes back wrong it is theirs again. This is the failure no doctrine source names because
