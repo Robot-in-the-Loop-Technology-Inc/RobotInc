@@ -23,7 +23,7 @@
 - Task 8: **MANDATORY negative test** (Glitchtrap; gate; clean machine confirms "nothing found", no invented residue)
 
 **Phase 3 — Version and release:**
-- Task 9: Version bump 22.8.4 → 22.9.0 (package.json + VERSION files)
+- Task 9: Version bump 22.8.4 → 22.9.0 (`.claude-plugin/plugin.json` "version" + `RobotInc.md` frontmatter)
 - Task 10: Update CHANGELOG.md with 22.9.0 entry
 - Task 11: **RELEASE GATE** (Gantry; final sign-off before merge)
 
@@ -37,7 +37,7 @@
 
 **File:** README.md (`## Install` section)  
 **Spec ref:** B, first half  
-**Owner:** Bitforge | **Status:** TODO
+**Owner:** Bitforge | **Status:** DONE
 
 Add CLI path block directly beneath the existing slash-command install block:
 - Syntax: `claude plugin marketplace add Robot-in-the-Loop-Technology-Inc/RobotInc` followed by `claude plugin install robotinc@robotinc --scope user -y`
@@ -51,7 +51,7 @@ Add CLI path block directly beneath the existing slash-command install block:
 
 **File:** README.md (new peer section, same level as `## Install`)  
 **Spec ref:** B, second half  
-**Owner:** Bitforge | **Status:** TODO
+**Owner:** Bitforge | **Status:** DONE
 
 Create new `## Uninstall` section with:
 - Point to `/robotinc:offboard` as guided path
@@ -66,7 +66,7 @@ Create new `## Uninstall` section with:
 
 **File:** README.md (`## Staying up to date` section, near top)  
 **Spec ref:** C, first half  
-**Owner:** Bitforge | **Status:** TODO
+**Owner:** Bitforge | **Status:** DONE
 
 Add this sentence at the beginning of "Staying up to date":
 "Short answer: **CI, not CD.** Every release is gated by our own pipeline before it publishes (validated, version-bumped, or it doesn't ship) — that part is automatic on our side. Getting it onto your machine is still pull, not push: manual command, or an opt-in auto-update toggle you turn on yourself. Nobody's crew changes under them without a signal they asked for."
@@ -79,7 +79,7 @@ Add this sentence at the beginning of "Staying up to date":
 
 **File:** README.md (bottom of `## Staying up to date` section)  
 **Spec ref:** C, second half  
-**Owner:** Bitforge | **Status:** TODO | **Depends on:** Task 2
+**Owner:** Bitforge | **Status:** DONE | **Depends on:** Task 2
 
 Add reference line: "For removal guidance, see `## Uninstall`."
 - Verify: Link clear, Uninstall section exists
@@ -91,7 +91,7 @@ Add reference line: "For removal guidance, see `## Uninstall`."
 
 **File:** commands/offboard.md (new)  
 **Spec ref:** A (full section)  
-**Owner:** Bitforge | **Status:** TODO
+**Owner:** Bitforge | **Status:** DONE
 
 Build the command with:
 
@@ -137,7 +137,7 @@ description: Offboard from RobotInc — safely remove files, review settings, or
 
 **File:** agents/otto-foreman.md  
 **Spec ref:** A, "Requirement, not optional"  
-**Owner:** Bitforge | **Status:** TODO | **Depends on:** Task 5
+**Owner:** Bitforge | **Status:** DONE | **Depends on:** Task 5
 
 Add one routing line to Otto's system prompt: Route "how do I uninstall this," "turn RobotInc off," "I want this gone" → `/robotinc:offboard`
 - Keep it one short line (budget ~2,933 tok always-on already allocated)
@@ -150,7 +150,7 @@ Add one routing line to Otto's system prompt: Route "how do I uninstall this," "
 
 **Command:** `node scripts/validate.mjs` (must pass green)  
 **Spec ref:** A, sequencing note  
-**Owner:** Bitforge | **Status:** TODO | **Depends on:** Tasks 5–6
+**Owner:** Bitforge | **Status:** DONE | **Depends on:** Tasks 5–6
 
 Run validator, must pass with zero errors (checks command structure, doctrine gates, crew roster, no hardcoded paths, etc.)
 - Verify: Zero errors, all checks passed
@@ -174,12 +174,13 @@ Run `/robotinc:offboard` on a clean sandbox (fresh empty CLAUDE_CONFIG_DIR, zero
 
 ### 9. Version bump: 22.8.4 → 22.9.0
 
-**Files:** package.json, VERSION file (or equivalent)  
+**Files:** `.claude-plugin/plugin.json` (`"version"` field), `RobotInc.md` (frontmatter `version:`) — this repo
+has no `package.json`/`VERSION` file; `scripts/validate.mjs` enforces these two agree.  
 **Owner:** Bitforge | **Status:** TODO | **Depends on:** Task 8
 
-Bump all version-source files from 22.8.4 to 22.9.0 (new user-facing feature, minor bump per semver)
-- Verify: Consistent across all files, format matches existing entries, no accidents
-- Rollback: `git checkout package.json [VERSION files]`
+Bump both version-source files from 22.8.4 to 22.9.0 (new user-facing feature, minor bump per semver)
+- Verify: Consistent across both files, format matches existing entries, no accidents, `node scripts/validate.mjs` passes
+- Rollback: `git checkout .claude-plugin/plugin.json RobotInc.md`
 
 ---
 
@@ -224,13 +225,13 @@ Output: **READY TO MERGE** (hand to Otto) OR **BLOCKED** (name task and blocker,
 
 | Task | Description | Status | Owner | Deps |
 |------|-------------|--------|-------|------|
-| 1 | README CLI path | TODO | Bitforge | — |
-| 2 | README Uninstall section | TODO | Bitforge | — |
-| 3 | README CI/CD sentence | TODO | Bitforge | — |
-| 4 | README cross-link | TODO | Bitforge | 2 |
-| 5 | commands/offboard.md | TODO | Bitforge | — |
-| 6 | otto-foreman routing | TODO | Bitforge | 5 |
-| 7 | validator run | TODO | Bitforge | 5, 6 |
+| 1 | README CLI path | DONE | Bitforge | — |
+| 2 | README Uninstall section | DONE | Bitforge | — |
+| 3 | README CI/CD sentence | DONE | Bitforge | — |
+| 4 | README cross-link | DONE | Bitforge | 2 |
+| 5 | commands/offboard.md | DONE | Bitforge | — |
+| 6 | otto-foreman routing | DONE | Bitforge | 5 |
+| 7 | validator run | DONE | Bitforge | 5, 6 |
 | 8 | negative test | TODO | Glitchtrap | 7 |
 | 9 | version bump | TODO | Bitforge | 8 |
 | 10 | CHANGELOG | TODO | Bitforge | 9 |
