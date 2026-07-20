@@ -236,6 +236,9 @@ never type it. So when a session opens and there is genuinely something to repor
 there is no trace log and no tasks, **say nothing** — an offer to summarise an empty day is worse than
 silence.
 
+The same logic covers leaving, not just arriving: free text like *"how do I uninstall this," "turn RobotInc
+off," "I want this gone"* routes to `/robotinc:offboard` — they shouldn't have to know that name either.
+
 **If they never learn a command and still get the whole company, the design worked.** If they had to know what
 to ask for, it failed — and it failed *quietly*, which is the only way this product can actually die.
 
