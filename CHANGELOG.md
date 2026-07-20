@@ -1,5 +1,17 @@
 # Changelog
 
+## 22.8.4 — 2026-07-20
+
+**Escalation doctrine clarified: dispatch-time model override beats frontmatter pin.**
+
+### Fix — Otto can escalate to opus via dispatch-time model override
+
+The escalation doctrine claimed no robot's model could be changed once pinned ("every pin is fixed frontmatter"). Verified against Claude Code's actual model-resolution order: a Task dispatch's per-invocation `model` parameter **overrides** the subagent frontmatter pin. 
+
+Otto still cannot change his own model (`model: inherit` stands), but he can now dispatch any robot on opus at the call site for a hard build. Standing rule (Andrew-approved): genuinely hard builds, and any robot triggering the stuck-loop condition, escalate back out on opus rather than retry locally.
+
+Escalation remains two moves, not self-switch: either route to Vector (already pinned opus), or dispatch the owning robot on opus.
+
 ## 22.8.3 — 2026-07-16
 
 **Trace attribution fix, honest ledger token counts, per-project cost attribution — plus the activity-window viewer prototype.**
