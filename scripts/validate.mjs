@@ -304,7 +304,15 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
   }
   // `commands` isn't declared until the ---- commands section further down;
   // read the directory locally rather than depend on load order.
+  // offboard.md is exempt: it names these exact paths so it can INVENTORY and,
+  // with consent, DELETE them as part of teardown — it never writes the
+  // state-log grammar this gate exists to protect, so it is not a second
+  // writer in the sense this section guards against. Same shape as the
+  // STATE_WRITER_HOOK exemption just above: a named, deliberate exception,
+  // not a reopening of "any file may mention these names."
+  const STATE_FILE_MENTION_EXEMPT = new Set(['offboard.md']);
   for (const f of readdirSync(join(REPO, 'commands')).filter((c) => c.endsWith('.md'))) {
+    if (STATE_FILE_MENTION_EXEMPT.has(f)) continue;
     const s = read(`commands/${f}`);
     for (const sf of STATE_FILES) {
       if (s.includes(sf)) fail(`commands/${f}: mentions ${sf} — the write path belongs to agents/${MAIN_THREAD} and hooks/${STATE_WRITER_HOOK} only.`);
