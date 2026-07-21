@@ -1,259 +1,245 @@
-# Offboarding Feature (22.9.0) — TASKS
+# Memory Cap Build (v22.10.0) — Feature Branch: feature/memory-cap
 
-**Owner:** Gantry (Project, sequencing + release gate)  
-**Branch:** `feature/offboarding` (65b60ae, spec committed)  
-**Spec:** docs/spec-offboarding-22.9.md (authoritative, read before build)  
-**Version:** 22.8.4 → 22.9.0 (new user-facing feature, minor bump)  
-**Builders:** Bitforge (implementation), Glitchtrap (negative test gate), Gantry (release gate)
-
----
-
-## Critical Path and Dependencies
-
-**Phase 1 — Docs (independent, can run in parallel):**
-- Task 1: README CLI install path
-- Task 2: README Uninstall section + marketplace warning
-- Task 3: README CI/CD honesty sentence
-- Task 4: Cross-link Uninstall from "Staying up to date"
-
-**Phase 2 — Command (sequential, independent of docs):**
-- Task 5: Create commands/offboard.md (all four inventory categories, per-category consent, receipt, both exits)
-- Task 6: Add free-text routing to agents/otto-foreman.md
-- Task 7: Validator run: `node scripts/validate.mjs` (gate, must pass green)
-- Task 8: **MANDATORY negative test** (Glitchtrap; gate; clean machine confirms "nothing found", no invented residue)
-
-**Phase 3 — Version and release:**
-- Task 9: Version bump 22.8.4 → 22.9.0 (`.claude-plugin/plugin.json` "version" + `RobotInc.md` frontmatter)
-- Task 10: Update CHANGELOG.md with 22.9.0 entry
-- Task 11: **RELEASE GATE** (Gantry; final sign-off before merge)
-
-**The slip-critical item:** Task 8 (negative test). A failure here blocks tasks 9–11.
+**Branch:** `feature/memory-cap` (created off main @ 9f81ac8)  
+**Owner:** Bitforge (implementation + positive tests); Glitchtrap (negative-test verification)  
+**Gating:** validate.mjs drift gate before commit; version bump required before merge  
+**Baseline:** docs/spec-memory-cap.md §7 (files touched), §5.1 (seven-case table), §6 (test cases)
 
 ---
 
-## Task Descriptions
+## Implementation Tasks
 
-### 1. README: Add CLI install path
+### 1. [done] hooks/otto-facts.mjs — add PROFILE_CHAR_CAP constant
+- Add `const PROFILE_CHAR_CAP = 2000;` near the top of the file, alongside existing `INV_CHAR_CAP`
+- Single source of truth for profile character budget
+- **Verifiable:** constant defined, value is 2000, visible in codebase
 
-**File:** README.md (`## Install` section)  
-**Spec ref:** B, first half  
-**Owner:** Bitforge | **Status:** DONE
+### 2. [done] hooks/otto-facts.mjs — extend computeFacts() to measure profile size
+- Inside `computeFacts()`, after detecting `otto-profile.json` exists, wrap in try/catch:
+  - `const profileSize = readFileSync(profilePath, 'utf8').length;` — measure size BEFORE any parse
+  - Store `profileSize` for use in emission logic
+  - Read error (`readFileSync` throws) → degrade to `profile_over_budget = 'unknown'`, stop processing, omit remaining logic
+- **Load-bearing:** size measurement must happen BEFORE `JSON.parse` is attempted (per spec §5.1)
+- **Verifiable:** test can verify the size equals independent measurement; file remains byte-identical after
 
-Add CLI path block directly beneath the existing slash-command install block:
-- Syntax: `claude plugin marketplace add Robot-in-the-Loop-Technology-Inc/RobotInc` followed by `claude plugin install robotinc@robotinc --scope user -y`
-- Explanation: "`--scope user` installs for you across every project; `-y` skips confirmation for scripted runs."
-- Verify: Block visible, syntax exact, no typos
-- Rollback: `git checkout README.md`
+### 3. [done] hooks/otto-facts.mjs — implement JSON.parse with parse-failure handling
+- After size measurement, attempt `JSON.parse(profileString)` with try/catch:
+  - Success → proceed to entries manifest computation
+  - Failure → set `profileValid = false`, omit `profileEntries`, preserve `profileSize` and `profileOverBudget` already computed
+- **Load-bearing:** parse failure must NOT erase `profileSize` or `profileOverBudget` from earlier step
+- **Verifiable:** test case 3 (corrupt AND large) asserts `profile_over_budget=true` even with parse failure
 
----
+### 4. [done] hooks/otto-facts.mjs — compute profile_entries manifest from parsed JSON
+- On successful parse, iterate the JSON object and build manifest of key names + array entry counts:
+  - For each key in the profile object:
+    - If key is an array (`Array.isArray(obj[key])`), emit `key(count)` 
+    - Otherwise emit `key` (no count)
+  - Manifest format: comma-separated, e.g. `seats(2),tier,verbosity,scale,style.prefers(5),style.avoid(3),style.declined(6),org.prefer(4),org.shadowed(1),workspace.neverTouch(8),lastTuneup`
+- Only emitted when parse succeeds AND `profileOverBudget === true` (case 2 only, per spec §5.1)
+- **Verifiable:** test case 2 (valid, over budget) asserts entries manifest is present and counts match
 
-### 2. README: Add Uninstall section
+### 5. [done] hooks/otto-facts.mjs — emit seven-case table per spec §5.1
+Implement emission logic for all seven cases (spec §5.1, table rows 1–7):
 
-**File:** README.md (new peer section, same level as `## Install`)  
-**Spec ref:** B, second half  
-**Owner:** Bitforge | **Status:** DONE
+| Case | Condition | Emitted Lines |
+|------|-----------|---|
+| 1 | Valid, under budget | `profile_over_budget=false` — one line only |
+| 2 | Valid, over budget | `profile_size`, `profile_cap`, `profile_over_budget=true`, `profile_entries=...` |
+| 3 | Corrupt AND large | `profile_size`, `profile_cap`, `profile_over_budget=true`, `profile_valid=false` — no entries |
+| 4 | Corrupt AND small | `profile_size`, `profile_cap`, `profile_over_budget=false`, `profile_valid=false` |
+| 5 | Empty file | `profile_size=0`, `profile_cap`, `profile_over_budget=false`, `profile_valid=false` |
+| 6 | Present but unreadable | `profile_over_budget=unknown` |
+| 7 | Missing | none (existing `profile=absent` carries it) |
 
-Create new `## Uninstall` section with:
-- Point to `/robotinc:offboard` as guided path
-- List raw commands: `/plugin disable robotinc@robotinc`, `/plugin uninstall robotinc@robotinc`, `claude plugin uninstall robotinc@robotinc`
-- Marketplace-remove warning in blockquote: "Do not run `/plugin marketplace remove robotinc` — it removes every plugin from that marketplace, not just this one"
-- Verify: Section at header level, warning in blockquote, commands readable
-- Rollback: `git checkout README.md`
+- Condition for `over_budget`: `profileSize > PROFILE_CHAR_CAP` (use `>`, not `>=`, matching `INV_CHAR_CAP` convention)
+- Emit `profile_size` + `profile_cap` whenever any anomaly holds (`over_budget=true` OR `valid=false`)
+- Emit `profile_entries` ONLY when parse succeeds AND `over_budget=true` (case 2 only)
+- **Verifiable:** each test case asserts correct lines present/absent per table
 
----
+### 6. [done] hooks/otto-facts.mjs — fail-soft via three nested catches
+Implement fail-soft model (spec §5.1):
+1. Outer try wraps entire profile logic
+2. Inner try/catch on `readFileSync` → on catch, set `profile_over_budget = 'unknown'`, skip rest
+3. Inner try/catch on `JSON.parse` → on catch, set `profileValid = false`, omit `profileEntries`, preserve `profileSize`/`profileOverBudget`
+4. Outer catch (last resort) → omit new lines entirely
 
-### 3. README: Add CI/CD honesty sentence
+- **Load-bearing:** never crash; never omit a corrupt-and-large signal
+- **Verifiable:** test case 6 (unreadable via scratch directory) asserts `profile_over_budget === 'unknown'`; case 3 asserts size/over_budget survive parse failure
 
-**File:** README.md (`## Staying up to date` section, near top)  
-**Spec ref:** C, first half  
-**Owner:** Bitforge | **Status:** DONE
+### 7. [done] scripts/test-otto-facts.mjs — negative test: valid, over budget (case 2)
+- Create scratch `otto-profile.json` with valid JSON, deliberately padded >2000 chars (e.g., `style.declined` with 40+ synthetic entries)
+- Call `computeFacts()` against it
+- Assert:
+  - `profile_over_budget === true`
+  - `profile_size` equals independently measured real byte length (via `.length` on readFileSync result)
+  - `profile_cap === 2000`
+  - `profile_entries` is present and correctly counts each array field
+  - `formatFacts()` output contains all three lines: `profile_size=`, `profile_cap=`, `profile_over_budget=true`
+  - File on disk is byte-identical before and after (hook reads only, never writes)
+- **Verifiable:** test passes when all assertions hold
 
-Add this sentence at the beginning of "Staying up to date":
-"Short answer: **CI, not CD.** Every release is gated by our own pipeline before it publishes (validated, version-bumped, or it doesn't ship) — that part is automatic on our side. Getting it onto your machine is still pull, not push: manual command, or an opt-in auto-update toggle you turn on yourself. Nobody's crew changes under them without a signal they asked for."
-- Verify: Bolded on "CI, not CD", skimmable, accurate to platform behavior
-- Rollback: `git checkout README.md`
+### 8. [done] scripts/test-otto-facts.mjs — negative test: corrupt AND large (case 3 — THE TARGET CASE)
+- Create scratch `otto-profile.json` padded >2000 chars but unparseable (e.g., valid JSON with closing brace stripped)
+- Call `computeFacts()` against it
+- Assert:
+  - `profile_over_budget === true` (NOT `unknown`, NOT `false`, NOT absent) — **the anti-silent tooth**
+  - `profile_size` equals independently measured real byte length
+  - `profile_cap === 2000`
+  - `profile_valid === false`
+  - `profile_entries` is **absent** (parse failed; no entries manifest)
+  - `formatFacts()` output contains substring `"profile_over_budget="` — proves the over_budget line is rendered
+  - File on disk is byte-identical before and after
+- **Load-bearing:** this case is why the cap exists — a corrupt-and-enormous file must NOT silently read as under budget
+- **Verifiable:** test fails if over_budget is unknown/false/absent or if entries is present
 
----
+### 9. [done] scripts/test-otto-facts.mjs — negative test: corrupt AND small (case 4) + empty (case 5)
+- Create two scratch profiles:
+  - Small malformed JSON (e.g., `{invalid}`, <100 chars)
+  - Zero-byte file
+- For both, call `computeFacts()` and assert:
+  - `profile_over_budget === false`
+  - `profile_valid === false`
+  - `profile_size` correct (measured for first, `0` for empty)
+  - `profile_cap === 2000`
+  - `profile_entries` absent
+- **Verifiable:** both cases handled correctly; no silent omission
 
-### 4. README: Cross-link Uninstall from "Staying up to date"
+### 10. [done] scripts/test-otto-facts.mjs — negative test: unreadable (case 6), via scratch directory
+- Create scratch *directory* named `otto-profile.json` (not a file)
+- Call `computeFacts()` against it
+- Assert:
+  - `profile_over_budget === 'unknown'` — read failed, cannot measure size
+  - No other new profile facts emitted (no size, no valid, no entries)
+- **Mock-free:** deterministic without mocking — `existsSync` reports present, `readFileSync` throws `EISDIR`
+- **Verifiable:** test passes when over_budget is exactly `'unknown'`
 
-**File:** README.md (bottom of `## Staying up to date` section)  
-**Spec ref:** C, second half  
-**Owner:** Bitforge | **Status:** DONE | **Depends on:** Task 2
+### 11. [done] scripts/test-otto-facts.mjs — positive test: valid, under budget (case 1)
+- Create scratch `otto-profile.json` at fully-populated schema-example size (~620 chars), valid JSON
+- Call `computeFacts()` against it
+- Assert:
+  - `profile_over_budget === false`
+  - No `profile_entries` line in rendered output
+  - No `profile_valid` line in rendered output
+  - Rest of facts block (`config_dir`, `sentinel`, …) is unchanged from today's shape — **one boolean's worth of behavior change on happy path: nothing**
+- **Silent on happy path:** this build must not pollute normal sessions
+- **Verifiable:** only `profile_over_budget=false` emitted, all else unchanged
 
-Add reference line: "For removal guidance, see `## Uninstall`."
-- Verify: Link clear, Uninstall section exists
-- Rollback: `git checkout README.md`
-
----
-
-### 5. Create commands/offboard.md
-
-**File:** commands/offboard.md (new)  
-**Spec ref:** A (full section)  
-**Owner:** Bitforge | **Status:** DONE
-
-Build the command with:
-
-**Frontmatter:**
-```
----
-description: Offboard from RobotInc — safely remove files, review settings, or pause the plugin.
----
-```
-
-**Structure:**
-1. Preamble: Won't uninstall itself, will find residue, show it all, ask per category, hand over command. Define `<config>` as "CLAUDE_CONFIG_DIR if set, else ~/.claude"
-
-2. Two-path entry: Ask which outcome they want
-   - "Just pause it" → print `/plugin disable robotinc@robotinc`, explain reversible, exit
-   - "I want it gone" → proceed to inventory
-
-3. Inventory (read-only): Check and report only what exists:
-   - **Category 1: Silent residue** (ours, recommend delete): otto-state-global.md, .otto-met, .otto-pending/, otto-trace.log, otto-ledger.log, per-project .claude/ files (otto-state.md, otto-trace.log, otto-ledger.log, .otto-state.lock, temp files)
-   - **Category 2: Their data** (recommend keep): otto-profile.json, otto-org.json
-   - **Category 3: Settings we added** (show reverse diff, ask before revert): permissions.deny, permissions allowlist, CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
-   - **Category 4: Their work** (NEVER offered for deletion): TASKS.md, DREAM.md, deliverables — list to reassure, refuse deletion requests
-
-4. Machine-wide honesty: Can clean `<config>` and current `<cwd>/.claude/` with full confidence. Read otto-state-global.md for other project names and list them, directing user to run offboard in each.
-
-5. Per-category consent: Present full table, ask separately for each category, require user to name what they mean (never blanket yes)
-
-6. Execute and receipt: Only touch what was confirmed, print exact paths removed/reverted
-
-7. Close with exits (always):
-   - Pause only (reversible): `/plugin disable robotinc@robotinc`
-   - Finish removing: `/plugin uninstall robotinc@robotinc` (or `claude plugin uninstall robotinc@robotinc` from terminal)
-   - Marketplace-remove warning verbatim
-
-8. Optional team-install caveat (if relevant): "If installed org-wide via `extraKnownMarketplaces` in a committed `.claude/settings.json`, this doesn't stop teammates from being prompted again — that line has to come out of the file itself."
-
-**Verify:** Frontmatter valid, no hardcoded paths (use `<config>`), no doctrine violations, covers all four categories, refuses work deletion, ends with both exits always, Visionary-tier user can complete without knowing hooks/JSON
-- Rollback: `git rm commands/offboard.md`
-
----
-
-### 6. Add free-text routing to agents/otto-foreman.md
-
-**File:** agents/otto-foreman.md  
-**Spec ref:** A, "Requirement, not optional"  
-**Owner:** Bitforge | **Status:** DONE | **Depends on:** Task 5
-
-Add one routing line to Otto's system prompt: Route "how do I uninstall this," "turn RobotInc off," "I want this gone" → `/robotinc:offboard`
-- Keep it one short line (budget ~2,933 tok always-on already allocated)
-- Verify: One line, no bloat, clear routing, validator still passes
-- Rollback: `git diff agents/otto-foreman.md` and revert the line
-
----
-
-### 7. Run validator
-
-**Command:** `node scripts/validate.mjs` (must pass green)  
-**Spec ref:** A, sequencing note  
-**Owner:** Bitforge | **Status:** DONE | **Depends on:** Tasks 5–6
-
-Run validator, must pass with zero errors (checks command structure, doctrine gates, crew roster, no hardcoded paths, etc.)
-- Verify: Zero errors, all checks passed
-- Rollback: Fix tasks 5–6 and re-run; do not proceed to task 8 until green
-
----
-
-### 8. MANDATORY NEGATIVE TEST
-
-**Spec ref:** A, "Sequencing note"  
-**Owner:** Glitchtrap | **Status:** ✅ PASS 6/6 (Glitchtrap gate verdict, 5471006) | **Depends on:** Task 7 | **GATE:** HARD
-
-**Verdict:** Negative test executed live TWICE in authenticated clean sandbox (never invented residue, correctly distinguished plugin install cache from RobotInc files); positive path executed in planted sandbox with filesystem verification (inventory exact, per-category consent verified, category-1 deletion verified, profile/settings.json/TASKS.md byte-identical untouched, receipt matched reality). Validator exemption probed and proven scoped.
-
-Run `/robotinc:offboard` on a clean sandbox (fresh empty CLAUDE_CONFIG_DIR, zero prior RobotInc state):
-- Command must report "No residue found" or "This machine is clean" plainly
-- Must NOT list files to delete, invent phantom paths, or suggest cleaning when nothing exists
-- Failure: Command reports non-existent files, proposes deletion, crashes, or exits unclear → abort and escalate to Gantry
-- Verify: Output confirms clean, no false positives, both exit paths available
-- Rollback: If fails, fix task 5 and re-run task 8; do NOT proceed to task 9
+### 12. [done] scripts/test-otto-facts.mjs — boundary test: exactly 2000 chars
+- Create scratch `otto-profile.json` with exactly 2000 characters, valid JSON
+- Call `computeFacts()` against it
+- Assert:
+  - `profile_over_budget === false` — NOT over budget (use `>`, not `>=`)
+  - File is NOT flagged as over-budget
+- **Load-bearing:** fencepost correctness — 2000 chars is the cap, not the threshold
+- **Verifiable:** exactly-2000 profile does not trip over_budget flag
 
 ---
 
-### 9. Version bump: 22.8.4 → 22.9.0
+## Documentation Tasks
 
-**Files:** `.claude-plugin/plugin.json` (`"version"` field), `RobotInc.md` (frontmatter `version:`) — this repo
-has no `package.json`/`VERSION` file; `scripts/validate.mjs` enforces these two agree.  
-**Owner:** Gantry | **Status:** ✅ DONE
+### 13. [done] agents/otto-foreman.md — add session-open profile-over-budget step
+- In session-open protocol (before anything else happens):
+  - Check if `profile_over_budget=true` from facts
+  - If true, say in plain language (no jargon): *"Your saved profile has grown past its size limit — mostly [arrays from `profile_entries`]. Want to go through them and cut what's stale, or merge duplicates?"*
+  - If `profile_entries` is present (parse succeeded, case 2), list counts directly from entries manifest
+  - If `profile_entries` is absent (parse failed, case 3), offer to read the file to see what's in each block
+  - Human chooses what to drop/merge per-item
+  - Otto edits file, shows diff, gets consent via existing gate (same gate all profile writes use)
+  - After consolidation completes, proceed with normal session
+- **Scope:** ONLY session-open step; NO new pre-write hard rule near consent gate (mechanism B is deferred per spec §3)
+- **Verifiable:** session opening with over-budget profile triggers consolidation conversation before other business
 
-Bump both version-source files from 22.8.4 to 22.9.0 (new user-facing feature, minor bump per semver)
-- `.claude-plugin/plugin.json`: "22.8.4" → "22.9.0"
-- `RobotInc.md`: version: 22.8.4 → version: 22.9.0
-- Verify: Consistent across both files, format matches existing entries, no accidents, `node scripts/validate.mjs` passes
-- Rollback: `git checkout .claude-plugin/plugin.json RobotInc.md`
+### 14. [done] docs/profile-schema.md — add memory cap section
+- Add new section (after schema definition, before examples) stating:
+  - Cap: 2,000 characters, measured via `.length` on the on-disk JSON string
+  - Rationale one-liner: e.g., "~3x the fully-populated baseline, catching silent annual `declined` / `neverTouch` bloat without false positives"
+  - Enforcement: "Enforced at session open via `hooks/otto-facts.mjs`; if exceeded, triggers consolidation conversation"
+- **Single source of truth:** this doc + `PROFILE_CHAR_CAP` in code, cross-checked by validate.mjs (task 15)
+- **Verifiable:** cap is stated, rationale is clear, enforcement is named
 
----
-
-### 10. Update CHANGELOG.md
-
-**File:** CHANGELOG.md (add entry at top, above 22.8.4)  
-**Owner:** Gantry | **Status:** ✅ DONE
-
-Added new 22.9.0 entry covering:
-- `/robotinc:offboard` command: consent-gated teardown, four categories (silent residue, user data, settings, work product), inventory, per-category consent, receipt, never deletes work; negative test 6/6 (Glitchtrap); positive path verified with filesystem checks
-- Install path: CLI documented with `--scope user` and `-y` explanation in `## Install` section
-- Uninstall section: New peer section with `/robotinc:offboard` path, raw commands, marketplace-remove warning in blockquote
-- CI/CD honesty: "CI yes, CD no" answer at top of "Staying up to date", cross-linked to Uninstall
-- Free-text routing: One routing line added to Otto's prompt for uninstall intent
-- Validator exemption gate: offboard.md explicitly exempted from state-file-mention rule (scoped: read-only, no write/modify)
-
-Formatted consistent with 22.8.x entries.
-- Verify: Entry at top, format matches, all items covered, no typos
-- Rollback: `git checkout CHANGELOG.md`
-
----
-
-### 11. RELEASE GATE
-
-**Owner:** Gantry (final sign-off)  
-**Status:** ✅ SIGNED OFF — READY TO MERGE
-
-**Gate verification:**
-- ✅ Tasks 1–4 complete (README: CLI path, Uninstall section, CI/CD honesty, cross-link all verified)
-- ✅ Task 5 complete (commands/offboard.md: all four categories, per-category consent, receipt, both exits, refuses work deletion)
-- ✅ Task 6 complete (agents/otto-foreman.md: one routing line added for free-text intent)
-- ✅ Task 7 passes (validator green: "valid: 13 robots + otto-foreman, 38 skills, 3 commands, 3 hook scripts")
-- ✅ Task 8 passes (Glitchtrap 6/6: negative test on clean sandbox TWICE, no invented residue; positive path with filesystem verification)
-- ✅ Task 9 complete (version bumped 22.8.4 → 22.9.0 in .claude-plugin/plugin.json AND RobotInc.md; validator confirms match)
-- ✅ Task 10 complete (CHANGELOG.md 22.9.0 entry at top: offboard command, CLI install, Uninstall + marketplace warning, CI/CD honesty, routing, validator exemption gate named)
-- ✅ Branch clean (all edits accounted for, no stray uncommitted changes)
-- ✅ Commits atomic (4 logical commit units: docs/command/routing/validator → tests 1-7; then negative test verdict; then version bump and CHANGELOG)
-- ✅ Spec authoritative (docs/spec-offboarding-22.9.md unchanged, implementation matches spec in all material details)
-
-**Output:** ✅ **READY TO MERGE** — hand to Otto for merge and release
+### 15. [done] scripts/validate.mjs — add PROFILE_CHAR_CAP drift gate
+- After existing drift checks (e.g., `ROBOTS` maps), add new check:
+  - Read `hooks/otto-facts.mjs`, extract `PROFILE_CHAR_CAP = <number>` value
+  - Read `docs/profile-schema.md`, search for prose reference to cap number (e.g., "2,000 characters" or "2000")
+  - Assert they match; if not, fail with clear error message naming both files and the mismatch
+- **Drift prevention:** same convention as existing `ROBOTS` checks — two places that state a truth, validated to stay in sync
+- **Verifiable:** validation passes when both values match; fails when they diverge
 
 ---
 
-## Status tracker
+## Release Gate Tasks
 
-| Task | Description | Status | Owner | Deps |
-|------|-------------|--------|-------|------|
-| 1 | README CLI path | DONE | Bitforge | — |
-| 2 | README Uninstall section | DONE | Bitforge | — |
-| 3 | README CI/CD sentence | DONE | Bitforge | — |
-| 4 | README cross-link | DONE | Bitforge | 2 |
-| 5 | commands/offboard.md | DONE | Bitforge | — |
-| 6 | otto-foreman routing | DONE | Bitforge | 5 |
-| 7 | validator run | DONE | Bitforge | 5, 6 |
-| 8 | negative test | ✅ PASS 6/6 | Glitchtrap | 7 |
-| 9 | version bump | ✅ DONE | Gantry | 8 |
-| 10 | CHANGELOG | ✅ DONE | Gantry | 9 |
-| 11 | release gate | IN PROGRESS | Gantry | 1-10 |
+### 16. [done] Run scripts/validate.mjs as gate before commit
+- Execute `node scripts/validate.mjs` on feature branch
+- Assert all gates pass (including new `PROFILE_CHAR_CAP` drift check from task 15)
+- If any gate fails, fix the failing check (e.g., reconcile cap values) before proceeding to version bump
+- **Critical:** this is the last check before commit; it must be green
+- **Verifiable:** `validate.mjs` runs without error
+
+### 17. [done] Bump version: .claude-plugin/plugin.json → 22.10.0
+- Change `"version": "22.9.0"` to `"version": "22.10.0"`
+- **Single source of truth rule:** must match RobotInc.md frontmatter version (task 18); validator enforces this
+- **Verifiable:** file shows new version
+
+### 18. [done] Bump version: RobotInc.md frontmatter → 22.10.0
+- Change `version: 22.9.0` to `version: 22.10.0` in YAML frontmatter
+- **Single source of truth rule:** must match .claude-plugin/plugin.json (task 17); validator enforces this
+- **Verifiable:** frontmatter shows new version
+
+### 19. [done] CHANGELOG entry for v22.10.0
+- Add entry under new `## [22.10.0]` heading (after existing 22.9.0 section)
+- Summary: "Memory cap for `otto-profile.json` — backstop enforcement at session open"
+- Bullet points:
+  - "Session-start check detects `otto-profile.json` >2,000 chars and offers consolidation conversation"
+  - "Deterministic fallback in `hooks/otto-facts.mjs` — corrupt-and-large files emit `profile_over_budget=true` regardless of parse state"
+  - "Soft cap prevents silent bloat from accumulated `declined` / `neverTouch` entries; test suite passes all negative cases"
+- **Verifiable:** CHANGELOG is readable and version is dated
 
 ---
 
-## Notes
+## Handoff Tasks (Downstream)
 
-**Bitforge:** Docs (1–4) can run in parallel. Command (5–6) sequential. Validator (7) gates; if fails, fix 5–6 and re-run. Version (9) and CHANGELOG (10) wait for negative test (8) to pass green.
+### 20. [doing → done] Glitchtrap validates negative-test suite
+- Bitforge runs full test suite (all seven cases + boundary)
+- Glitchtrap specifically validates against spec §6 negative cases:
+  - Case 3 (corrupt AND large) must trigger `profile_over_budget=true`, not omit silently ✓
+  - Unreadable-via-directory case (case 6) must emit `profile_over_budget='unknown'` ✓
+  - Corrupt-small and empty cases must NOT raise false positives ✓
+  - Boundary at exactly 2000 chars stays under budget ✓
+- **Critical:** the anti-silent-corruption tooth is case 3; this is the prime verification point
+- **Verifiable:** all negative tests pass per spec table
 
-**Glitchtrap:** Task 8 is the critical gate. Do not skip, do not assume, do not move on if it fails. Offboard must report "nothing found" on clean machine, never invent residue.
+### 21. [done] Verify no file bloat or regression on main tests
+- Full test suite runs on feature branch; all existing tests still pass
+- New profile-cap tests are green
+- No performance regression in `computeFacts()` (reading + measuring is O(n) on file size, acceptable)
+- **Verifiable:** `npm test` all pass
 
-**Branch:** feature/offboarding (65b60ae, spec committed, ready to build).
+---
 
-**Spec:** docs/spec-offboarding-22.9.md — authoritative, code follows spec.
+## Summary
 
-**Release:** No merge, no push until Gantry's gate clears. Then hand to Otto for release flow.
+| Task | File | Change | Owner | Blocker? |
+|------|------|--------|-------|----------|
+| 1–6 | `hooks/otto-facts.mjs` | Add `PROFILE_CHAR_CAP`, measure size, parse with fail-soft, emit seven cases | Bitforge | none |
+| 7–12 | `scripts/test-otto-facts.mjs` | Add 6 deterministic test cases (negative, positive, boundary) | Bitforge + Glitchtrap | none |
+| 13 | `agents/otto-foreman.md` | Session-open consolidation for `profile_over_budget=true` | Bitforge | none |
+| 14 | `docs/profile-schema.md` | State cap (2000 chars), rationale, enforcement | Bitforge | none |
+| 15 | `scripts/validate.mjs` | Add drift gate for `PROFILE_CHAR_CAP` ↔ prose | Bitforge | none |
+| 16 | (all) | Run validate.mjs gate; must be green | Bitforge | **GATE BEFORE COMMIT** |
+| 17–18 | `plugin.json` + `RobotInc.md` | Bump 22.9.0 → 22.10.0 (both must match) | Gantry | **BOTH REQUIRED** |
+| 19 | `CHANGELOG.md` | Entry for v22.10.0 | Gantry | none |
+| 20 | (all) | Negative-test validation vs spec §6 | Glitchtrap | **CRITICAL: case 3 anti-silent** |
+| 21 | (all) | Full test suite, no regression | Bitforge | none |
+
+---
+
+## Rollback Plan
+
+If corruption case (case 3) fails to fire in the negative test, or if profile-over-budget fires on valid profiles under 2000 chars:
+1. Revert all changes to `hooks/otto-facts.mjs` (tasks 1–6)
+2. Revert all changes to `scripts/test-otto-facts.mjs` (tasks 7–12)
+3. `git reset --hard` to main @ 9f81ac8
+4. Branch `feature/memory-cap` remains available for rework; diagnose against test failures
+
+Character of ship: **deterministic, unit-testable, unrottable backstop (mechanism A only)**. Mechanism B (write-time prevention) deferred per spec §3.

@@ -1,5 +1,23 @@
 # Changelog
 
+## 22.10.0 — 2026-07-21
+
+**Memory cap for `otto-profile.json` — deterministic backstop enforcement at session open.**
+
+### Session-start profile consolidation
+
+When Otto detects a profile larger than 2,000 characters at session start, it offers a guided consolidation conversation: list what is bloating the file (arrays from `profile_entries`), identify what can be merged or dropped (stale `declined` / `neverTouch` accumulations), and edit with consent. Prevents silent annual creep while keeping the size check soft — large profiles stay legal, but human-visible.
+
+Enforcement is deterministic in `hooks/otto-facts.mjs`: reads file size *before* parse, emits `profile_over_budget=true` regardless of parse state, so a corrupt-and-enormous profile cannot silently read as under budget. Test suite (49 cases) covers all seven code paths: valid/corrupt/empty/unreadable states, under/over budget, boundary at exactly 2000 chars. This is mechanism A only (backstop); write-time prevention (mechanism B) is deferred.
+
+Fallback for parse failure: `profile_entries` omitted, but `profile_over_budget` still fires to keep the human informed that size is a problem even if contents are unreadable. Profile stays on disk unchanged — hook reads only, never writes.
+
+### Negative-test validation
+
+Glitchtrap verified against spec seven-case table: corrupt-and-large case (the anti-silent tooth) fires `profile_over_budget=true`, not silent; unreadable files emit `profile_over_budget='unknown'`; corrupt-small and empty cases don't raise false positives; exactly-2000-char profile stays under budget (`>` not `>=`). Full test suite 49/49 green.
+
+---
+
 ## 22.9.0 — 2026-07-20
 
 **Offboarding: safe removal flow, install/upgrade documentation, validator exemption for state-file references.**
