@@ -767,6 +767,37 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   }
 }
 
+// ------------------------------------------------- memory cap: PROFILE_CHAR_CAP <-> docs/profile-schema.md
+// docs/spec-memory-cap.md §4: the number lives in exactly one place in code
+// (PROFILE_CHAR_CAP in hooks/otto-facts.mjs) and docs/profile-schema.md states
+// it in prose -- same drift-prevention convention as the ROBOTS-map gates
+// above (a hook's copy of a truth and a doc's copy of the same truth, cross-
+// checked so a future edit to one alone gets caught here instead of shipping
+// a cap that disagrees with what the docs promise).
+{
+  const facts = read('hooks/otto-facts.mjs');
+  const capMatch = facts.match(/PROFILE_CHAR_CAP\s*=\s*(\d+)/);
+  if (!capMatch) {
+    fail('hooks/otto-facts.mjs: no "PROFILE_CHAR_CAP = <number>" constant found — the memory-cap drift gate below cannot run');
+  } else {
+    const codeCap = Number(capMatch[1]);
+    const schema = existsSync(join(REPO, 'docs/profile-schema.md')) ? read('docs/profile-schema.md') : '';
+    if (!schema) {
+      fail('docs/profile-schema.md: missing — cannot verify it states the same PROFILE_CHAR_CAP as hooks/otto-facts.mjs');
+    } else {
+      // Accept "2,000" or "2000" in prose — either spelling is fine, as long
+      // as the digits match the code's number exactly.
+      const proseMatch = schema.match(/([\d,]+)\s*characters/);
+      const proseCap = proseMatch ? Number(proseMatch[1].replace(/,/g, '')) : null;
+      if (proseCap === null) {
+        fail('docs/profile-schema.md: no "<number> characters" cap statement found — the memory-cap section (docs/spec-memory-cap.md §7) is missing or reworded past this gate\'s pattern');
+      } else if (proseCap !== codeCap) {
+        fail(`memory cap drift: hooks/otto-facts.mjs's PROFILE_CHAR_CAP is ${codeCap}, but docs/profile-schema.md's prose says ${proseCap} characters — the two must agree`);
+      }
+    }
+  }
+}
+
 // ------------------------------------------------- plugin default settings
 // A plugin's settings.json supports exactly two keys: `agent` and
 // `subagentStatusLine`; anything else is silently ignored by Claude Code —

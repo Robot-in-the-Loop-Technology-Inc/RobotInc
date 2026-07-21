@@ -42,6 +42,23 @@ two different pieces of prose each believed they owned the answer.
 
 ---
 
+## The memory cap
+
+`otto-profile.json` has no eviction and nothing regenerates it — the five writers above only ever append to
+`style.prefers` / `avoid` / `declined`, `org.prefer` / `shadowed`, and `workspace.neverTouch`. Left alone, it
+grows forever. **The file is capped at 2,000 characters**, measured as a character count via `.length` on the
+raw string read from disk — not on-disk byte size, not tokens. That is roughly **3x the fully-populated
+example below** (~620 chars), enough headroom that a normal profile never trips it, but a profile that has
+quietly accumulated a year of `declined` entries and `neverTouch` globs will.
+
+Enforced at session open in `hooks/otto-facts.mjs`: it measures the file before attempting to parse it, so a
+corrupt-and-oversized profile still reads as over budget. If the cap is exceeded, Otto runs a plain-language
+consolidation conversation before anything else — never an automatic drop; the human chooses what stays. The
+number lives in exactly one place in code (`PROFILE_CHAR_CAP` in `hooks/otto-facts.mjs`), and `scripts/validate.mjs`
+checks it against the figure stated in this section so the two can never quietly disagree.
+
+---
+
 ## The whole file
 
 ```jsonc

@@ -17,7 +17,7 @@
 // real SessionStart invocation would produce, not just the exported
 // function in isolation.
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -30,7 +30,12 @@ import {
   cwdPersonaRoot,
   STOCK_AGENT_IDS,
   FACTS_HEADER,
+  PROFILE_CHAR_CAP,
 } from '../hooks/otto-facts.mjs';
+
+// Local alias so the memory-cap tests below read clearly without shadowing
+// the imported constant's name in every assertion message.
+const PROFILE_CHAR_CAP_FOR_TEST = PROFILE_CHAR_CAP;
 
 const HOOK_PATH = fileURLToPath(new URL('../hooks/otto-facts.mjs', import.meta.url));
 const results = [];
@@ -108,10 +113,15 @@ record('default config: 8 keys present (7 core + inv=off for a returning user), 
   writeFileSync(join(projectDir, '.claude', 'otto-state.md'), '<!-- x --> \n\n· line\n');
 
   const facts = runFacts(configDir, configDir, projectDir);
-  assert(Object.keys(facts).length === 8, `expected exactly 8 keys (7 core + inv), got ${Object.keys(facts).length}: ${Object.keys(facts).join(',')}`);
+  // v22.10.0 note (docs/spec-memory-cap.md §5.1): this was `=== 8` before the
+  // memory-cap backstop. A present, valid, under-budget profile now also
+  // carries `profile_over_budget=false` (case 1, "one boolean's worth of
+  // behavior change on the happy path: nothing else") -- 9, not 8.
+  assert(Object.keys(facts).length === 9, `expected exactly 9 keys (7 core + profile_over_budget + inv), got ${Object.keys(facts).length}: ${Object.keys(facts).join(',')}`);
   assert(facts.config_dir === configDir, `config_dir mismatch: ${facts.config_dir}`);
   assert(facts.sentinel === 'present', `sentinel should be present, got ${facts.sentinel}`);
   assert(facts.profile === 'present', `profile should be present, got ${facts.profile}`);
+  assert(facts.profile_over_budget === false, `the fixture's profile is small and valid, expected profile_over_budget=false, got ${facts.profile_over_budget}`);
   assert(facts.state_local === 'present', `state_local should be present, got ${facts.state_local}`);
   assert(facts.state_global === 'present', `state_global should be present, got ${facts.state_global}`);
   assert(facts.cwd_is_config_dir === false, `cwd_is_config_dir should be false for a real project, got ${facts.cwd_is_config_dir}`);
@@ -178,6 +188,228 @@ record('profile corrupt-but-existing: invalid JSON still reads present (existenc
   writeFileSync(join(configDir, 'otto-profile.json'), '{not valid json at all');
   const facts = runFacts(configDir, configDir, projectDir);
   assert(facts.profile === 'present', `a garbled-but-existing profile file must still read present, got ${facts.profile}`);
+});
+
+// ---------------------------------------------------------------- memory cap (docs/spec-memory-cap.md)
+// Seven-case emission table (spec §5.1), plus the fencepost boundary. Same
+// real-filesystem-scratch-dir, no-mocking convention as every other test in
+// this file. `readIndependent` re-reads the scratch file directly, outside
+// computeFacts(), so `profile_size` is checked against a measurement the
+// hook itself had no hand in producing.
+
+function readIndependent(path) {
+  return readFileSync(path, 'utf8').length;
+}
+
+// A fully-populated profile at roughly the schema doc's own example size
+// (~620 chars pretty-printed) -- the "complete, realistic profile" case 1
+// must stay silent on.
+function fullyPopulatedProfile() {
+  return JSON.stringify(
+    {
+      seats: ['Engineering', 'Strategy / Leadership'],
+      tier: 'Operator',
+      verbosity: 'balanced',
+      scale: 'business',
+      style: { prefers: ['tables', 'no-preamble'], avoid: ['headers-on-short-answers'], declined: ['workspace-cleanup'] },
+      org: { status: 'hired', schema: 'org/1', revision: 2, prefer: [], shadowed: [] },
+      workspace: { specs: 'docs/specs/', drafts: 'drafts/ - disposable', neverTouch: ['vendor/', '*.local.*'] },
+      lastTuneup: '2026-07-12',
+    },
+    null,
+    2
+  );
+}
+
+// A valid profile deliberately padded past PROFILE_CHAR_CAP (2000) via a
+// long `style.declined` array -- the real growth vector the cap exists to
+// catch (spec §1).
+function paddedProfile(padCount = 60) {
+  const declined = Array.from({ length: padCount }, (_, i) => `synthetic-declined-offer-number-${i}`);
+  return JSON.stringify(
+    {
+      seats: ['Engineering'],
+      tier: 'Operator',
+      verbosity: 'balanced',
+      scale: 'business',
+      style: { prefers: ['tables'], avoid: ['headers'], declined },
+    },
+    null,
+    2
+  );
+}
+
+record('memory cap, case 1 (positive, valid & under budget): silent -- profile_over_budget=false, no entries/valid line, rest of facts unchanged', () => {
+  const { configDir, projectDir } = freshDirs();
+  const profilePath = join(configDir, 'otto-profile.json');
+  const content = fullyPopulatedProfile();
+  assert(content.length < PROFILE_CHAR_CAP_FOR_TEST, `fixture should be well under the cap, got ${content.length} chars`);
+  writeFileSync(profilePath, content);
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.profile_over_budget === false, `expected profile_over_budget=false for a valid, under-budget profile, got ${facts.profile_over_budget}`);
+  assert(facts.profile_entries === undefined, 'case 1 must never carry profile_entries');
+  assert(facts.profile_valid === undefined, 'case 1 must never carry profile_valid');
+  assert(facts.profile_size === undefined && facts.profile_cap === undefined, 'case 1 emits profile_over_budget=false alone -- no size/cap line');
+  // Rest of the facts block, unchanged shape: config_dir/sentinel/state_local/
+  // state_global/cwd_is_config_dir/cwd_persona_root/inv all still present and
+  // untouched by this feature.
+  assert(facts.config_dir === configDir && facts.sentinel === 'absent' && facts.state_local === 'absent', 'the rest of the facts block must be unaffected by the memory cap');
+
+  const block = formatFacts(facts);
+  const profileLineIdx = block.split('\n').findIndex((l) => l.startsWith('profile='));
+  assert(block.split('\n')[profileLineIdx + 1] === 'profile_over_budget=false', `expected exactly one line after profile=, got: ${block.split('\n')[profileLineIdx + 1]}`);
+  assert(!block.includes('profile_entries') && !block.includes('profile_valid') && !block.includes('profile_size'), `case 1 must render one boolean line only, got:\n${block}`);
+});
+
+record('memory cap, case 2 (negative, valid & over budget): profile_over_budget=true, size/cap/entries all present, file untouched on disk', () => {
+  const { configDir, projectDir } = freshDirs();
+  const profilePath = join(configDir, 'otto-profile.json');
+  const content = paddedProfile(60);
+  writeFileSync(profilePath, content);
+  const before = readFileSync(profilePath, 'utf8');
+  assert(before.length > PROFILE_CHAR_CAP_FOR_TEST, `fixture must actually exceed the cap for this test to mean anything, got ${before.length} chars`);
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.profile_over_budget === true, `expected profile_over_budget=true, got ${facts.profile_over_budget}`);
+  assert(facts.profile_size === readIndependent(profilePath), `profile_size should equal an independently measured length, got ${facts.profile_size}`);
+  assert(facts.profile_cap === PROFILE_CHAR_CAP_FOR_TEST, `profile_cap should be ${PROFILE_CHAR_CAP_FOR_TEST}, got ${facts.profile_cap}`);
+  assert(typeof facts.profile_entries === 'string' && facts.profile_entries.length > 0, 'profile_entries should be present for a valid, over-budget profile');
+  assert(facts.profile_entries.includes(`style.declined(60)`), `profile_entries should count style.declined's 60 array entries, got: ${facts.profile_entries}`);
+  assert(facts.profile_entries.includes('seats(1)'), `profile_entries should count the seats array, got: ${facts.profile_entries}`);
+  assert(facts.profile_entries.includes('tier') && !facts.profile_entries.includes('tier('), `scalar keys render bare (no count), got: ${facts.profile_entries}`);
+  assert(!facts.profile_entries.includes('style(') , `a nested object itself must never be emitted bare or with a count, only its array children, got: ${facts.profile_entries}`);
+
+  const block = formatFacts(facts);
+  assert(block.includes(`profile_size=${facts.profile_size}`), 'formatFacts output missing profile_size=');
+  assert(block.includes(`profile_cap=${PROFILE_CHAR_CAP_FOR_TEST}`), 'formatFacts output missing profile_cap=');
+  assert(block.includes('profile_over_budget=true'), 'formatFacts output missing profile_over_budget=true');
+
+  const after = readFileSync(profilePath, 'utf8');
+  assert(after === before, 'the hook must only read the profile, never write or truncate it');
+});
+
+record('memory cap, case 3 (negative, CORRUPT AND LARGE -- the target case): profile_over_budget=true fires from size alone, valid=false, entries absent, file untouched', () => {
+  const { configDir, projectDir } = freshDirs();
+  const profilePath = join(configDir, 'otto-profile.json');
+  // Same padded content as case 2, but with the closing brace stripped --
+  // large (>2000 chars) and deliberately unparseable.
+  const valid = paddedProfile(60);
+  const corrupt = valid.slice(0, valid.lastIndexOf('}'));
+  writeFileSync(profilePath, corrupt);
+  const before = readFileSync(profilePath, 'utf8');
+  assert(before.length > PROFILE_CHAR_CAP_FOR_TEST, `fixture must still exceed the cap after truncation, got ${before.length} chars`);
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  // The anti-silent tooth: a naive "parse failure omits everything" would
+  // read this as unknown, false, or entirely absent. None of those are
+  // acceptable -- it must be exactly true.
+  assert(facts.profile_over_budget === true, `THE TARGET CASE: expected profile_over_budget===true (not unknown, not false, not absent), got ${facts.profile_over_budget}`);
+  assert(facts.profile_size === readIndependent(profilePath), `profile_size should equal an independent measurement, got ${facts.profile_size}`);
+  assert(facts.profile_cap === PROFILE_CHAR_CAP_FOR_TEST, `profile_cap should be ${PROFILE_CHAR_CAP_FOR_TEST}, got ${facts.profile_cap}`);
+  assert(facts.profile_valid === false, `expected profile_valid===false for corrupt JSON, got ${facts.profile_valid}`);
+  assert(facts.profile_entries === undefined, `profile_entries must be ABSENT when parse fails, even though over_budget fired, got ${JSON.stringify(facts.profile_entries)}`);
+
+  const block = formatFacts(facts);
+  assert(block.includes('profile_over_budget='), `formatFacts output must contain the substring "profile_over_budget=" -- the anti-silent tooth, got:\n${block}`);
+  assert(block.includes('profile_over_budget=true'), `expected the rendered line to read true, got:\n${block}`);
+  assert(!block.includes('profile_entries'), 'formatFacts output must never render profile_entries when the parse failed');
+
+  const after = readFileSync(profilePath, 'utf8');
+  assert(after === before, 'the hook must only read the corrupt profile, never write or repair it');
+});
+
+record('memory cap, case 4 (negative, corrupt AND small): profile_over_budget=false, profile_valid=false, size correct, entries absent', () => {
+  const { configDir, projectDir } = freshDirs();
+  const profilePath = join(configDir, 'otto-profile.json');
+  const corrupt = '{invalid}';
+  writeFileSync(profilePath, corrupt);
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.profile_over_budget === false, `a small corrupt file must not read as over budget, got ${facts.profile_over_budget}`);
+  assert(facts.profile_valid === false, `expected profile_valid===false, got ${facts.profile_valid}`);
+  assert(facts.profile_size === corrupt.length, `expected profile_size===${corrupt.length}, got ${facts.profile_size}`);
+  assert(facts.profile_cap === PROFILE_CHAR_CAP_FOR_TEST, `profile_cap should be ${PROFILE_CHAR_CAP_FOR_TEST}, got ${facts.profile_cap}`);
+  assert(facts.profile_entries === undefined, 'a corrupt file must never carry profile_entries');
+});
+
+record('memory cap, case 5 (negative, empty file, degenerate case of 4): profile_size=0, profile_over_budget=false, profile_valid=false', () => {
+  const { configDir, projectDir } = freshDirs();
+  const profilePath = join(configDir, 'otto-profile.json');
+  writeFileSync(profilePath, '');
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.profile_size === 0, `expected profile_size===0 for an empty file, got ${facts.profile_size}`);
+  assert(facts.profile_over_budget === false, `an empty file must not read as over budget, got ${facts.profile_over_budget}`);
+  assert(facts.profile_valid === false, `an empty string is not valid JSON, expected profile_valid===false, got ${facts.profile_valid}`);
+  assert(facts.profile_cap === PROFILE_CHAR_CAP_FOR_TEST, `profile_cap should be ${PROFILE_CHAR_CAP_FOR_TEST}, got ${facts.profile_cap}`);
+  assert(facts.profile_entries === undefined, 'an empty file must never carry profile_entries');
+});
+
+record('memory cap, case 6 (negative, present but unreadable, no mocking): a scratch DIRECTORY named otto-profile.json -- existsSync=present, readFileSync throws EISDIR -- profile_over_budget=unknown', () => {
+  const { configDir, projectDir } = freshDirs();
+  // existsSync reports present (it is a real directory entry); readFileSync
+  // throws EISDIR when asked to read a directory as a file -- a
+  // deterministic, mock-free way to hit the read-error path (same technique
+  // this file's own inventory tests already use for settings.json).
+  mkdirSync(join(configDir, 'otto-profile.json'), { recursive: true });
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.profile === 'present', `existsSync should report the directory as present, got ${facts.profile}`);
+  assert(facts.profile_over_budget === 'unknown', `expected profile_over_budget==='unknown' (read failed, size uncomputable), got ${facts.profile_over_budget}`);
+  assert(facts.profile_size === undefined, 'case 6 must carry no profile_size -- there is no string to measure');
+  assert(facts.profile_valid === undefined, 'case 6 must carry no profile_valid');
+  assert(facts.profile_entries === undefined, 'case 6 must carry no profile_entries');
+});
+
+record('memory cap, case 7 (missing): no otto-profile.json at all -- no new profile_* facts, existing profile=absent line already carries it', () => {
+  const { configDir, projectDir } = freshDirs();
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.profile === 'absent', `expected profile===absent, got ${facts.profile}`);
+  assert(facts.profile_over_budget === undefined, 'a missing profile must add no profile_over_budget fact at all');
+  const block = formatFacts(facts);
+  assert(!block.includes('profile_size') && !block.includes('profile_cap') && !block.includes('profile_over_budget') && !block.includes('profile_valid') && !block.includes('profile_entries'), `a missing profile must render no profile_* lines, got:\n${block}`);
+});
+
+record('memory cap, boundary: exactly 2000 chars, valid JSON, is NOT over budget (>, not >=)', () => {
+  const { configDir, projectDir } = freshDirs();
+  const profilePath = join(configDir, 'otto-profile.json');
+  // Build a valid JSON string, then pad it to EXACTLY 2000 chars by widening
+  // a string value -- padding inside a JSON string value keeps the document
+  // valid while landing on an exact character count.
+  const base = JSON.stringify({ seats: ['Engineering'], tier: 'Operator', pad: '' });
+  const padNeeded = PROFILE_CHAR_CAP_FOR_TEST - base.length;
+  assert(padNeeded > 0, 'test fixture logic error: base profile already exceeds the cap');
+  const content = JSON.stringify({ seats: ['Engineering'], tier: 'Operator', pad: 'x'.repeat(padNeeded) });
+  assert(content.length === PROFILE_CHAR_CAP_FOR_TEST, `fixture should be exactly ${PROFILE_CHAR_CAP_FOR_TEST} chars, got ${content.length}`);
+  writeFileSync(profilePath, content);
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.profile_over_budget === false, `a profile at EXACTLY the cap must NOT be flagged over budget (>, not >=), got ${facts.profile_over_budget}`);
+  // At exactly the cap this is case 1 (valid, under budget) -- no anomaly
+  // holds, so profile_size/profile_cap are not emitted at all (spec §5.1's
+  // emission rule: size+cap only "whenever any anomaly holds").
+  assert(facts.profile_size === undefined, `a profile at exactly the cap is case 1 -- no size line expected, got ${facts.profile_size}`);
+});
+
+record('memory cap, boundary: exactly 2001 chars (cap + 1), valid JSON, IS over budget (>, not >=)', () => {
+  const { configDir, projectDir } = freshDirs();
+  const profilePath = join(configDir, 'otto-profile.json');
+  // Mirrors the exactly-2000 boundary test above, one char over the cap --
+  // the two fenceposts sit together so a broken comparison (e.g. `>= cap`
+  // becoming `> cap + 1`) cannot silently pass on one side while failing the
+  // other unnoticed.
+  const base = JSON.stringify({ seats: ['Engineering'], tier: 'Operator', pad: '' });
+  const padNeeded = PROFILE_CHAR_CAP_FOR_TEST + 1 - base.length;
+  assert(padNeeded > 0, 'test fixture logic error: base profile already exceeds the cap + 1');
+  const content = JSON.stringify({ seats: ['Engineering'], tier: 'Operator', pad: 'x'.repeat(padNeeded) });
+  assert(content.length === PROFILE_CHAR_CAP_FOR_TEST + 1, `fixture should be exactly ${PROFILE_CHAR_CAP_FOR_TEST + 1} chars, got ${content.length}`);
+  writeFileSync(profilePath, content);
+
+  const facts = runFacts(configDir, configDir, projectDir);
+  assert(facts.profile_over_budget === true, `a profile at cap + 1 char must be flagged over budget, got ${facts.profile_over_budget}`);
+  assert(facts.profile_size === PROFILE_CHAR_CAP_FOR_TEST + 1, `expected profile_size===${PROFILE_CHAR_CAP_FOR_TEST + 1}, got ${facts.profile_size}`);
+  assert(facts.profile_cap === PROFILE_CHAR_CAP_FOR_TEST, `profile_cap should be ${PROFILE_CHAR_CAP_FOR_TEST}, got ${facts.profile_cap}`);
 });
 
 // ---------------------------------------------------------------- cwd_is_config_dir

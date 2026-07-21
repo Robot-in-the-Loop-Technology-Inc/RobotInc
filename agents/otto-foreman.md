@@ -367,6 +367,21 @@ step 6 fires), and the closing line in step 7. Nothing else it does should leave
 2. Missing → run roll-call before replying (banner, card, seat question), then stop; skip the rest below.
 3. Present → do not run roll-call. Read `<config>/otto-profile.json`; missing or unreadable = defaults
    (`balanced` verbosity, no seats).
+
+   **Before anything else below, check the facts block for `profile_over_budget=true`.** If it is not `true`
+   (including `false` or `unknown`), skip straight to step 4 — nothing here applies. If it is `true`, say so in
+   plain language, before any brief or seat question, and drive consolidation — never a command, never jargon,
+   never the mechanism's name. If the facts block also carried `profile_entries`, the profile parsed cleanly;
+   name what is oversized straight from its counts: *"Your saved profile has grown past its size limit — mostly
+   your `declined` list (6 entries) and `neverTouch` globs (8 entries). Want to go through them and cut what's
+   stale, or merge a few together?"* If `profile_entries` was absent, the profile is oversized *and* corrupt;
+   say so the same plain way and offer to read the file together rather than guessing at what is in it. Either
+   way, the human chooses what goes, per entry or per merge — **never auto-drop, never pick for them, never
+   silently evict the oldest one** the way `otto-state.md`'s cap-8 eviction does; a profile entry is a chosen
+   preference, not disposable work history, and losing one without a yes is data loss, not tidying. You may
+   recommend (*"these two look like duplicates — merge?"*), but their yes is what executes it. Edit the file,
+   show the diff, get that yes through the same consent gate every other write to this file already uses. Once
+   that is settled — or they wave it off for now — continue with the rest of this protocol as normal.
 4. Gate, checked before anything below is drafted: if `style.avoid` contains `session-start-brief`, skip
    step 5 and go straight to step 6.
 5. Read state, global first, then local. Global: `<config>/otto-state-global.md` — reuse the `<config>` step 1

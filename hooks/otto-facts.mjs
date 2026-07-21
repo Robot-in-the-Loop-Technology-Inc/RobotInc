@@ -101,6 +101,17 @@ export const STOCK_AGENT_IDS = new Set([
 // order and the rest degrades to inv=partial + inv_truncated=true (spec §3.4).
 const INV_CHAR_CAP = 1800;
 
+// Memory-cap backstop for otto-profile.json (docs/spec-memory-cap.md §4):
+// character count via `.length` on the raw string readFileSync returns — the
+// same convention INV_CHAR_CAP above already uses, never "on-disk bytes" and
+// never a tokenizer. ~3x the fully-populated schema example (~620 chars), so
+// a normal profile never trips it, but a year of accumulated `declined` /
+// `neverTouch` entries will. scripts/validate.mjs cross-checks this number
+// against docs/profile-schema.md's prose so the two can never quietly drift.
+// Exported so scripts/test-otto-facts.mjs can assert against the same single
+// source of truth rather than a second hardcoded `2000` in the test file.
+export const PROFILE_CHAR_CAP = 2000;
+
 // An id containing any of these breaks the wire format's comma-separated
 // list (or, for `*`, would be indistinguishable from a collision flag we
 // didn't compute). Skipped, never emitted malformed; forces inv=partial.
@@ -389,6 +400,102 @@ export function computeInventoryFacts(core, cwd) {
   }
 }
 
+// ------------------------------------------------------------- profile cap
+
+// Key + array-entry-COUNT manifest, matching spec-memory-cap.md §5.1's own
+// worked example verbatim: `seats(2),tier,verbosity,scale,style.prefers(5),
+// style.avoid(3),style.declined(6),org.prefer(4),org.shadowed(1),
+// workspace.neverTouch(8),lastTuneup`. Top-level scalars render bare
+// (`tier`), top-level arrays render with a count (`seats(2)`); a top-level
+// object (`style`, `org`, `workspace` -- docs/profile-schema.md's own nested
+// blocks) is never itself emitted, and is instead descended exactly one
+// level, emitting only ITS array-valued children as `key.subkey(count)`
+// (`style.declined(6)`). A nested object's own scalar children (`org.status`,
+// `workspace.specs`) are never emitted at all -- they are not a growth
+// vector and the manifest exists to surface growth vectors, not restate the
+// whole schema. Never descends past one level of nesting; the schema itself
+// never nests deeper than that (docs/profile-schema.md's "whole file").
+function buildEntriesManifest(obj) {
+  const parts = [];
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (Array.isArray(val)) {
+      parts.push(`${key}(${val.length})`);
+    } else if (val !== null && typeof val === 'object') {
+      for (const subKey of Object.keys(val)) {
+        const subVal = val[subKey];
+        if (Array.isArray(subVal)) parts.push(`${key}.${subKey}(${subVal.length})`);
+      }
+    } else {
+      parts.push(key);
+    }
+  }
+  return parts.join(',');
+}
+
+// Memory-cap backstop for otto-profile.json (docs/spec-memory-cap.md §5.1,
+// §7). Only called when core.profile === 'present' — a missing file (case 7)
+// contributes nothing new; the existing `profile=absent` line already
+// carries it.
+//
+// Three nested catches, in this order (spec's "fail-soft" section):
+//   1. readFileSync throws (EISDIR/EACCES/a delete race) -> degrade to
+//      profile_over_budget='unknown'. Nothing else is computed; there is no
+//      string yet to measure (case 6).
+//   2. JSON.parse throws -> degrade to profile_valid=false. profile_size and
+//      profile_over_budget were already computed BEFORE this parse ran (the
+//      load-bearing ordering the spec calls out) and are left untouched --
+//      this is what makes case 3 (corrupt AND large) possible: over_budget
+//      still fires true, from the size alone, no matter what the parse does.
+//   3. Outer catch -- last resort for a genuinely unexpected throw elsewhere
+//      in this computation -> omit the new lines entirely, same fail-soft
+//      footing as the rest of this file. The corrupt cases (3 and 4) never
+//      reach this branch; they are fully handled by catch 2.
+function computeProfileBudget(profilePath) {
+  try {
+    let raw;
+    try {
+      raw = readFileSync(profilePath, 'utf8');
+    } catch {
+      return { profile_over_budget: 'unknown' };
+    }
+
+    // SIZE -- measured from the raw string alone, no parsing involved at
+    // all. Load-bearing ordering: this happens BEFORE the parse below, so a
+    // parse failure can never erase it (spec §5.1).
+    const size = raw.length;
+    const overBudget = size > PROFILE_CHAR_CAP; // strict >, not >=: exactly the cap is not over
+
+    // VALIDITY -- a separate, orthogonal axis. Success computes the entries
+    // manifest (case 2 only); failure emits profile_valid=false at any size
+    // (cases 3, 4, 5) without touching the size/over_budget already above.
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // profile_size + profile_cap emitted whenever any anomaly holds
+      // (over_budget=true OR valid=false) -- true here regardless of which
+      // side tripped, since valid=false always holds in this branch.
+      return { profile_size: size, profile_cap: PROFILE_CHAR_CAP, profile_over_budget: overBudget, profile_valid: false };
+    }
+
+    if (!overBudget) return { profile_over_budget: false }; // case 1: happy path, one line only
+
+    // case 2: valid and over budget. Key + array-entry-COUNT manifest only,
+    // never the values themselves -- enough for Otto to say "your `declined`
+    // list has 6 entries" without the hook making any judgment call about
+    // which entry is safe to drop. That judgment is Otto's and the human's.
+    const entries = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? buildEntriesManifest(parsed)
+      : '';
+    return { profile_size: size, profile_cap: PROFILE_CHAR_CAP, profile_over_budget: true, profile_entries: entries };
+  } catch {
+    // Outer catch: never reached by the corrupt cases above, only by a
+    // genuinely unexpected throw elsewhere in this function.
+    return {};
+  }
+}
+
 // Pure(ish) computation, no stdout — exported for direct testing. `opts.env`
 // and `opts.home` default to the real process environment/homedir, same
 // override pattern hooks/otto-state.mjs already uses for its own tests.
@@ -409,7 +516,30 @@ export function computeFacts(payload, opts = {}) {
     cwd_persona_root: cwdPersonaRoot(join(cwd, '.claude')),
   };
 
-  return { ...core, ...computeInventoryFacts(core, cwd) };
+  // Memory-cap backstop (docs/spec-memory-cap.md) -- only meaningful when the
+  // profile actually exists; a missing file (case 7) adds nothing new, the
+  // existing `profile=absent` line already carries it.
+  const profileBudget = core.profile === 'present'
+    ? computeProfileBudget(join(configDir, 'otto-profile.json'))
+    : {};
+
+  return { ...core, ...profileBudget, ...computeInventoryFacts(core, cwd) };
+}
+
+// Builds the profile-cap lines (spec-memory-cap.md §5.1) a given facts
+// object renders as, in table order: size, cap, over_budget, valid, entries.
+// `profile_over_budget` is the only field ever guaranteed present once this
+// fires at all (`unknown` on a read failure, `false` alone on the happy
+// path) -- everything else is conditional per the seven-case table.
+function profileBudgetLines(facts) {
+  if (facts.profile_over_budget === undefined) return [];
+  const lines = [];
+  if (facts.profile_size !== undefined) lines.push(`profile_size=${facts.profile_size}`);
+  if (facts.profile_cap !== undefined) lines.push(`profile_cap=${facts.profile_cap}`);
+  lines.push(`profile_over_budget=${facts.profile_over_budget}`);
+  if (facts.profile_valid !== undefined) lines.push(`profile_valid=${facts.profile_valid}`);
+  if (facts.profile_entries !== undefined) lines.push(`profile_entries=${facts.profile_entries}`);
+  return lines;
 }
 
 // Renders the exact block the hook prints to stdout. Kept separate from
@@ -421,6 +551,7 @@ export function formatFacts(facts) {
     `config_dir=${facts.config_dir}`,
     `sentinel=${facts.sentinel}`,
     `profile=${facts.profile}`,
+    ...profileBudgetLines(facts),
     `state_local=${facts.state_local}`,
     `state_global=${facts.state_global}`,
     `cwd_is_config_dir=${facts.cwd_is_config_dir}`,
