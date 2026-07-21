@@ -1,5 +1,41 @@
 # Changelog
 
+## 22.9.0 — 2026-07-20
+
+**Offboarding: safe removal flow, install/upgrade documentation, validator exemption for state-file references.**
+
+### New: `/robotinc:offboard` command — consent-gated teardown
+
+A command to offboard safely: pause the plugin (fully reversible) or remove RobotInc with a full inventory of local files, per-category consent, and exact receipt of what was removed. Built from the spec in `docs/spec-offboarding-22.9.md`.
+
+Handles four categories:
+- **Silent residue** (Otto's auto-written state and logs): otto-state-global.md, .otto-met, .otto-pending/, otto-trace.log, otto-ledger.log, per-project .claude/ files — recommend delete.
+- **User data** (profile and org JSON): otto-profile.json, otto-org.json — recommend keep (separate consent).
+- **Settings we added** (shown as reverse diff): permissions.deny, permissions allowlist, CLAUDE_AUTOCOMPACT_PCT_OVERRIDE — revert only what user approves.
+- **Work product** (never offered for deletion): TASKS.md, DREAM.md, deliverables — listed to reassure, deletion requests refused.
+
+Inventory scans `<config>` and current project `<cwd>/.claude/` with full confidence. Reads `otto-state-global.md` to list other projects RobotInc touched and directs user to run offboard again in each.
+
+Two-path entry: "Just pause it" (fully reversible, `/plugin disable robotinc@robotinc`) or "I want it gone" (full cleanup flow). Closes with both exits and marketplace-remove warning every time, regardless of what was cleaned.
+
+Negative test (Glitchtrap): confirmed on clean sandbox TWICE — never inventé residue, correctly distinguished plugin install cache from RobotInc files. Positive path verified with filesystem checks: inventory accurate, per-category consent honored, deletion verified, profile/settings/work byte-identical untouched, receipt matched reality.
+
+### Documentation: Install and uninstall paths, CI/CD honesty
+
+- **Install:** Added CLI path block in `## Install` section with explanation (`claude plugin install robotinc@robotinc --scope user -y`; `--scope user` installs across every project, `-y` skips confirmation for scripted/headless runs).
+- **Uninstall:** New peer section (same level as `## Install`) with guided `/robotinc:offboard` path, raw commands (`/plugin disable`, `/plugin uninstall`, `claude plugin uninstall`), and marketplace-remove trap warning in blockquote.
+- **Upgrade story:** Added direct "CI yes, CD no" answer near the top of "Staying up to date" — releases gated on our side (validated, version-bumped, or don't ship), delivery to your machine is pull-only (manual command or opt-in auto-update). Cross-linked to new Uninstall section.
+
+### Free-text routing
+
+Added one routing line to Otto's system prompt: free-text intent ("how do I uninstall this," "turn RobotInc off," "I want this gone") lands at `/robotinc:offboard` without user needing to know the command name.
+
+### Validator gate: offboard.md exemption from state-file-mention rule
+
+`scripts/validate.mjs` gate (otto-state.md / otto-state-global.md single-writer rule) exempted `commands/offboard.md` — the only place outside Otto's prompt and the state-writing hooks where these files are named. Exemption is scoped: command only reads and reports what exists; it does not write or modify either file. Gate remains active for all other prompts.
+
+---
+
 ## 22.8.4 — 2026-07-20
 
 **Escalation doctrine clarified: dispatch-time model override beats frontmatter pin.**

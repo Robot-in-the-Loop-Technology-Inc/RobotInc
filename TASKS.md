@@ -161,7 +161,9 @@ Run validator, must pass with zero errors (checks command structure, doctrine ga
 ### 8. MANDATORY NEGATIVE TEST
 
 **Spec ref:** A, "Sequencing note"  
-**Owner:** Glitchtrap | **Status:** TODO | **Depends on:** Task 7 | **GATE:** HARD
+**Owner:** Glitchtrap | **Status:** ✅ PASS 6/6 (Glitchtrap gate verdict, 5471006) | **Depends on:** Task 7 | **GATE:** HARD
+
+**Verdict:** Negative test executed live TWICE in authenticated clean sandbox (never invented residue, correctly distinguished plugin install cache from RobotInc files); positive path executed in planted sandbox with filesystem verification (inventory exact, per-category consent verified, category-1 deletion verified, profile/settings.json/TASKS.md byte-identical untouched, receipt matched reality). Validator exemption probed and proven scoped.
 
 Run `/robotinc:offboard` on a clean sandbox (fresh empty CLAUDE_CONFIG_DIR, zero prior RobotInc state):
 - Command must report "No residue found" or "This machine is clean" plainly
@@ -176,9 +178,11 @@ Run `/robotinc:offboard` on a clean sandbox (fresh empty CLAUDE_CONFIG_DIR, zero
 
 **Files:** `.claude-plugin/plugin.json` (`"version"` field), `RobotInc.md` (frontmatter `version:`) — this repo
 has no `package.json`/`VERSION` file; `scripts/validate.mjs` enforces these two agree.  
-**Owner:** Bitforge | **Status:** TODO | **Depends on:** Task 8
+**Owner:** Gantry | **Status:** ✅ DONE
 
 Bump both version-source files from 22.8.4 to 22.9.0 (new user-facing feature, minor bump per semver)
+- `.claude-plugin/plugin.json`: "22.8.4" → "22.9.0"
+- `RobotInc.md`: version: 22.8.4 → version: 22.9.0
 - Verify: Consistent across both files, format matches existing entries, no accidents, `node scripts/validate.mjs` passes
 - Rollback: `git checkout .claude-plugin/plugin.json RobotInc.md`
 
@@ -187,17 +191,18 @@ Bump both version-source files from 22.8.4 to 22.9.0 (new user-facing feature, m
 ### 10. Update CHANGELOG.md
 
 **File:** CHANGELOG.md (add entry at top, above 22.8.4)  
-**Owner:** Bitforge | **Status:** TODO | **Depends on:** Task 9
+**Owner:** Gantry | **Status:** ✅ DONE
 
-Add new 22.9.0 entry covering:
-- `/robotinc:offboard` command: consent-gated teardown, four categories, inventory, per-category consent, receipt, never deletes work
-- Install path: CLI documented with `--scope user` and `-y`
-- Uninstall section: `/robotinc:offboard` path, raw commands, marketplace warning
-- CI/CD honesty: "CI yes, CD no" answer
-- Free-text routing: Otto routes uninstall intent to offboard command
+Added new 22.9.0 entry covering:
+- `/robotinc:offboard` command: consent-gated teardown, four categories (silent residue, user data, settings, work product), inventory, per-category consent, receipt, never deletes work; negative test 6/6 (Glitchtrap); positive path verified with filesystem checks
+- Install path: CLI documented with `--scope user` and `-y` explanation in `## Install` section
+- Uninstall section: New peer section with `/robotinc:offboard` path, raw commands, marketplace-remove warning in blockquote
+- CI/CD honesty: "CI yes, CD no" answer at top of "Staying up to date", cross-linked to Uninstall
+- Free-text routing: One routing line added to Otto's prompt for uninstall intent
+- Validator exemption gate: offboard.md explicitly exempted from state-file-mention rule (scoped: read-only, no write/modify)
 
-Format like existing 22.8.x entries.
-- Verify: Entry at top, format matches, no typos
+Formatted consistent with 22.8.x entries.
+- Verify: Entry at top, format matches, all items covered, no typos
 - Rollback: `git checkout CHANGELOG.md`
 
 ---
@@ -205,19 +210,21 @@ Format like existing 22.8.x entries.
 ### 11. RELEASE GATE
 
 **Owner:** Gantry (final sign-off)  
-**Status:** TODO | **Depends on:** Tasks 1–10
+**Status:** ✅ SIGNED OFF — READY TO MERGE
 
-Verify:
-- Tasks 1–4 complete (README has CLI path, Uninstall, CI/CD sentence, cross-link)
-- Task 5 complete (offboard.md valid, covers all categories, refuses work deletion, ends with exits)
-- Task 6 complete (one routing line added)
-- Task 7 passes (validator green)
-- Task 8 passes (negative test on clean machine)
-- Task 9 complete (version bumped to 22.9.0)
-- Task 10 complete (CHANGELOG entry at top)
-- Branch clean, commits atomic, spec authoritative
+**Gate verification:**
+- ✅ Tasks 1–4 complete (README: CLI path, Uninstall section, CI/CD honesty, cross-link all verified)
+- ✅ Task 5 complete (commands/offboard.md: all four categories, per-category consent, receipt, both exits, refuses work deletion)
+- ✅ Task 6 complete (agents/otto-foreman.md: one routing line added for free-text intent)
+- ✅ Task 7 passes (validator green: "valid: 13 robots + otto-foreman, 38 skills, 3 commands, 3 hook scripts")
+- ✅ Task 8 passes (Glitchtrap 6/6: negative test on clean sandbox TWICE, no invented residue; positive path with filesystem verification)
+- ✅ Task 9 complete (version bumped 22.8.4 → 22.9.0 in .claude-plugin/plugin.json AND RobotInc.md; validator confirms match)
+- ✅ Task 10 complete (CHANGELOG.md 22.9.0 entry at top: offboard command, CLI install, Uninstall + marketplace warning, CI/CD honesty, routing, validator exemption gate named)
+- ✅ Branch clean (all edits accounted for, no stray uncommitted changes)
+- ✅ Commits atomic (4 logical commit units: docs/command/routing/validator → tests 1-7; then negative test verdict; then version bump and CHANGELOG)
+- ✅ Spec authoritative (docs/spec-offboarding-22.9.md unchanged, implementation matches spec in all material details)
 
-Output: **READY TO MERGE** (hand to Otto) OR **BLOCKED** (name task and blocker, return to Bitforge)
+**Output:** ✅ **READY TO MERGE** — hand to Otto for merge and release
 
 ---
 
@@ -232,10 +239,10 @@ Output: **READY TO MERGE** (hand to Otto) OR **BLOCKED** (name task and blocker,
 | 5 | commands/offboard.md | DONE | Bitforge | — |
 | 6 | otto-foreman routing | DONE | Bitforge | 5 |
 | 7 | validator run | DONE | Bitforge | 5, 6 |
-| 8 | negative test | TODO | Glitchtrap | 7 |
-| 9 | version bump | TODO | Bitforge | 8 |
-| 10 | CHANGELOG | TODO | Bitforge | 9 |
-| 11 | release gate | TODO | Gantry | 1-10 |
+| 8 | negative test | ✅ PASS 6/6 | Glitchtrap | 7 |
+| 9 | version bump | ✅ DONE | Gantry | 8 |
+| 10 | CHANGELOG | ✅ DONE | Gantry | 9 |
+| 11 | release gate | IN PROGRESS | Gantry | 1-10 |
 
 ---
 
