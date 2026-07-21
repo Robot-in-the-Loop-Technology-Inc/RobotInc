@@ -493,7 +493,15 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
 // test, and Glitchtrap should confirm on real Unix hardware before release.
 {
   const hookFiles = readdirSync(join(REPO, 'hooks'));
-  const extra = hookFiles.filter((f) => !['hooks.json', 'otto-trace.mjs', 'otto-state.mjs', 'otto-facts.mjs'].includes(f));
+  // v22.11.0 adds three goal-anchor files (docs/spec-goal-contract.md):
+  // otto-goal-lib.mjs (a shared library, never itself registered in
+  // hooks.json), otto-goal-compact.mjs (SessionStart/compact), and
+  // otto-goal-audit.mjs (PostToolUse, second entry under "Task").
+  const EXPECTED_HOOK_FILES = [
+    'hooks.json', 'otto-trace.mjs', 'otto-state.mjs', 'otto-facts.mjs',
+    'otto-goal-lib.mjs', 'otto-goal-compact.mjs', 'otto-goal-audit.mjs',
+  ];
+  const extra = hookFiles.filter((f) => !EXPECTED_HOOK_FILES.includes(f));
   if (extra.length) fail(`unexpected files in hooks/: ${extra.join(', ')} — a new hook is a new runtime dependency; see README`);
   const trace = read('hooks/otto-trace.mjs');
   if (VS16.test(trace)) fail('hooks/otto-trace.mjs: contains a U+FE0F variation-selector emoji');
@@ -510,6 +518,21 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
     if (VS16.test(facts)) fail('hooks/otto-facts.mjs: contains a U+FE0F variation-selector emoji');
     if (/Level[- ]?2|Operator'/.test(facts)) fail('hooks/otto-facts.mjs: personal tier leaked in');
   }
+  // v22.11.0 goal-anchor files — same VS16 / personal-tier scans as every
+  // other shipped hook script above.
+  const goalFiles = {
+    'hooks/otto-goal-lib.mjs': existsSync(join(REPO, 'hooks/otto-goal-lib.mjs')) ? read('hooks/otto-goal-lib.mjs') : null,
+    'hooks/otto-goal-compact.mjs': existsSync(join(REPO, 'hooks/otto-goal-compact.mjs')) ? read('hooks/otto-goal-compact.mjs') : null,
+    'hooks/otto-goal-audit.mjs': existsSync(join(REPO, 'hooks/otto-goal-audit.mjs')) ? read('hooks/otto-goal-audit.mjs') : null,
+  };
+  for (const [label, src] of Object.entries(goalFiles)) {
+    if (!src) continue;
+    if (VS16.test(src)) fail(`${label}: contains a U+FE0F variation-selector emoji`);
+    if (/Level[- ]?2|Operator'/.test(src)) fail(`${label}: personal tier leaked in`);
+  }
+  const goalLib = goalFiles['hooks/otto-goal-lib.mjs'];
+  const goalCompact = goalFiles['hooks/otto-goal-compact.mjs'];
+  const goalAudit = goalFiles['hooks/otto-goal-audit.mjs'];
   const hooks = JSON.parse(read('hooks/hooks.json'));
   const events = Object.keys(hooks.hooks || {});
   const ALLOWED_EVENTS = new Set(['SessionStart', 'SubagentStop', 'PostToolUse']);
@@ -568,6 +591,12 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   // `tool_name === "Task"` instead of the delivered `"Agent"` (see
   // docs/hook-events.md). Gate the working shape directly so a future
   // "helpful" edit toward the untested draft trips CI instead of shipping dark.
+  //
+  // v22.11.0 adds a SECOND hook (otto-goal-audit.mjs) inside this SAME "Task"
+  // entry's `hooks` array (docs/spec-goal-contract.md §6.1) — mirrors the
+  // SubagentStop gate's own `stopScripts` Set pattern above rather than
+  // requiring every individual hook to reference otto-state.mjs, which would
+  // false-fail the moment a second, differently-named script joined the array.
   if (events.includes('PostToolUse')) {
     for (const entry of hooks.hooks.PostToolUse || []) {
       if (entry.matcher !== 'Task') {
@@ -575,19 +604,25 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
            + `string for the Task tool; the delivered event's own tool_name field is "Agent", a separate fact `
            + `the hook script itself must gate on (see docs/hook-events.md)`);
       }
+      const taskScripts = new Set();
       for (const h of entry.hooks || []) {
         if (h.type !== 'command') {
           fail(`hooks.json: PostToolUse hook has "type": "${h.type}" — must be "command" (the same convention `
              + `SessionStart and SubagentStop already use). "script" was tried and empirically never fires; `
              + `see docs/hook-events.md.`);
         }
-        if (h.command !== 'node' || !(h.args || []).some((a) => /otto-state\.mjs$/.test(a))) {
-          fail('hooks.json: PostToolUse hook does not invoke node on hooks/otto-state.mjs');
-        }
+        const match = (h.args || []).find((a) => /otto-(state|goal-audit)\.mjs$/.test(a));
+        if (h.command === 'node' && match) taskScripts.add(match.match(/otto-(state|goal-audit)\.mjs$/)[0]);
         if (!(h.timeout > 0 && h.timeout <= 10)) {
           fail(`hooks.json: PostToolUse timeout is ${h.timeout}, expected a small bounded number (<=10s) — `
              + `file I/O plus lock contention must never hang a Task return`);
         }
+      }
+      if (!taskScripts.has('otto-state.mjs')) fail('hooks.json: PostToolUse "Task" entry does not invoke node on hooks/otto-state.mjs');
+      if (goalAudit && !taskScripts.has('otto-goal-audit.mjs')) {
+        fail('hooks.json: PostToolUse "Task" entry does not invoke node on hooks/otto-goal-audit.mjs — the '
+           + 'v22.11.0 goal-anchor dispatch audit must be a second entry alongside otto-state.mjs, see '
+           + 'docs/spec-goal-contract.md §6.1');
       }
     }
   }
@@ -605,14 +640,45 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   // — it degrades to silently absent when Node is missing (see that file's
   // own header comment), which is why it never needs the trigger's
   // zero-dependency or apostrophe-safety properties.
+  // v22.11.0 adds a THIRD SessionStart entry, deliberately on a DIFFERENT
+  // matcher ("compact", not "startup") — hooks/otto-goal-compact.mjs, the
+  // deterministic compaction-preservation reader (docs/spec-goal-contract.md
+  // §4.C). This is the same "two separate SessionStart hooks, deliberately"
+  // precedent otto-facts.mjs's own header already established for the
+  // "startup" matcher, extended to a second matcher rather than reopened.
+  const EXPECTED_SESSION_START_ENTRIES = goalCompact ? 3 : 2;
   const sessionStartEntries = hooks.hooks?.SessionStart || [];
-  if (sessionStartEntries.length !== 2) {
-    fail(`hooks.json: expected exactly 2 SessionStart entries (the zero-dependency trigger + the Node facts `
-       + `injector), found ${sessionStartEntries.length}`);
+  if (sessionStartEntries.length !== EXPECTED_SESSION_START_ENTRIES) {
+    fail(`hooks.json: expected exactly ${EXPECTED_SESSION_START_ENTRIES} SessionStart entries (the `
+       + `zero-dependency trigger + the Node facts injector${goalCompact ? ' + the goal-anchor compact reader' : ''}), `
+       + `found ${sessionStartEntries.length}`);
   }
   let sawTrigger = false;
   let sawFactsHook = false;
+  let sawCompactHook = false;
   for (const entry of sessionStartEntries) {
+    const isCompactEntry = (entry.hooks || []).some(
+      (h) => h.command === 'node' && (h.args || []).some((a) => /otto-goal-compact\.mjs$/.test(a))
+    );
+    if (isCompactEntry) {
+      if (entry.matcher !== 'compact') {
+        fail(`hooks.json: the otto-goal-compact.mjs entry's matcher is "${entry.matcher}", must be "compact" — `
+           + `that is the real, usable post-compaction hook (docs/spec-goal-contract.md §4.C); "PreCompact" does `
+           + `not exist in this codebase's evidence base.`);
+      }
+      for (const h of entry.hooks || []) {
+        sawCompactHook = true;
+        if (h.type !== 'command') {
+          fail(`hooks.json: SessionStart compact hook has "type": "${h.type}" — must be "command", the same `
+             + `convention every other hook here uses.`);
+        }
+        if (!(h.timeout > 0 && h.timeout <= 10)) {
+          fail(`hooks.json: SessionStart compact hook timeout is ${h.timeout}, expected a small bounded number `
+             + `(<=10s) — file I/O must never hang session start`);
+        }
+      }
+      continue; // the startup-only checks below (trigger shape, facts hook shape) don't apply to this entry
+    }
     if (entry.matcher !== 'startup') {
       fail(`hooks.json: SessionStart matcher is "${entry.matcher}", must be "startup" — firing on resume/clear/compact `
          + `risks re-running roll-call for someone already met`);
@@ -667,6 +733,10 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
   }
   if (!sawTrigger) fail('hooks.json: no zero-dependency SessionStart trigger entry found (expected an echo-based entry)');
   if (!sawFactsHook) fail('hooks.json: no Node-based SessionStart facts hook found (expected an entry invoking hooks/otto-facts.mjs)');
+  if (goalCompact && !sawCompactHook) {
+    fail('hooks.json: no SessionStart "compact" entry found invoking hooks/otto-goal-compact.mjs — see '
+       + 'docs/spec-goal-contract.md §4.C');
+  }
 
   // The hook's ROBOTS map must know every delegate robot, with the SAME badge and
   // role as Otto's roster. It didn't: Gantry shipped and was never added here, so
@@ -795,6 +865,74 @@ if (commands.includes('otto-publish.md')) fail('commands/otto-publish.md is main
         fail(`memory cap drift: hooks/otto-facts.mjs's PROFILE_CHAR_CAP is ${codeCap}, but docs/profile-schema.md's prose says ${proseCap} characters — the two must agree`);
       }
     }
+  }
+}
+
+// ------------------------------------------------- goal anchor: ANCHOR_SENTINEL / ANCHOR_CHAR_CAP single-source
+// docs/spec-goal-contract.md §4.A / Cohesion note item 9: both constants are
+// defined EXACTLY ONCE, in hooks/otto-goal-lib.mjs, and imported everywhere
+// else (hooks/otto-goal-compact.mjs, hooks/otto-goal-audit.mjs,
+// hooks/otto-facts.mjs) — never redefined. Same drift-prevention shape as the
+// PROFILE_CHAR_CAP cross-check just above: a second, independently-hardcoded
+// copy is exactly how the injected anchor, the post-compaction anchor, and
+// the audit's idempotency check would quietly disagree.
+{
+  const goalHookFiles = [
+    'hooks/otto-goal-lib.mjs', 'hooks/otto-goal-compact.mjs', 'hooks/otto-goal-audit.mjs', 'hooks/otto-facts.mjs',
+    'hooks/otto-state.mjs', 'hooks/otto-trace.mjs',
+  ].filter((p) => existsSync(join(REPO, p)));
+  if (existsSync(join(REPO, 'hooks/otto-goal-lib.mjs'))) {
+    for (const [constName, defRe] of [
+      ['ANCHOR_SENTINEL', /(?:export )?const ANCHOR_SENTINEL\s*=/g],
+      ['ANCHOR_CHAR_CAP', /(?:export )?const ANCHOR_CHAR_CAP\s*=/g],
+    ]) {
+      const definedIn = [];
+      for (const p of goalHookFiles) {
+        const count = (read(p).match(defRe) || []).length;
+        if (count) definedIn.push(p);
+      }
+      if (definedIn.length === 0) {
+        fail(`hooks/otto-goal-lib.mjs: no "${constName}" constant definition found — the single-source drift gate cannot run`);
+      } else if (definedIn.length > 1 || definedIn[0] !== 'hooks/otto-goal-lib.mjs') {
+        fail(`${constName} must be defined exactly once, in hooks/otto-goal-lib.mjs — found in: ${definedIn.join(', ')}`);
+      }
+    }
+  }
+}
+
+// ------------------------------------------------- goal anchor: single-PreToolUse-updatedInput-emitter invariant
+// docs/spec-goal-contract.md §4.A: hooks/otto-goal-inject.mjs (the deferred
+// PreToolUse inject hook, built only once build-task-1's spike confirms
+// feasibility) will be the ONLY PreToolUse hook ever allowed to emit
+// `updatedInput` — Claude Code resolves multiple emitters non-deterministically
+// (last-writer-wins), which would make that hook's own guarantee unverifiable.
+// DORMANT BY DESIGN, NOT YET LOAD-BEARING: this build ships no PreToolUse
+// entry at all (§4.A is deferred; see TASKS.md), so the loop below currently
+// iterates zero entries and this gate passes vacuously. It is written now,
+// against the real hooks.json structure, so the exact day a PreToolUse entry
+// is added this check starts doing real work with no further edit required —
+// the seam §4.A slots into, not a placeholder to remember to come back to.
+{
+  const hooksJson = JSON.parse(read('hooks/hooks.json'));
+  const preToolUseEntries = hooksJson.hooks?.PreToolUse || [];
+  const emitters = [];
+  for (const entry of preToolUseEntries) {
+    for (const h of entry.hooks || []) {
+      for (const arg of h.args || []) {
+        const m = arg.match(/([^/\\]+\.mjs)$/);
+        if (!m) continue;
+        const scriptPath = join(REPO, 'hooks', m[1]);
+        if (existsSync(scriptPath) && read(`hooks/${m[1]}`).includes('updatedInput')) {
+          emitters.push(m[1]);
+        }
+      }
+    }
+  }
+  const uniqueEmitters = [...new Set(emitters)];
+  if (uniqueEmitters.length > 1) {
+    fail(`hooks.json: more than one PreToolUse script emits "updatedInput" (${uniqueEmitters.join(', ')}) — `
+       + `Claude Code resolves multiple emitters non-deterministically (last-writer-wins); merge into one hook. `
+       + `See docs/spec-goal-contract.md §4.A's single-mutator invariant.`);
   }
 }
 
