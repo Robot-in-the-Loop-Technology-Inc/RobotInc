@@ -26,6 +26,18 @@ would rather tell you that than have you wonder why the crew looks half-installe
 
 **That's the whole setup. There is no step two.**
 
+Prefer the terminal, or bootstrapping headlessly — a dev container, a CI runner, a fleet of machines?
+Same install, a different door:
+
+```
+claude plugin marketplace add Robot-in-the-Loop-Technology-Inc/RobotInc
+claude plugin install robotinc@robotinc --scope user -y
+```
+
+`--scope user` installs it for you across every project on this machine (the same as the slash-command path
+above); `-y` skips the confirmation prompt for unattended/scripted runs. No true one-liner exists yet —
+marketplace-add is still its own step either way.
+
 Open Claude Code and Otto is already there. He introduces himself, looks at what you have already built —
 your own subagents, skills and commands — and seats them under the right departments without touching a
 single one of them. Then he gets to know you in a few questions, asked like a person rather than a form. If
@@ -39,6 +51,11 @@ Nothing gets generated. The crew, the 38 skills, and the routing already exist o
 byte, the moment you install.
 
 ### Staying up to date
+
+Short answer: **CI, not CD.** Every release is gated by our own pipeline before it publishes (validated,
+version-bumped, or it doesn't ship) — that part is automatic on our side. Getting it onto your machine is
+still pull, not push: manual command, or an opt-in auto-update toggle you turn on yourself. Nobody's crew
+changes under them without a signal they asked for.
 
 **Your install is pinned.** Claude Code records the version at install time and does not go looking for a new
 one — so nothing about your crew changes underneath you. When you want what we shipped since:
@@ -74,6 +91,8 @@ lives outside the plugin and survives every update untouched.
 > /reload-plugins
 > ```
 
+For removal guidance, see `## Uninstall`.
+
 ### Install it for a whole team
 
 Commit this to a repo's `.claude/settings.json`. Everyone who opens the folder and trusts it is prompted to
@@ -89,6 +108,25 @@ install the crew — and inherits updates automatically. No commands to remember
   }
 }
 ```
+
+## Uninstall
+
+Run `/robotinc:offboard` — it finds everything RobotInc left on this machine, shows you all of it, asks
+before touching anything, and ends by printing the exact command to finish the job. That's the guided path,
+and it's the one we'd point a beginner at.
+
+If you already know what you want:
+
+```
+/plugin disable robotinc@robotinc      # pause — reversible, nothing removed or touched
+/plugin uninstall robotinc@robotinc    # remove the plugin
+```
+
+or, from a terminal: `claude plugin uninstall robotinc@robotinc`.
+
+> **Do not run `/plugin marketplace remove robotinc`.** It removes every plugin from that marketplace, not
+> just this one — if you ever add another plugin from the same source, that command takes it down too.
+> `/plugin uninstall` is the one you want.
 
 ## Watch it work
 
