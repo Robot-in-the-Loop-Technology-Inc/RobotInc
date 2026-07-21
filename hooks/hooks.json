@@ -23,6 +23,19 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/otto-goal-compact.mjs"
+            ],
+            "timeout": 5
+          }
+        ]
       }
     ],
     "SubagentStop": [
@@ -60,6 +73,14 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/otto-state.mjs"
+            ],
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/otto-goal-audit.mjs"
             ],
             "timeout": 5
           }

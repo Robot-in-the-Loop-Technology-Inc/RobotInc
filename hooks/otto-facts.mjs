@@ -70,6 +70,16 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir, platform } from 'node:os';
 import { pathToFileURL } from 'node:url';
+// v22.11.0 ADDS goal_flags=N (docs/spec-goal-contract.md §6.1) — the FIRST
+// cross-hook-file import in this plugin (Cohesion note item 6), and part of a
+// genuine circular reference: hooks/otto-goal-lib.mjs imports cwdPersonaRoot
+// FROM this file, below. Verified empirically before either production file
+// relied on it (TASKS.md's Gate 2, a throwaway pair of files in this exact
+// shape, run via a real `node hooks/<file>.mjs` invocation) — ES module
+// function declarations hoist before any import's side effects run, so both
+// sides of the cycle see a live, initialized binding regardless of which
+// module started evaluating first.
+import { readActiveGoal, countGoalFlags } from './otto-goal-lib.mjs';
 
 export const FACTS_HEADER = '[RobotInc facts] authoritative -- do NOT shell out to recompute:';
 
@@ -496,6 +506,25 @@ function computeProfileBudget(profilePath) {
   }
 }
 
+// goal_flags=N (spec §6.1): only ever emitted when N > 0 — zero-cost-when-
+// clean, same philosophy as everything else in this file. A project with no
+// active goal, or an active goal with zero flags, gets nothing new. Reads
+// via the SAME countGoalFlags() call hooks/otto-goal-compact.mjs's reader
+// uses, so the two SessionStart readers can never independently disagree
+// about the number ("LAND THE READER WITH THE WRITER", spec §6.1). Isolated
+// in its own try/catch, same footing as computeInventoryFacts(): an
+// unexpected throw here must never take the seven core facts down with it.
+function computeGoalFacts(cwd) {
+  try {
+    const goal = readActiveGoal(cwd);
+    if (!goal) return {};
+    const flags = countGoalFlags(cwd);
+    return flags > 0 ? { goal_flags: flags } : {};
+  } catch {
+    return {};
+  }
+}
+
 // Pure(ish) computation, no stdout — exported for direct testing. `opts.env`
 // and `opts.home` default to the real process environment/homedir, same
 // override pattern hooks/otto-state.mjs already uses for its own tests.
@@ -523,7 +552,7 @@ export function computeFacts(payload, opts = {}) {
     ? computeProfileBudget(join(configDir, 'otto-profile.json'))
     : {};
 
-  return { ...core, ...profileBudget, ...computeInventoryFacts(core, cwd) };
+  return { ...core, ...profileBudget, ...computeInventoryFacts(core, cwd), ...computeGoalFacts(cwd) };
 }
 
 // Builds the profile-cap lines (spec-memory-cap.md §5.1) a given facts
@@ -562,6 +591,9 @@ export function formatFacts(facts) {
     // empty object so inventoryLines() renders only the bare `inv=` line.
     lines.push(...inventoryLines(facts.inv, facts.inv === 'ok' || facts.inv === 'partial' ? facts : {}));
   }
+  // goal_flags=N (spec §6.1): appended last, only when present — computeGoalFacts()
+  // above already enforces N > 0, so this line's mere presence is the signal.
+  if (facts.goal_flags !== undefined) lines.push(`goal_flags=${facts.goal_flags}`);
   return lines.join('\n');
 }
 

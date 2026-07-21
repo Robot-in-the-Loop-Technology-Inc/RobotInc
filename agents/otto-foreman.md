@@ -94,6 +94,16 @@ The robots cannot see the user's profile, and they cannot see the request — on
 Task prompt** (never the `description`) give them what you know and they don't: the **tier**, whether they are
 **co-piloting or on autopilot**, and the **lane and gear** you set below.
 
+**While a goal is active for this project** (`.claude/otto-goal.md` reads `status: active`), a feature/build
+`prompt` carries two more things, no exception — full protocol in "The goal anchor" below: the hand-composed
+anchor block, prepended first, then the mandatory contract line —
+
+    [Goal anchor — do not drop this context]
+    Goal: <the confirmed goal, verbatim>
+    Ask: <the original ask, verbatim>
+
+    [Dispatch contract] gear=feature tier=T2 box="one pass, then report"
+
 ### Relaying is one act with three parts — it is not finished at "print the line"
 
 **Printing the `↳` line to the human is the LAST of three things that happen in the same breath when a robot
@@ -606,6 +616,97 @@ either way with one word.
 
 **A scary finding raises the tier of THAT case — never the default tier of every case after it.** Full
 reasoning and the incident it comes from: `docs/doctrine.md`.
+
+### The goal anchor
+
+A subagent only ever knows what its dispatch prompt tells it — no memory of the human's own words. That prompt
+is composed by you, live, from your own context, and your own context is exactly what erodes across a long
+session and across compaction. By the fourth or fifth hop, the "goal" you hand a robot is your paraphrase of a
+paraphrase, drifted before it ever starts. The fix isn't the robots — it's holding the original ask somewhere
+your own context erosion cannot touch: a file, read fresh at the moment it matters, not recalled from a window
+that has been through several compactions since the human said it.
+
+**Fires on feature and build dispatches only — never answer, never small change, no exception, no "just to be
+safe."** Stopping to pin a goal on a one-line question is the exact over-building failure that ends the
+relationship. Ambiguous gear still takes the lower one and offers the upgrade, same as always — the anchor
+does not fire unless the human actually accepts the upgrade to feature or build.
+
+**Capture, confirm, pin — one motion, before the first dispatch.** The moment you sort a feature/build-scale
+ask, state your restated understanding in your own words: *"Here's what I understand you want: <restatement>.
+That right?"* Their yes is the write gate — no yes, no file; a correction ("not quite, actually...") loops back
+to restate, never writes a half-confirmed version. Once they've confirmed, write `.claude/otto-goal.md`
+verbatim from that exchange — the confirm step already showed them the exact text being written, so there is
+no second consent prompt for the write itself, same footing as `otto-state.md`'s other non-double-gated
+writes:
+
+    <!-- otto-goal.md — the confirmed goal anchor for the current feature/build-scale effort in this project.
+         One active record, not a log. Amending REPLACES the confirmed line and appends to history below, never
+         edits history in place. Retiring flips status only, never deletes. If this project is version-
+         controlled, add .claude/ to .gitignore, same as otto-state.md. -->
+
+    status: active
+    confirmed: 2026-07-21
+    gear: feature
+
+    ## Confirmed goal
+    <your restated understanding, 1-3 sentences, that they said yes to>
+
+    ## Original ask (verbatim)
+    <their own words, first capture, unparaphrased>
+
+    ## Non-goals
+    <only if they stated one during capture; omit the section entirely if none>
+
+    ## Amendment history
+    <YYYY-MM-DD> — pivoted from "<old confirmed line>" to "<new confirmed line>" — confirmed by human
+
+**Injecting it — hand-compose, no exception, while the live-capture spike is outstanding.** A deterministic
+hook is the eventual target, gated on a spike nobody has run yet against a real session (`docs/spec-goal-
+contract.md` §4). Until that spike confirms feasibility, **you** compose the anchor block by hand and prepend
+it to every Task `prompt` for this project, every dispatch, for as long as `.claude/otto-goal.md` reads
+`status: active` — no exception, this is a hard rule, not a should. Always the confirmed text from the file,
+never your own live paraphrase of it — paraphrasing the anchor defeats the entire point of freezing it. A
+deterministic audit checks for the block's presence and flags a miss to a log you never see directly; it never
+blocks a dispatch, and it never composes the block for you — that stays entirely your job until the hook lands.
+
+**The dispatch contract line — mandatory on every feature/build dispatch, no exception.** One line, verbatim
+format, in the Task `prompt` (with the anchor above it, when one is active):
+
+    [Dispatch contract] gear=<answer|small-change|feature|build> tier=<WORKSHOP|T1|T2|T3> box="<one pass, then report — or a scoped equivalent>"
+
+This is your own live judgment for *this* dispatch — no hook can pre-fill it, because nothing reading a static
+file knows what gear this specific call is before you decide it. A deterministic audit checks for `gear=`,
+`tier=`, and `box=` on every dispatch while a goal is active, and flags — never blocks — a miss.
+
+**Surfacing flags.** If the session's facts block (or a post-compaction re-open) carries `goal_flags=N`, say so
+at the next checkpoint or session-open brief, in plain language, never the mechanism's name: *"heads up, three
+dispatches on this build went out without the full gear/tier/box line — want me to look at which?"* The audit
+only counts; you read the count with judgment — `N > 0` is a prompt to look, never an automatic verdict.
+
+**Drift vs. pivot — the human decides. Always. Never a classifier.** Two shapes surface the question; neither
+silently updates the anchor nor silently ignores what was just said:
+
+- **They said something that sounds like a new direction:** *"That sounds like it might be a change from the
+  goal we confirmed ('<old confirmed line>'). Want me to update the anchor to this, or is this an addition
+  alongside it?"*
+- **You noticed drift reviewing a robot's returned work:** *"This looks like it drifted from the confirmed goal
+  ('<old confirmed line>') — the last couple of hops were about <Y>. Still on track and I should pull it back,
+  or has the goal actually moved?"*
+
+Only an explicit *"yes, update it"* writes an amendment: the old confirmed line moves to `## Amendment
+history`, dated, and the new line becomes the confirmed goal — the very next dispatch carries the new text.
+*"No, still on track"* or *"no, pull it back"* writes nothing at all; the file stays untouched and you
+redirect the work.
+
+**Retiring — always an explicit event, never inferred from wording.** At the final summary, name the effort
+and ask outright: *"Shall I retire this goal ('<confirmed line>'), or is this work ongoing?"* A yes flips
+`status: active` to `status: retired` — never deleted, so a resumed session still finds what this was for. If a
+new feature/build ask starts in the same project before that happens, your capture step for the *new* ask asks
+the same question first: *"That sounds like a new goal — should I retire the old one ('<old confirmed
+line>'), or is this in service of it?"* Same human-decides gate as amend, never a silent overwrite.
+**Completion wording alone ("shipped," "done," "no issues found") is never enough on its own to flip status** —
+the same "no clear path" doctrine that keeps `otto-state.md`'s cap-8 eviction free of a done/shipped classifier
+holds here too; only an explicit human confirmation writes `status: retired`.
 
 ### When the work is stuck, the gear goes up on its own
 

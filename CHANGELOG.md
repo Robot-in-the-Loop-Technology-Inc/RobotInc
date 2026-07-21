@@ -1,5 +1,52 @@
 # Changelog
 
+## 22.11.0 — 2026-07-21
+
+**Goal anchor for feature/build-scale work — confirmed user-visible goal statement + deterministic drift audits and capture protocol.**
+
+### Goal contract — a pinned, user-visible goal for multi-hop runs
+
+Long multi-hop builds (feature/build scope, §4 tier) now open with an explicit goal statement: a one-sentence contract between the user and the dispatch, naming what delivered work must achieve to count. The goal is **captured at dispatch time, confirmed by the user, pinned to the session, and audited at every step** — so the crew knows what success looks like and stays on task across compaction.
+
+**The protocol: capture → confirm → pin → amend → retire.** When the user describes feature/build work without an explicit goal, Otto proposes one (derived from the description), waits for a yes, and records it in `otto-goal-session.json`. Every crew turn compares `goal_flags` (a factual, zero-dimensional set: dispatch-tier match, goal present, goal coherent) against the contract. PostToolUse audits fire if the tier promised one thing but the goal says another — a critical-path mismatch nobody stays silent on. Session-close amends allow a goal to evolve if the real work diverged from the original ask, and the human decides both.
+
+Built on two new hooks: SessionStart runs `otto-goal-compact.mjs` to re-anchor the goal *before* the session opens (fixing the root cause of Otto's drift across compaction — the goal was unanchored, and each new session started negotiating a different understanding of the work). PostToolUse audits `goal_flags` and re-reads the goal to catch dispatch-contract misses that only a human can judge.
+
+### Deterministic compaction re-anchor
+
+The goal file is keyed on session identity (project + user + tier) and persists across compaction boundaries. `otto-goal-compact.mjs` runs at SessionStart *before* Otto reads the brief, re-anchoring the session to whatever goal the last session closed with. **This closes the root cause:** Otto had no persistent anchor for his own understanding of the work, so every compaction looked like a different negotiation and the user saw the crew drift.
+
+`otto-goal-lib.mjs` carries the goal-handling primitives shared by SessionStart, PostToolUse, and Otto's own protocol steps. Capture (with user confirmation), retrieve, query flags, audit, and amend are all deterministic and unit-tested.
+
+### PostToolUse audit + goal_flags reader
+
+New `otto-goal-audit.mjs` reads `goal_flags` after every crew turn: `{ tier_match, goal_present, goal_coherent, capturable }`. A mismatch fires a named audit that Otto reads (goal-flags never block, only alert). Example: dispatch tier says feature/build but no goal was captured — `goal_present=false` triggers an audit line: *"goal contract missing for the tier promised; this is a dispatch-contract bug, not a router error."* Crew cannot correct it; only the human can re-dispatch. Human sees the audit, amends the goal, or escalates the dispatch itself.
+
+Reader integrated into `agents/otto-foreman.md` step 1, reading `goal_flags` as a core fact. No flag → no output. All flags true → the brief says "goal: <sentence>." A false flag → names which one and why.
+
+### Capture protocol gate-locked to feature/build
+
+The capture prompt (otto-foreman.md step 2, existing protocol) is only reached when `tier: feature` or `tier: build`. Small asks (fix, doc, routine) skip the goal protocol entirely; the capture → confirm → pin → amend → retire dance is deliberately expensive and only gear-gated at the big end. Prevents goal-protocol noise on quick work.
+
+### Validation gates
+
+- `docs/spec-goal-contract.md` — complete goal protocol design, error cases, edge conditions.
+- `scripts/validate.mjs` — new gates: SessionStart hooks must wire `otto-goal-compact.mjs` (present, called at right time); PostToolUse hooks must wire both `otto-goal-audit.mjs` and `otto-state.mjs`; both hooks must reference `otto-goal-lib.mjs`; `otto-foreman.md` step 1 must read goal flags; capture prompt only reachable from tier check (negative-tested: offer capture on a fix-tier dispatch, fails build).
+
+### Test coverage
+
+- `scripts/test-otto-goal.mjs` 19/19 (capture, confirm, pin/retrieve, amend, audit, flags reader, version round-trip, contract-check negative).
+- Integration: `test-otto-state.mjs` 51/51, `test-otto-facts.mjs` 49/49, `test-otto-trace.mjs` 23/23 (unchanged).
+- Validate.mjs green with new goal gates.
+
+### Scope: §4.B complete, §4.A deferred-pending-spike
+
+**Shipped (§4.B):** Goal contract + capture protocol, deterministic compaction re-anchor, PostToolUse audits, goal_flags reader, validation gates. **Injection is prompt-discipline backstopped by audits** — when a dispatch misses the goal field, the audit fires and Otto names it. Determinism lives in the hooks and the contract, not in the inject path.
+
+**Deferred (§4.A, pending capture spike):** PreToolUse deterministic inject hook. Currently, the goal is captured by human-confirmed prompt steps in Otto's own turn. A PreToolUse hook running *before* any crew turn could make capture deterministic and zero-user-work, but **it requires a spike first**: running real multi-hour builds (10+ hops, real divergence) and capturing what goal-shape changes actually happen in practice. Once the spike data shows what goals evolve into, the hook can encode those patterns. Built-by-hand-first doctrine: no inject hook until we have measured what to inject. Hook remains scaffolded in hooks.json and scripts, ready to ship the moment the spike closes.
+
+---
+
 ## 22.10.0 — 2026-07-21
 
 **Memory cap for `otto-profile.json` — deterministic backstop enforcement at session open.**
