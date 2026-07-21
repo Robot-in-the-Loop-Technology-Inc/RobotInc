@@ -209,7 +209,7 @@ Implement fail-soft model (spec §5.1):
 - **Critical:** the anti-silent-corruption tooth is case 3; this is the prime verification point
 - **Verifiable:** all negative tests pass per spec table
 
-### 21. [todo] Verify no file bloat or regression on main tests
+### 21. [done] Verify no file bloat or regression on main tests
 - Full test suite runs on feature branch; all existing tests still pass
 - New profile-cap tests are green
 - No performance regression in `computeFacts()` (reading + measuring is O(n) on file size, acceptable)
