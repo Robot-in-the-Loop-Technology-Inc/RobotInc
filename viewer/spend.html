@@ -1,0 +1,470 @@
+<title>RobotInc — Spend Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+
+  .spend-report {
+    --paper: #fcfcfb;
+    --page: #f2f1ec;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --ink-3: #898781;
+    --rule: #e1e0d9;
+    --rule-strong: #c3c2b7;
+    --accent: #2a78d6;
+    --accent-wash: rgba(42, 120, 214, 0.08);
+    --warn: #fab219;
+    --warn-ink: #7a5400;
+    --dept-1: #2a78d6;
+    --dept-2: #008300;
+    --dept-3: #e87ba4;
+    --dept-4: #eda100;
+    --dept-5: #1baf7a;
+    --dept-6: #a855f7;
+    --shadow: 0 1px 2px rgba(11,11,11,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .spend-report {
+      --paper: #1a1a19;
+      --page: #0d0d0d;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --ink-3: #898781;
+      --rule: #2c2c2a;
+      --rule-strong: #383835;
+      --accent: #3987e5;
+      --accent-wash: rgba(57, 135, 229, 0.12);
+      --warn: #fab219;
+      --warn-ink: #ffd876;
+      --dept-1: #3987e5;
+      --dept-2: #008300;
+      --dept-3: #d55181;
+      --dept-4: #c98500;
+      --dept-5: #199e70;
+      --dept-6: #c084fc;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+  }
+  :root[data-theme="dark"] .spend-report {
+    --paper: #1a1a19;
+    --page: #0d0d0d;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-3: #898781;
+    --rule: #2c2c2a;
+    --rule-strong: #383835;
+    --accent: #3987e5;
+    --accent-wash: rgba(57, 135, 229, 0.12);
+    --warn: #fab219;
+    --warn-ink: #ffd876;
+    --dept-1: #3987e5;
+    --dept-2: #008300;
+    --dept-3: #d55181;
+    --dept-4: #c98500;
+    --dept-5: #199e70;
+    --dept-6: #c084fc;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4);
+  }
+  :root[data-theme="light"] .spend-report {
+    --paper: #fcfcfb;
+    --page: #f2f1ec;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --ink-3: #898781;
+    --rule: #e1e0d9;
+    --rule-strong: #c3c2b7;
+    --accent: #2a78d6;
+    --accent-wash: rgba(42, 120, 214, 0.08);
+    --warn: #fab219;
+    --warn-ink: #7a5400;
+    --dept-1: #2a78d6;
+    --dept-2: #008300;
+    --dept-3: #e87ba4;
+    --dept-4: #eda100;
+    --dept-5: #1baf7a;
+    --dept-6: #a855f7;
+    --shadow: 0 1px 2px rgba(11,11,11,0.06);
+  }
+
+  .spend-report {
+    background: var(--page);
+    color: var(--ink);
+    padding: clamp(16px, 4vw, 48px);
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .spend-report *, .spend-report *::before, .spend-report *::after { box-sizing: border-box; }
+
+  .sheet {
+    width: 100%;
+    max-width: 840px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .masthead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: 16px;
+  }
+  .masthead h1 {
+    margin: 0 0 4px 0;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .masthead .meta { font-size: 12.5px; color: var(--ink-2); }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+  #conn-status {
+    flex: 0 0 auto;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  #conn-status.err { color: var(--warn-ink); }
+
+  .hero {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } }
+  .hero-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+  }
+  .hero-card .label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 8px;
+  }
+  .hero-figure {
+    font-size: clamp(34px, 6vw, 48px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .hero-figure .unit { font-size: 0.4em; font-weight: 600; color: var(--ink-2); margin-left: 4px; }
+  .hero-sub { margin-top: 10px; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+  .hero-primary .hero-figure { color: var(--accent); }
+  .hero-primary .accent-rule { height: 3px; width: 34px; background: var(--accent); border-radius: 2px; margin-bottom: 12px; }
+
+  .hero-estimate {
+    background:
+      repeating-linear-gradient(135deg, var(--accent-wash) 0 8px, transparent 8px 16px),
+      var(--page);
+    border: 1px dashed var(--rule-strong);
+  }
+  .hero-estimate .hero-figure { color: var(--ink-2); }
+  .hero-estimate .est-tag {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  .panel { display: flex; flex-direction: column; gap: 10px; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .panel-head h2 {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .panel-head .panel-note { font-size: 11.5px; color: var(--ink-3); }
+
+  .dept-rows { display: flex; flex-direction: column; gap: 9px; }
+  .dept-row { display: grid; grid-template-columns: 128px 1fr 78px; align-items: center; gap: 12px; }
+  .dept-name {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 13px; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .dept-swatch { width: 9px; height: 9px; border-radius: 2px; flex: 0 0 auto; }
+  .dept-track { position: relative; height: 20px; background: var(--rule); border-radius: 4px; overflow: hidden; }
+  .dept-fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px 2px 2px 4px; }
+  .dept-value { text-align: right; font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--ink-2); }
+  .dept-value b { color: var(--ink); font-weight: 600; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); }
+  table.ledger { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 13px; }
+  table.ledger th {
+    text-align: left;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+  }
+  table.ledger td { padding: 9px 14px; border-bottom: 1px solid var(--rule); color: var(--ink-2); white-space: nowrap; }
+  table.ledger tr:last-child td { border-bottom: none; }
+  table.ledger td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+  table.ledger td.robot { color: var(--ink); font-weight: 600; }
+  table.ledger td.dept-tag { display: flex; align-items: center; gap: 6px; }
+  table.ledger td.dept-tag .dept-swatch { margin-top: 1px; }
+  .flag-cell { text-align: center; }
+  .flag-ok { color: var(--rule-strong); }
+  .flag-warn { color: var(--warn); font-weight: 700; }
+  tr.row-flagged td { background: var(--accent-wash); }
+
+  .audit {
+    display: flex;
+    gap: 12px;
+    padding: 16px 18px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--warn);
+    border-radius: 4px;
+  }
+  .audit.calm { border-left-color: var(--rule-strong); }
+  .audit .icon { font-size: 18px; line-height: 1.3; flex: 0 0 auto; }
+  .audit .body h3 { margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .audit .body p { margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.55; }
+  .audit .body p + p { margin-top: 6px; }
+
+  .footnote {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    font-size: 11.5px;
+    color: var(--ink-3);
+    line-height: 1.6;
+  }
+  .footnote strong { color: var(--ink-2); }
+
+  .empty-state {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--ink-3);
+    font-size: 13px;
+    border: 1px dashed var(--rule-strong);
+    border-radius: 6px;
+  }
+</style>
+
+<div class="spend-report">
+  <div class="sheet">
+
+    <div class="masthead">
+      <div>
+        <h1 id="masthead-title">Spend report — recent activity</h1>
+        <div class="meta" id="masthead-meta">reading the ledger…</div>
+      </div>
+      <span id="conn-status">connecting…</span>
+    </div>
+
+    <div class="hero">
+      <div class="hero-card hero-primary">
+        <div class="accent-rule"></div>
+        <div class="label">Crew-measured spend (approx.)</div>
+        <div class="hero-figure" id="hero-crew">—<span class="unit">K tok</span></div>
+        <div class="hero-sub">
+          Blended input + output + cache tokens, summed across each completed subagent run's final message —
+          a snapshot of accumulated context, not a cost-tier breakdown, and not billing-grade.
+        </div>
+      </div>
+      <div class="hero-card hero-estimate">
+        <div class="label">Otto · main thread <span class="est-tag">Est.</span></div>
+        <div class="hero-figure" id="hero-otto">n/a</div>
+        <div class="hero-sub">
+          Estimated live from context length and turn count — Otto's own spend is never logged to the
+          ledger, so this view has no figure to show. Shown separately on purpose, whenever it is available:
+          never summed into the crew-measured total above.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="dept-panel">
+      <div class="panel-head">
+        <h2>By department</h2>
+        <span class="panel-note">share of crew-measured total</span>
+      </div>
+      <div class="dept-rows" id="dept-rows"></div>
+    </div>
+
+    <div class="panel" id="table-panel">
+      <div class="panel-head">
+        <h2>Per robot</h2>
+        <span class="panel-note">joined from otto-trace.log + otto-ledger.log</span>
+      </div>
+      <div class="table-scroll">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>Robot</th>
+              <th>Department</th>
+              <th style="text-align:right">Tokens</th>
+              <th style="text-align:right">Duration</th>
+              <th style="text-align:center">Flag</th>
+            </tr>
+          </thead>
+          <tbody id="robot-rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="audit" id="audit-callout">
+      <span class="icon">·</span>
+      <div class="body">
+        <h3 id="audit-title">Reading the ledger…</h3>
+        <p id="audit-body"></p>
+      </div>
+    </div>
+
+    <div class="footnote">
+      <div><strong>Reading these numbers honestly:</strong> the crew-measured total is a blended snapshot (input + output + cache tokens from each run's final message) — not a cost-tier breakdown, and cache-read tokens are far cheaper than fresh input than this figure lets on.</div>
+      <div>Otto's own main-thread spend is never measured, only estimated from context and turn count — it is never added into the crew-measured total above, in this report or any other.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const DEPT_COLORS = ['var(--dept-1)', 'var(--dept-2)', 'var(--dept-3)', 'var(--dept-4)', 'var(--dept-5)', 'var(--dept-6)'];
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function fmtK(tokens) {
+    return (tokens / 1000).toFixed(1) + 'K';
+  }
+
+  function renderDepartments(departments) {
+    const el = document.getElementById('dept-rows');
+    if (!departments.length) {
+      el.innerHTML = '<div class="empty-state">no department spend recorded in this window yet</div>';
+      return;
+    }
+    el.innerHTML = departments.map((d, i) => {
+      const color = DEPT_COLORS[i % DEPT_COLORS.length];
+      const widthPct = departments[0].tokens > 0 ? (d.tokens / departments[0].tokens) * 100 : 0;
+      return `
+        <div class="dept-row">
+          <div class="dept-name"><span class="dept-swatch" style="background:${color}"></span>${escapeHtml(d.name)}</div>
+          <div class="dept-track"><div class="dept-fill" style="width:${widthPct}%;background:${color}"></div></div>
+          <div class="dept-value"><b>${fmtK(d.tokens)}</b> · ${d.pct}%</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderRobots(robots) {
+    const el = document.getElementById('robot-rows');
+    if (!robots.length) {
+      el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-3);padding:24px">nothing in the ledger for this window yet</td></tr>';
+      return;
+    }
+    el.innerHTML = robots.map((r) => `
+      <tr${r.flagged ? ' class="row-flagged"' : ''}>
+        <td class="robot">${escapeHtml(r.badge)} ${escapeHtml(r.robot)}</td>
+        <td class="dept-tag">${escapeHtml(r.department)}</td>
+        <td class="num">${fmtK(r.tokens)}</td>
+        <td class="num">${escapeHtml(r.duration)}</td>
+        <td class="flag-cell ${r.flagged ? 'flag-warn' : 'flag-ok'}">${r.flagged ? '⚠' : '·'}</td>
+      </tr>
+    `).join('');
+  }
+
+  // Zero flags is never a blank callout — it renders one of Baudrate's two
+  // honest calm-negatives (spec §8's 4th state), and a flagged report shows
+  // the first flagged row's plain-language message verbatim (spec §6).
+  function renderAudit(data) {
+    const callout = document.getElementById('audit-callout');
+    const icon = callout.querySelector('.icon');
+    const title = document.getElementById('audit-title');
+    const body = document.getElementById('audit-body');
+
+    if (data.auditState === 'flagged' && data.flags.length) {
+      callout.classList.remove('calm');
+      icon.textContent = '⚠';
+      title.textContent = `${data.flags.length} spend-vs-typical flag${data.flags.length > 1 ? 's' : ''}`;
+      body.innerHTML = data.flags.map((f) => `<p>${escapeHtml(f.message)}</p>`).join('');
+      return;
+    }
+
+    callout.classList.add('calm');
+    icon.textContent = '·';
+    title.textContent = data.auditState === 'clean' ? 'No spend-vs-typical flags' : 'Not enough data yet';
+    body.innerHTML = `<p>${escapeHtml(data.calmNegative || '')}</p>`;
+  }
+
+  function render(data) {
+    document.getElementById('masthead-title').textContent = `Spend report — ${data.scopeLabel}`;
+    document.getElementById('masthead-meta').innerHTML =
+      `${data.totalRuns} subagent run${data.totalRuns === 1 ? '' : 's'} · generated ${new Date().toLocaleString()}`;
+    document.getElementById('hero-crew').innerHTML = `${fmtK(data.crewMeasuredTokens)}<span class="unit">K tok</span>`;
+    document.getElementById('hero-otto').textContent =
+      data.ottoEstimateTokens === null ? 'not available in this view' : `~${fmtK(data.ottoEstimateTokens)}K tok`;
+    renderDepartments(data.departments);
+    renderRobots(data.robots);
+    renderAudit(data);
+  }
+
+  function renderEmpty() {
+    document.getElementById('dept-panel').innerHTML =
+      '<div class="empty-state">nothing has run yet — this page fills in as the crew works</div>';
+    document.getElementById('table-panel').style.display = 'none';
+    document.getElementById('audit-callout').style.display = 'none';
+  }
+
+  async function load() {
+    const statusEl = document.getElementById('conn-status');
+    try {
+      const res = await fetch('/spend', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.totalRuns === 0) {
+        render(data);
+        renderEmpty();
+      } else {
+        render(data);
+      }
+      statusEl.textContent = 'live — updated ' + new Date().toLocaleTimeString();
+      statusEl.classList.remove('err');
+    } catch (err) {
+      statusEl.textContent = 'lost connection to server: ' + err.message;
+      statusEl.classList.add('err');
+    }
+  }
+
+  load();
+  setInterval(load, 5000);
+</script>

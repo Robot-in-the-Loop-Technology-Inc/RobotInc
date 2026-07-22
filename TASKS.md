@@ -1,482 +1,372 @@
-﻿# TASKS — goal anchor / goal contract feature
+﻿# Build Task List — spend-report feature
 
-**Branch:** eature/goal-anchor off main @ 336bb4f (v22.10.0)  
-**Version target:** 22.11.0 (feature)  
-**Owner:** Bitforge (build), sequenced by Gantry  
-**Spec:** docs/spec-goal-contract.md (Patchbay authored, Vector's mechanism ruling folded in, cohesion note reconciled)
-
----
-
-## CRITICAL EMPIRICAL GATES — These must run first and branch the plan
-
-### Gate 1 — build-task-1: PreToolUse updatedInput capture spike
-**Status:** DEFERRED-pending-spike. Explicit scope decision (Otto/user, this session): do not run it —
-it needs an authenticated real Task dispatch the user will enable later. The build proceeds on §4.B
-(prompt-discipline + deterministic audit backstop) until this spike runs and either confirms §4.A
-feasible or ratifies staying on §4.B.  
-**Blocks:** determine which of §4.A (inject hook) or §4.B (fallback) to build  
-**Complexity:** real-capture, not automated; requires a live Claude Code session
-
-Spike task per §4, build-task-1. Register a throwaway PreToolUse hook, dispatch a real Task call, and capture what actually happens. Six acceptance criteria all of which must be answered and recorded in docs/hook-events.md:
-
-- **(a)** Sentinel (ANCHOR_SENTINEL) reaches subagent's echoed-back prompt — confirms mutation is real
-- **(b)** Actual PreToolUse matcher-string → 	ool_name mapping, recorded
-- **(c)** Mutation proven on **2.1.211 background-default dispatch path** (not forced-synchronous only)
-- **(d)** SessionStart matcher "compact" stdout re-injection works
-- **(e)** Exact emission envelope: does updatedInput alone suffice, or must it pair with permissionDecision: "allow"?
-- **(f)** Does PostToolUse see **pre-** or **post-** mutation prompt?
-
-**Outcome decision:**
-- **If (a) or (e) fail:** → degrade to §4.B (fallback with hand-composed rule + audit backstop)
-- **If (a) and (e) pass:** → proceed with §4.A (deterministic inject hook)
-- **Criteria (c), (d), (f) inform:** which paths can run in parallel and how audit checks condition
-
-**Document result:** Update docs/hook-events.md with spike findings, same format as existing PostToolUse/SubagentStop sections.
+**Branch:** `feature/spend-report` (off main @ d09ab4b, v22.12.0)  
+**Version:** 22.12.0 → **22.13.0** (shipped files: hooks, viewers, agents, docs, scripts — version bump required in `.claude-plugin/plugin.json` AND `RobotInc.md`)  
+**Owner:** Bitforge (build + spike), Cathode (viewer revision), Glitchtrap (verify + harmony)  
+**Spec:** `docs/spec-spend-report.md` (finalized, zero open questions)
 
 ---
 
-### Gate 2 — cross-hook ES-module import verify
-**Status:** DONE — PASSED. Ran a throwaway pair of files (hooks/_gate2_spike_lib.mjs importing from
-hooks/_gate2_spike_facts.mjs, which imports back — the exact circular shape otto-goal-lib.mjs <->
-otto-facts.mjs needed) invoked via a real `node hooks/_gate2_spike_facts.mjs` child process. Resolved
-and executed correctly, no error, correct output. Both throwaway files deleted immediately after.
-Path A taken: shared lib built as designed (hooks/otto-goal-lib.mjs), including the genuine circular
-import (otto-goal-lib.mjs imports cwdPersonaRoot from otto-facts.mjs; otto-facts.mjs imports
-readActiveGoal/countGoalFlags back from otto-goal-lib.mjs) — safe because ES module function
-declarations hoist before any import's side effects run, so both sides of the cycle see a live,
-initialized binding regardless of evaluation order. Confirmed a second time for real: the full
-otto-facts.mjs test suite (49/49) and the new goal suite (18/18) both exercise this exact circular
-wiring under real subprocess invocation with zero regressions.  
-**Blocks:** otto-goal-lib.mjs design; otto-goal-inject.mjs, otto-goal-compact.mjs, otto-facts.mjs reader all depend on it  
-**Complexity:** small; one quick test in real hook execution
+## CRITICAL GATE — Build-Task-1 (TIER-CAPTURE SPIKE)
 
-Verify that hooks can import from another hook module. This plugin has never had one hook import another (otto-trace.mjs's header documents why duplication was chosen before). The whole shared-lib design (§4.A, §6.1) depends on this working under the real hook invocation model (
-ode hooks/X.mjs).
+**Status:** DONE — PASS  
+**Result:** Criterion 1 confirmed against Bitforge's OWN live dispatch transcript for this exact task
+(`agent-a030b0c6785b51cd9.jsonl`) — the serialized first user message (7,326 chars) contained the full
+`[Dispatch contract] gear=build tier=T2 box=... verify=...` line byte-identical, untruncated. Criterion 4
+confirmed on the same real data: `/tier=(\S+)/` extracted `T2` as the FIRST match despite 13 later
+occurrences of the literal substring "tier=" elsewhere in the same prompt (prose discussing the mechanism
+itself) — proving quote-collision safety on a real specimen, not just a synthetic fixture. Criteria 2/3
+confirmed via `hooks/otto-trace.mjs`'s existing SubagentStop wiring (same transcript file already read for
+tokens) and `scripts/test-otto-trace.mjs`'s null-degradation tests. Mechanism (a) built; mechanism (b) not
+needed.  
+**Blocker for:** all downstream ledger/flag/report tasks  
+**Owned by:** Bitforge (with Vector oversight if needed)
 
-**Test:** Write a tiny test hook that imports from otto-goal-lib.mjs (hypothetically), run it via 
-ode hooks/test-import.mjs, confirm import resolves and module executes correctly.
+**Purpose:** Verify that the dispatch [Dispatch contract] line including `tier=<value>` is fully captured (not truncated or summarized) in the subagent's first user-message, confirming mechanism (a) viability (parse tier from transcript in hooks/otto-trace.mjs).
 
-**Outcome decision:**
-- **If works:** → shared lib as designed; proceed with otto-goal-lib.mjs + all hooks that depend on it
-- **If fails:** → fallback to duplication pattern per cohesion note item 6; inline shared functions per-hook, accept single-source drift-gate in validate.mjs as the guard instead
+**How to run:**
+1. On the installed RobotInc v2.1.211 binary, compose a real `gear=build` or `gear=feature` dispatch to any project.
+2. Let the dispatch complete. Find the subagent transcript: `~/.claude/projects/<slug>/subagents/agent-<agent_id>.jsonl`
+3. Read the first `message.role === 'user'` entry. Serialize `message.content` to text.
+4. Check the result against these four criteria:
 
-**Document decision:** Record finding and chosen path in this TASKS.md, re-sequence dependent tasks if needed.
+**Criterion 1 — THE GATE (Pass/Fail):**  
+The serialized first user message contains the FULL `[Dispatch contract]` line with `tier=<value>` byte-identical, not truncated or summarized.  
+- **PASS →** Proceed with mechanism (a): parse tier from transcript in `hooks/otto-trace.mjs` (§10). Build continues as planned below.  
+- **FAIL (truncated/absent) →** Implement fallback mechanism (b) (audit-hook sidecar + agent_id join per §10), re-spike to verify, then proceed.
 
----
+**Criterion 2:** SubagentStop reads the tier correctly on the background-default path (no manual intervention).
 
-## After gates complete: Parallel and sequential paths
+**Criterion 3:** `tier=` absent from a transcript degrades gracefully to `tier: null` — no throw, no literal `tier=null` string.
 
-**Path A (both gates pass):** Deterministic shared lib + all hooks as spec'd  
-**Path B (Gate 1 fails on a/e):** Fallback §4.B hand-composed rule + same hooks otherwise  
-**Path C (Gate 2 fails):** Duplication fallback, no cross-hook imports, modified otto-facts.mjs reader
+**Criterion 4:** The regex `/tier=(\S+)/` captures all four dispatch-contract values (`WORKSHOP|T1|T2|T3`), stops at whitespace, and is safe against quote-collision.
 
----
-
-## SHARED LIB (gated by Gate 2)
-
-### 3. hooks/otto-goal-lib.mjs — NEW, shared library
-**Status:** done. All exports shipped: readActiveGoal, renderAnchorBlock, ANCHOR_SENTINEL,
-ANCHOR_CHAR_CAP, goalFlagsPath, countGoalFlags, writeGoalFlag, AUDIT_LOG_CAP. Imports cwdPersonaRoot
-from otto-facts.mjs (Gate 2-verified circular import). Covered in scripts/test-otto-goal.mjs.  
-**Depends on:** Gate 2 pass  
-**Blocks:** inject hook, compact hook, audit hook, otto-facts.mjs reader  
-**Complexity:** medium; careful file I/O, robust error handling
-
-Create new file exporting: eadActiveGoal(cwd), enderAnchorBlock(goal), ANCHOR_SENTINEL, ANCHOR_CHAR_CAP, goalFlagsPath(cwd), countGoalFlags(cwd), writeGoalFlag(cwd, flag), AUDIT_LOG_CAP.
-
-Imports cwdPersonaRoot from hooks/otto-facts.mjs (cohesion note item 5 — reuse, don't re-copy).
-
-Key details per §4.A:
-- eadActiveGoal(cwd) calls cwdPersonaRoot before reading .claude/otto-goal.md; returns 
-ull on absence, non-active status, persona-root, or parse failure; never throws
-- ANCHOR_CHAR_CAP = 500, code-point-safe truncation (same technique as otto-state.mjs's summarize(), never split surrogate pair)
-- enderAnchorBlock(goal) emits the exact header + confirmed goal + verbatim ask
-- Flag helpers: append-only append to .claude/otto-goal-flags.log, capped at AUDIT_LOG_CAP = 20 by recency eviction
-- Flag lines scoped to active goal's confirmed: date (no bleed from retired goals)
-
-All errors fail-silent (same footing as otto-state.mjs).
-
-**Verify:** Unit tests isolated in scripts/test-otto-goal.mjs cover this.
+**Expected outcome:** Gate PASS, mechanism (a) green, ready to build hooks/otto-trace.mjs tier-capture logic.
 
 ---
 
-## INJECTION PATH (gated by Gate 1 outcome)
+## DEPENDENT BUILD SEQUENCE (gates on build-task-1 PASS)
 
-### 4. hooks/otto-goal-inject.mjs — NEW (if Gate 1 passes on a/e)
-**Status:** DEFERRED-pending-spike. Not built this round — explicit scope decision, Gate 1 has not run.
-No PreToolUse entry was added to hooks.json. The seam is left clean: scripts/validate.mjs already
-carries the single-PreToolUse-updatedInput-emitter gate (dormant, passes vacuously today, zero PreToolUse
-entries exist); hooks/otto-goal-lib.mjs's renderAnchorBlock/readActiveGoal are exactly what this hook
-will call once built, with no shape change needed.  
-**Depends on:** Gate 1 pass, Gate 2 pass (shared lib), otto-goal-lib.mjs built  
-**Blocks:** nothing directly; gates the availability of deterministic injection  
-**Complexity:** medium; field-presence gating, mutation, idempotency
+### Phase 1 — Ledger & API Layer
 
-Create new PreToolUse hook per §4.A. **Only built if Gate 1 disproves feasibility → use fallback 4.B instead** (see next task).
+#### Task 2: hooks/otto-trace.mjs — tier-capture mechanism (a)
+**Status:** DONE  
+**Dependency:** build-task-1 PASS  
+**Sequence:** runs before any report rendering
 
-Key details:
-- Gate on **field presence**, not 	ool_name: fire when 	ool_input.subagent_type AND 	ool_input.prompt both present
-- **Do not skip built-ins** — all subagents, named or built-in, get the goal anchor
-- **Complete-replacement emission** (pending build-task-1 criterion e): spread whole 	ool_input, never a whitelist; augment prompt only; never touch description
-- **Idempotency guard:** if 	ool_input.prompt already contains ANCHOR_SENTINEL, no-op
-- Reads via eadActiveGoal and enderAnchorBlock from shared lib
-- No-op when goal file absent, status not ctive, or <cwd>/.claude is a foreign persona root
-- Fail-silent on all errors
+`computeLedgerEntry` gains a second pass over the in-memory transcript JSONL list (same list already read for tokens):
+- Locate first `message.role === 'user'` entry
+- Serialize `message.content` to text (string as-is, or `join('')` the `.text` of `type: 'text'` blocks)
+- Run `/tier=(\S+)/`, capture group 1 → `{WORKSHOP|T1|T2|T3}`
+- Return `{tokens, durationMs, tier}` where `tier` is `null` unless captured
 
-**Verify:** Unit tests in scripts/test-otto-goal.mjs cover deterministic cases; live verification by Gate 1 confirms real dispatch behavior.
+Ledger line gains optional trailing ` tier=<T>` **only when captured** — omitted entirely when null, never `tier=` empty, never `tier=null`.
+
+Tier is computed **after** tokens/duration in its own guard — malformed content yields `tier: null`, never takes down the token write.
+
+**Acceptance:** tier-capture logic is in place, tier extraction tests pass (task 9).
 
 ---
 
-### 4B. Fallback §4.B rule (if Gate 1 fails on a/e)
-**Status:** done — built now per the explicit scope decision (Gate 1 deferred, build on §4.B until it
-runs). agents/otto-foreman.md's new "### The goal anchor" subsection carries the hand-compose rule
-verbatim, gated to feature/build dispatches only, no exception. hooks/otto-goal-audit.mjs's check-set
-includes the ANCHOR_SENTINEL branch under this path, clearly commented as the §4.A seam to delete once
-the inject hook lands.  
-**Depends on:** Gate 1 fail decision  
-**Blocks:** nothing; fallback is independent  
-**Complexity:** small; documentation + prompt-discipline rule in foreman
+#### Task 3: viewer/server.mjs — ledger parser & /spend endpoint
+**Status:** DONE  
+**Dependency:** task 2  
+**Sequence:** enables report rendering
 
-If Gate 1 disproves feasibility (sentinel never reaches subagent, or no working updatedInput envelope exists):
-- **Skip otto-goal-inject.mjs** — do not build the deterministic hook
-- **Add to agents/otto-foreman.md:** new hard rule in dispatch paragraph: whenever .claude/otto-goal.md has status: active, Otto composes the anchor block by hand (via enderAnchorBlock spec, byte-for-byte agreement) and prepends it to every Task prompt, every dispatch, no exception
-- **Audit adapts:** otto-goal-audit.mjs's check-set changes to also check for ANCHOR_SENTINEL presence in tool_input.prompt (detection of misses, not prevention)
-- **Cap is aspirational:** under 4.B, Otto's hand-composition is prompt-discipline; 500-char cap is a goal, not a guarantee
+**Part A — Parse tier from ledger:**
+- `parseLedgerLine` gains optional `(?:\s+tier=(\S+))?` group (same optional-segment pattern as `[project]`)
+- Default `null` for all legacy/no-tier lines (no rewrite of old lines)
+- Round-trip: written `tier=WORKSHOP` parses to `{tier: 'WORKSHOP'}`; no `tier=` segment parses to `{tier: null}`
 
-**Document plainly** in TASKS.md which path was taken and why.
+**Part B — New `/spend` endpoint:**
+- Read ledger scoped per spec §4 (active goal anchor's confirmed-date + project, fallback whole-project)
+- Compute department rollup (by department, sum tokens, compute %)
+- Per-robot rows with flag basis computation (spec §8: median of 2+ priors, single prior if 1, null if 0)
+- Robot→department display-label normalizer (Engineer→Engineering, etc.)
+- Response shape matches viewer/spend.html contract (JSON, ready for HTML templating)
 
----
-
-## COMPACTION PRESERVATION (independent of Gate 1 outcome)
-
-### 5. hooks/otto-goal-compact.mjs — NEW
-**Status:** done. New SessionStart entry, matcher "compact". Reads via readActiveGoal, echoes
-renderAnchorBlock plus goal_flags=N when flags exist. Covered in scripts/test-otto-goal.mjs, including
-a real subprocess invocation.  
-**Depends on:** Gate 2 pass, otto-goal-lib.mjs built  
-**Runs in parallel with:** inject hook (if building 4.A) or fallback rule (if 4.B)  
-**Blocks:** nothing directly; gates compaction re-injection  
-**Complexity:** small; straightforward SessionStart/compact handler
-
-Create new SessionStart hook with matcher: "compact" per §4.C. **Built regardless of Gate 1 outcome** — this is independent.
-
-Key details:
-- Reads goal via eadActiveGoal(cwd) from shared lib — same function §4.A's inject uses
-- If active, echoes enderAnchorBlock(goal) to stdout (same proven re-injection channel otto-facts.mjs uses)
-- If there are unresolved audit flags (countGoalFlags(cwd) > 0), also emit goal_flags=N on its own line, via shared lib's countGoalFlags helper
-- No-op when goal absent, not active, or project is persona root
-- **Parent-session-only:** sufficient because subagents never span compaction
-- Emit nothing if no active goal
-
-**Verify:** Unit tests in scripts/test-otto-goal.mjs verify re-injection output is byte-identical to what inject hook would produce.
+**Acceptance:** /spend endpoint returns correct department rollup, per-robot rows with flag basis, and clean null-handling when ledger is empty.
 
 ---
 
-## AUDIT + READER (writer and reader land together)
+### Phase 2 — Viewer & Report Rendering
 
-### 6. hooks/otto-goal-audit.mjs — NEW
-**Status:** done. Second entry in the existing PostToolUse "Task" hooks array. Gates
-tool_name==='Agent', gates on active-goal-status, check-set is the §4.B set (anchor + gear/tier/box),
-own lock directory, cap-20 recency via the shared lib's writeGoalFlag. Never blocks. Covered in
-scripts/test-otto-goal.mjs, including a real subprocess invocation.  
-**Depends on:** Gate 2 pass, otto-goal-lib.mjs built  
-**Runs in parallel with:** compact hook, inject hook  
-**Must ship with:** otto-facts.mjs reader (task 7) — writer without reader = dead code, this was cohesion hole 2  
-**Complexity:** medium; conditional check-set per §4 outcome, file locking
+#### Task 4: Cathode revision — viewer/spend-report-mockup.html → viewer/spend.html
+**Status:** DONE (mechanical revision done by Bitforge per dispatch note; a Cathode visual-polish pass remains OPTIONAL/available)  
+**Dependency:** task 3 (/spend endpoint ready)  
+**Sequence:** finalizes visual direction before wiring
 
-Create new PostToolUse hook, appended as **second entry** in the existing "Task" matcher's hooks array in hooks.json.
+Promote and revise Cathode's approved mockup per spec §6:
+- **Drop** the `hero-estimate` card's `≈ $1.63 illustrative compute…` sentence
+- **Drop** "Declared tier" column and all `.tier-pill` / `.tier-workshop` styling
+- **Wire to `/spend`** live data endpoint instead of hardcoded sample rows
+- **Implement flag column** with plain-language audit callout (spec §8 templates, no tier jargon)
+- **Zero-flag calm-negatives:** render correct one ("Spend looked proportionate…" or "Not enough same-scope runs…"), never blank
+- **Masthead noun:** "this effort" (active anchor) or "recent activity" (no anchor), never "this build"
+- **Existing elements** (hero cards, department bars, measured-vs-estimated footnote) carry over as-is
 
-Key details per §6.1:
-- Gate payload.tool_name === 'Agent' (not "Task" — avoid otto-state.mjs's trap)
-- Only runs when .claude/otto-goal.md has status: active (via eadActiveGoal(cwd)) — no false-flags on small work in mixed-gear projects
-- **Check-set is conditional on §4 outcome:**
-  - **Under 4.A** (inject confirmed working): check for gear=, 	ier=, ox= substrings only; **deliberately drop** anchor-presence check (inject hook guarantees it deterministically; PostToolUse may see pre-mutation prompt per criterion f anyway)
-  - **Under 4.B** (fallback): also check for ANCHOR_SENTINEL presence (detection backstop; no inject hook to guarantee it)
-- Pure string-presence, no semantic validation, no model, never a permission decision
-- Append flagged line to .claude/otto-goal-flags.log (cap-20 recency eviction): YYYY-MM-DD subagent_type description: missing=gear,box
-- Own lock directory (.claude/.otto-goal.lock), distinct from otto-state.mjs's .otto-state.lock, so hooks never contend
-- Fail-silent on all errors
-
-**Verify:** Unit tests in scripts/test-otto-goal.mjs verify flag writes; audit reader tests (task 7) verify writer/reader agreement.
+**Acceptance:** page renders live data, shows correct calm-negative when no flags, zero tier/WORKSHOP/T1-3 jargon in output.
 
 ---
 
-### 7. hooks/otto-facts.mjs — add reader
-**Status:** done. Additive edit: imports readActiveGoal/countGoalFlags from otto-goal-lib.mjs (first
-cross-hook import, Gate 2-verified, and circular — see Gate 2 above), appends goal_flags=N to the wire
-format only when N > 0. Landed in the same commit-worth of work as task 6, per the spec's "writer and
-reader ship together" rule. Regression: existing 49/49 test-otto-facts.mjs assertions unaffected;
-new goal_flags assertions added to scripts/test-otto-goal.mjs.  
-**Depends on:** Gate 2 pass, otto-goal-lib.mjs built  
-**Must land with:** otto-goal-audit.mjs (task 6) — reader without writer = never called  
-**Complexity:** small; additive edit to existing hook
+#### Task 5: viewer/README.md — document statement view
+**Status:** DONE  
+**Dependency:** task 4  
+**Sequence:** documentation
 
-Additive edit to existing SessionStart/startup hook:
-- Import eadActiveGoal and countGoalFlags from otto-goal-lib.mjs (cohesion note item 6 — this is the first cross-hook-file import in this plugin; Gate 2 verifies feasibility)
-- Append goal_flags=N to the wire format **only when N > 0** — zero-cost-when-clean, same philosophy as everything in this spec
-- Zero cost for projects with no active goal or zero flags
+Add bullet under "What it shows" describing the new `/spend` statement view and its route.
 
-Both SessionStart hooks (startup + compact, task 5) emit goal_flags=N from the same countGoalFlags(cwd) call — never independently computed numbers that happen to agree today.
-
-**Verify:** Unit test in scripts/test-otto-goal.mjs asserts startup and compact readers both render identical count via same shared lib call.
+**Acceptance:** new route is documented for end users.
 
 ---
 
-## HOOKS CONFIGURATION
+### Phase 3 — Agent Behavior
 
-### 8. hooks/hooks.json — add three new entries
-**Status:** done, PARTIAL BY DESIGN. Two of the three entries added (SessionStart "compact" entry;
-PostToolUse second entry under "Task"). The PreToolUse entry is NOT added — Gate 1 deferred, §4.A not
-built this round. All entries use "type": "command", node, timeout: 5, per the proven convention.
-**Depends on:** otto-goal-inject.mjs (or fallback decision if 4.B), otto-goal-compact.mjs, otto-goal-audit.mjs built  
-**Blocks:** hooks can't fire without registration  
-**Complexity:** small; JSON structure
+#### Task 6: agents/baudrate-cfo.md — flag logic & on-request wording
+**Status:** DONE  
+**Dependency:** build-task-1 PASS (tier data available)  
+**Sequence:** defines report content & voice
 
-Add three entries:
-1. **PreToolUse entry** (only if Gate 1 passes — skip if 4.B fallback):
-   \\\json
-   "PreToolUse": {
-     "type": "command",
-     "script": "\/hooks/otto-goal-inject.mjs",
-     "matcher": "Task",
-     "node": true,
-     "timeout": 5
-   }
-   \\\
+Extend Baudrate's existing on-request spend-vs-tier audit with resolved rules from spec §8:
 
-2. **New SessionStart entry for compact** (always — independent of Gate 1):
-   \\\json
-   {
-     "type": "command",
-     "script": "\/hooks/otto-goal-compact.mjs",
-     "matcher": "compact",
-     "node": true,
-     "timeout": 5
-   }
-   \\\
+**Add to prose:**
+- **Flag basis:** self-comparison only (this robot vs. its own same-tier, same-department runs)
+- **Threshold — all three required together:**
+  - (i) Ratio: `actual ≥ 2× basis`
+  - (ii) Gap: `actual − basis ≥ 15K tokens`
+  - (iii) Floor: `basis ≥ 10K tokens`
+- **4th state (two calm-negatives, never blurred):**
+  - Clean: `2+ comparable runs existed, none flagged` → "Spend looked proportionate across all {N} runs."
+  - No-data: `too few same-scope runs` → "Not enough same-scope runs this effort to compare — no audit finding either way."
+- **Phrasing templates (tier-free, `~`-rounded to nearest K):**
+  - Full: `"⚠ {Robot}'s {descriptor} cost about {ratio}× its own typical run in {Department} this effort (~{actualK} vs ~{expectedK}) — worth a look."`
+  - Terse: `"⚠ {Robot}'s {descriptor} cost as much as a much bigger job (~{actualK} vs its own ~{expectedK}) — worth a look."`
 
-3. **PostToolUse second entry** in existing "Task" array (always — independent of Gate 1):
-   \\\json
-   {
-     "type": "command",
-     "script": "\/hooks/otto-goal-audit.mjs",
-     "matcher": "Task",
-     "node": true,
-     "timeout": 5
-   }
-   \\\
+**Maintain (unchanged):**
+- Existing honesty paragraph: measured-vs-estimated labeling, on-request ledger read, Otto main-thread never summed into crew totals
 
-**Never use "type": "script"** — proven silent no-op per docs/hook-events.md.
-
-**Verify:** Structure check only; functional verification in task 12 (test suite).
+**Acceptance:** prose owns flag logic, both templates are in place with no tier jargon, calm-negative distinction is clear.
 
 ---
 
-## FOREMAN + AGENT PROTOCOL
+#### Task 7: agents/otto-foreman.md — build-end footer
+**Status:** DONE  
+**Dependency:** task 6 (Baudrate's wording ready)  
+**Sequence:** surfaces report at build completion
 
-### 9. agents/otto-foreman.md — capture/confirm/amend/retire + dispatch contract
-**Status:** todo  
-**Depends on:** otto-goal-lib.mjs built (know the spec'd text verbatim)  
-**Blocks:** nothing directly; documents the protocol  
-**Complexity:** high; largest single-file change; careful prose  
-**Load-bearing file:** Flag this clearly for human review
+Add to the goal-anchor's final-summary moment (existing restate + retire offer):
 
-**Status:** done. New "### The goal anchor" subsection added under "## Doctrine", between "### Rigor
-tiers" and "### When the work is stuck" (preserves existing numbered cross-references — grepped and
-verified, same discipline the memory-cap build used). Covers capture/confirm/pin, the §4.B hand-compose
-inject rule, the mandatory dispatch-contract line, surfacing goal_flags, the amend gesture, and the
-retire gesture. "Announcing a handoff" gets a short pointer + example showing the anchor block and
-contract line's placement in the prompt. scripts/validate.mjs's existing otto-foreman.md gates (roster
-table, doctrine tripwire, config-dir hardcode check, state-file mention restrictions) all still pass.
+**Behavior per new `spendReporting` profile field (spec §7):**
+- `off`: no proactive mention
+- `on-request`: bare pointer, no numbers: `"(spend report available — just ask)."`
+- `build-end` (**default**): Option 3 one-line digest (spec §5) with exception-first layout
+- `verbose`: full Option 1 expansion (no collapsed footer step)
 
-Add/modify five major sections:
+**Gate:** fires only on `gear=feature` or `gear=build` (same reasoning as goal anchor, never on answer/small-change).
 
-1. **Capturing the goal anchor** (new subsection in session-open protocol):
-   - When Otto sorts a feature/build-scale ask, before first dispatch, Otto states restated understanding: *"Here's what I understand you want: <restatement>. That right?"*
-   - Confirm step: human says yes (or corrects and loops back, never half-confirmed)
-   - Pin step: Otto writes .claude/otto-goal.md verbatim from confirmed exchange (no double-consent)
-   - Reuse exact artifact format from spec-goal-contract.md §3
+**Composition:** direct from ledger (NOT a Baudrate subagent dispatch — cost optimization).
 
-2. **Inject rule** (in dispatch paragraph):
-   - **Under 4.A** (if spike passes): the PreToolUse hook does this deterministically; Otto's job is capture/confirm
-   - **Under 4.B** (if spike fails): Otto composes anchor block by hand per enderAnchorBlock spec (byte-for-byte), prepends to every Task prompt for this project, every dispatch, no exception — this is a hard rule with high visibility
-   - Either way: injected anchor is the confirmed text from .claude/otto-goal.md, never a paraphrase
+**Noun (Vector's spec §4 label seam):**
+- Active goal anchor → "this effort"
+- No active anchor → "recent activity"
+- **Never** "this build"
 
-3. **Mandatory dispatch contract line** (in dispatch paragraph, always):
-   - Every Task prompt for feature/build-scale work must contain verbatim:
-     \\\
-     [Dispatch contract] gear=<answer|small-change|feature|build> tier=<WORKSHOP|T1|T2|T3> box="<one pass, then report — or scoped equivalent>"
-     \\\
-   - This is prompt-discipline (Otto's live judgment per dispatch, not static content a hook pre-fills)
-   - otto-goal-audit.mjs detects and counts misses
-
-4. **Surfacing goal flags** (at checkpoint/session-open/final summary):
-   - If facts block includes goal_flags=N (from otto-facts.mjs or otto-goal-compact.mjs), surface at next checkpoint or session-open brief in plain language, never mechanism name
-   - Example: *"heads up, three dispatches on this build went out without the full gear/tier/box line — want me to look at which?"*
-   - Audit only detects; Otto reads with judgment
-
-5. **Amend gesture** (new subsection, mid-session):
-   - Two paths surface the question — neither one silently updates or ignores:
-     - **(a) Human-initiated:** Human says something mid-session that sounds like a new direction. Otto asks plainly: *"That sounds like it might be a change from the goal we confirmed ('<old confirmed line>'). Want me to update the anchor to this, or is this an addition alongside it?"*
-     - **(b) Otto-noticed:** Reviewing returned work against the anchor, looks like drift. Otto surfaces: *"This looks like it drifted from the confirmed goal ('<old confirmed line>') — the last couple of hops were about <Y>. Still on track and I should pull it back, or has the goal actually moved?"*
-   - Only explicit human yes writes amendment: old line → ## Amendment history with date, new line becomes confirmed goal
-   - Next dispatch carries new text (via whichever mechanism §4 resolved to)
-
-6. **Retire gesture** (new subsection, at final summary):
-   - At final summary, name the effort and ask explicitly: *"Shall I retire this goal ('<confirmed line>'), or is this work ongoing?"*
-   - If retiring: flip status: active to status: retired
-   - If new effort starts in same project: ask *"That sounds like a new goal — should I retire the old one ('<old confirmed line>'), or is this in service of it?"* — same human-decides gate, not silent overwrite
-
-**Add dispatch-contract line example to "Announcing a handoff"** section (if not there already), showing exact format and its placement in the prompt.
-
-**Verify:** No automated check; prose-level review for accuracy and clarity against spec §3 and §5.
+**Acceptance:** footer renders at correct dial setting, never on answer/small-change, noun correct, no tier jargon.
 
 ---
 
-## ARTIFACT SPECIFICATION
+### Phase 4 — Schema & Config
 
-### 10. .claude/otto-goal.md artifact format (spec only)
-**Status:** done — documentation only, as scoped. The format is already fully specified,
-byte-for-byte, in docs/spec-goal-contract.md §3, and agents/otto-foreman.md's new "### The goal
-anchor" subsection now also carries the exact template Otto writes at capture/pin time. No runtime
-file is shipped — none should be.  
-**Depends on:** none; documents runtime structure  
-**Blocks:** nothing directly; captured by otto-foreman.md protocol  
-**Complexity:** trivial; reference documentation
+#### Task 8: docs/profile-schema.md — add spendReporting field
+**Status:** DONE  
+**Dependency:** task 7 (otto-foreman.md defines field use)  
+**Sequence:** before validation & tests
 
-This task is documentation only — the artifact is created at runtime during capture, not shipped. Record the spec'd format in this TASKS.md or a reference doc.
+Add `spendReporting` field to schema:
+- **Type:** enum
+- **Values:** `off`, `on-request`, `build-end`, `verbose`
+- **Default:** `build-end`
+- **Description:** one-line summary of behavior (read like `verbosity`)
+- **Placement:** whole-file example next to `verbosity`, add this file to the top cross-reference list
 
----
-
-## TEST SUITE
-
-### 11. scripts/test-otto-goal.mjs — NEW, comprehensive test suite
-**Status:** done — 18/18 passing. All §7 negative/positive/boundary cases covered against the §4.B
-code path (build-task-1 itself is out of scope for automation, per the spec's own stated boundary).  
-**Depends on:** otto-goal-lib.mjs, all hooks (inject/compact/audit), otto-facts.mjs built  
-**Blocks:** nothing directly; gates release  
-**Complexity:** high; many test cases per §7
-
-Create new test file covering all §7 negative and positive cases. Use real filesystem scratch (no mocking), same convention as 	est-otto-facts.mjs / 	est-otto-state.mjs.
-
-**Negative tests (small-ask never fires, auto-classification never happens, etc.):**
-- Small-ask never fires, answer gear never fires, ambiguous gear, no auto-classification, retirement never inferred, audit never blocks, idempotency guard holds, single-mutator invariant, stale-goal flags don't leak
-
-**Positive tests (feature/build fires end-to-end, amend works, compaction re-injects, etc.):**
-- Feature/build ask fires, amend on explicit yes, compaction hook re-injects, audit reader agrees with writer
-
-**Boundary tests:**
-- ANCHOR_CHAR_CAP = 500, AUDIT_LOG_CAP = 20
-
-**Verify:** All tests pass before release (task 13).
+**Acceptance:** schema documents the field, default matches otto-foreman.md behavior.
 
 ---
 
-## VALIDATION + RELEASE
+### Phase 5 — Validation & Tests
 
-### 12. scripts/validate.mjs — add drift gates
-**Status:** done. ANCHOR_SENTINEL/ANCHOR_CHAR_CAP single-source gate added (same shape as
-PROFILE_CHAR_CAP). Single-PreToolUse-updatedInput-emitter invariant gate added as a no-op-until-
-PreToolUse-exists check — it iterates hooks.json's PreToolUse entries generically (currently zero,
-passes vacuously) so it starts doing real work the day §4.A adds an entry, with no further edit
-required. Also updated three pre-existing gates this build's file additions would otherwise have
-broken: the hooks/ extra-files allowlist, the SessionStart entry-count/matcher check (now 3 entries,
-the "compact" matcher recognized), and the PostToolUse "Task" hooks-array check (now tolerates a
-second, differently-named script instead of requiring every entry reference otto-state.mjs).  
-**Depends on:** otto-goal-lib.mjs, all hooks built  
-**Blocks:** release (task 13 runs this)  
-**Complexity:** small; two new string-matching checks
+#### Task 9: scripts/validate.mjs — no-jargon scan + spendReporting drift check
+**Status:** DONE  
+**Dependency:** tasks 2–8 (all generated content exists)  
+**Sequence:** before full test run
 
-Add two new gates: Single-PreToolUse-updatedInput-emitter invariant, ANCHOR_SENTINEL/ANCHOR_CHAR_CAP single-source gate.
+**Part A — No-jargon scan:**
+- New check: user-facing strings in `viewer/spend.html`, `viewer/server.mjs` responses, `agents/otto-foreman.md`, `agents/baudrate-cfo.md` must not contain `tier`, `WORKSHOP`, `T1`, `T2`, `T3` (case-insensitive substring scan)
+- **Scan-exclusion seam:** scan MUST exclude `otto-ledger.log` and `hooks/otto-trace.mjs`'s tier-writing literal
+- Rendered surfaces only, never backstage ledger or hook
 
----
+**Part B — Drift check:**
+- Cross-check `spendReporting` enum in `agents/otto-foreman.md` against `docs/profile-schema.md`
 
-### 13. docs/hook-events.md — record Gate 1 spike findings
-**Status:** BLOCKED — depends on Gate 1, which is deferred this round. Not touched. Do not record
-findings that were never captured; wait for the real spike.  
-**Depends on:** Gate 1 complete  
-**Blocks:** nothing directly; documents empirical findings  
-**Complexity:** small; record findings in existing format
-
-Record Gate 1's six-criterion capture in docs/hook-events.md.
+**Acceptance:** no-jargon scan catches tier jargon in rendered output, excludes ledger/hook correctly, spendReporting enum matches.
 
 ---
 
-### 14. Version bump — .claude-plugin/plugin.json + RobotInc.md
-**Status:** done. Bumped .claude-plugin/plugin.json version: 22.10.0 → 22.11.0. Bumped RobotInc.md frontmatter version: 22.10.0 → 22.11.0. Validator enforces match (both now read 22.11.0).  
-**Depends on:** all feature tasks complete (tasks 3–12)  
-**Blocks:** release (task 15)  
-**Complexity:** small; two-file bump
+#### Task 10: scripts/test-otto-trace.mjs — tier-extraction tests
+**Status:** DONE  
+**Dependency:** task 2 (hooks/otto-trace.mjs tier-capture implemented)  
+**Sequence:** validates tier capture + ledger format
 
-Bump version from **22.10.0** to **22.11.0** (feature tier).
+Add test suite for tier capture:
 
----
+**Fixtures:**
+- First-user-message with each of four dispatch-contract values (`WORKSHOP`, `T1`, `T2`, `T3`)
+- First-user-message with no `tier=` present → `null`
+- Quote-collision fixture → still extracts first-user-message value
 
-### 15. CHANGELOG + release notes
-**Status:** done. Added v22.11.0 entry to CHANGELOG.md (top of file, before 22.10.0). Entry describes goal anchor feature, §4.B shipped (capture protocol, deterministic compaction re-anchor, PostToolUse audits, goal_flags reader, validation gates), and §4.A deferred-pending-spike (PreToolUse inject hook). Matches style of 22.10.0/22.9.0 entries.  
-**Depends on:** feature tasks complete, version bump (task 14)  
-**Blocks:** release (task 16)  
-**Complexity:** small; summary paragraph
+**Assertions:**
+- `extractTier` returns correct value for all four types
+- Absent tier → `null`
+- Regex is safe against quote-collision
+- Ledger round-trip: tier written/parsed, legacy compat
 
-Add v22.11.0 entry to CHANGELOG.
-
----
-
-### 16. Full test run + release gate
-**Status:** PARTIAL — done for everything in Bitforge's scope this round; version bump (14) and
-CHANGELOG (15) still pending Gantry/Otto before an actual release. All of the following are GREEN,
-run 2026-07-21:
-
-    node scripts/validate.mjs        # valid: 13 robots + otto-foreman, 38 skills, 3 commands, 6 hook scripts
-    node scripts/test-otto-goal.mjs  # 18/18 passed  (NEW)
-    node scripts/test-otto-facts.mjs # 49/49 passed  (regression — otto-facts.mjs touched)
-    node scripts/test-otto-state.mjs # 51/51 passed  (regression — untouched, re-run for safety)
-    node scripts/test-otto-trace.mjs # 23/23 passed  (regression — untouched, re-run for safety)
-
-  There is no package.json / npm test in this repo (TASKS.md's original wording assumed one); each
-  suite is a standalone node script, run individually above.
-**Depends on:** version bump (task 14), CHANGELOG (task 15), validate.mjs gate (task 12)  
-**Blocks:** merge  
-**Complexity:** small; run suite, confirm all green
-
-\\\ash
-node scripts/validate.mjs       # All gates pass
-node scripts/test-otto-goal.mjs # All §7 tests pass
-npm test                        # Full suite green
-\\\
+**Acceptance:** tier extraction works on all four values, handles absent/null correctly, regex collision-safe, ledger round-trip append-compatible.
 
 ---
 
-## DOWNSTREAM HANDOFFS (after merge)
+#### Task 11: scripts/test-spend-report.mjs (new) — comprehensive report tests
+**Status:** DONE  
+**Dependency:** tasks 2, 3, 6, 7, 9  
+**Sequence:** validates all report logic
 
-- **Glitchtrap** (QA/integration): Verify whole-system cohesion
-- **Otto** (release management): Publish v22.11.0
+New test file following `scripts/test-otto-trace.mjs` convention.
+
+**Positive tests (from spec §11):**
+- Known ledger → correct department rollup, per-robot rows
+- Crew-measured + Otto-estimate never summed in all four surfaces
+- Flagged row message appears verbatim in all four places
+- Each of three threshold conditions tested individually and together
+- Self-comparison basis: 2+ priors → median, exactly 1 → single, 0 → null
+- Two calm-negatives distinguished correctly at each scenario
+- Zero flags renders correct calm-negative, never blank
+- `spendReporting` settings produce exact behavior per spec §7
+- "This effort" / "recent activity" noun, never "this build"
+- Missing ledger renders honest empty state, no error
+
+**Negative tests (CRITICAL — from spec §11):**
+- Small-change/answer-gear dispatch NEVER emits spend footer, under any `spendReporting` setting
+- No user-facing output contains tier jargon with scan-exclusion applied correctly
+
+**Acceptance:** all tests pass, especially negative ones; report logic is solid; no tier jargon leaked.
 
 ---
 
-## Plan decision record
+### Phase 6 — Release & QA
 
-**Gate 1 outcome:** DEFERRED — not run this round, by explicit scope decision (needs an authenticated
-real Task dispatch the user will enable later). Build proceeds on §4.B (path B) until it runs.
+#### Task 12: Version bump + CHANGELOG
+**Status:** DONE  
+**Dependency:** all code tasks (1–11)  
+**Sequence:** final commit prep
 
-**Gate 2 outcome:** PASSED. Cross-hook ES-module import — including the genuine circular reference
-between otto-goal-lib.mjs and otto-facts.mjs — resolves and executes correctly under the real
-`node hooks/<file>.mjs` invocation shape. Path A (shared lib) built as designed.
+**Changes:**
+- `.claude-plugin/plugin.json`: `version: "22.13.0"`
+- `RobotInc.md`: version string updated
+- `CHANGELOG.md`: new entry documenting spend-report feature
 
-**Path taken:** B for injection (§4.B, hand-compose + audit backstop), A for the shared lib (Gate 2
-passed) — a genuine mix, exactly as TASKS.md's own "Path B" and "Path A" descriptions anticipated could
-happen independently, since Gate 1 and Gate 2 gate different things.
+**Acceptance:** versions match, CHANGELOG documents feature.
 
 ---
 
-## Summary for this session
+#### Task 13: Full test run + validation
+**Status:** DONE — node scripts/validate.mjs green (13 robots + otto-foreman, 38 skills, 3 commands, 6 hook scripts); all five scripts/test-*.mjs suites green (202/202 tests) re-run after task 12 version bump.  
+**Dependency:** task 12 (version bump in place)  
+**Sequence:** pre-QA gate
 
-- **Branch:** eature/goal-anchor (created, clean, ready)
-- **Baseline:** main @ 336bb4f (v22.10.0), clean
-- **Version target:** 22.11.0 (feature)
-- **Critical path:** Gate 1 → Gate 2 → shared lib → conditional paths (4.A or 4.B) + parallel (compact, audit) → integration (hooks.json, foreman) → test/validate → release
-- **Load-bearing task:** Task 9 (agents/otto-foreman.md) — largest single change, high visibility
-- **Dead-code blocker:** Task 6 (audit writer) and Task 7 (reader) must land together
-- **Empirical gates:** Both must complete and both outcomes recorded before proceeding
+Run:
+```
+node scripts/validate.mjs
+npm test
+```
 
-Ready for Bitforge to build; results feed back to Gantry for task sequencing updates and Glitchtrap for cohesion verification.
+**Acceptance:** all tests green, no validation errors, no tier jargon leaked.
+
+---
+
+#### Task 14: QA — visual verification & harmony check (Glitchtrap-owned)
+**Status:** TODO  
+**Dependency:** task 13 (build is green)  
+**Sequence:** pre-merge gate
+
+**Visual QA:**
+- Render Option 1/2/3 terminal reports by hand against known ledger with at least one flagged row
+- Verify masthead noun, footer renders at each `spendReporting` dial setting
+- Verify footer never appears on answer/small-change gear
+- Verify no tier jargon in any output
+
+**Viewer QA:**
+- Open `/spend` page, verify live data rendering
+- Check department rollup bars, per-robot table, flag column, audit callout
+- Verify correct calm-negative when no flags, no tier jargon
+
+**Harmony check (with existing features):**
+- Goal anchor's final-summary moment still works with footer added (no collision, no double-footer)
+- Activity Window ledger index still handles tier field (or gracefully ignores null)
+- Baudrate's on-request spend report unchanged (Option 2 is the new published format)
+- No interaction with memory-cap, verbosity, or other profile settings
+
+**Acceptance:** all visuals match spec, no tier jargon, footer gates work, harmony is green.
+
+---
+
+#### Task 15: Merge prep & documentation
+**Status:** TODO  
+**Dependency:** task 14 (QA green)  
+**Sequence:** final handoff
+
+- Clean commit history on feature/spend-report (one logical commit or clear sequence)
+- All files touched are SHIPPED files (no internal tools, no debugging code)
+- Rebase off main if needed to avoid merge conflicts
+- Prepare PR with summary of changes, link to spec, note Bitforge/Cathode/Glitchtrap ownership
+
+**Acceptance:** branch is clean, ready to merge to main.
+
+---
+
+## HANDOFF NOTES
+
+- **Bitforge:** build-task-1 (spike, PASS) · tasks 2–3 (ledger/API) · task 4 (mechanical viewer revision,
+  done in place of Cathode per dispatch note) · tasks 5–11 (docs/agents/validation/tests) — all DONE. Task 13
+  (full test run) done for the code/tests; re-run once Gantry's task 12 lands. Task 15 (merge prep) waits on
+  Glitchtrap's task 14.
+- **Cathode:** optional visual-polish pass on `viewer/spend.html` if the render wants more design love — not
+  blocking; the §6-mandated cuts and live wiring are already done.
+- **Gantry:** task 12 (version bump + CHANGELOG) — next up.
+- **Glitchtrap:** task 14 (QA + harmony check — verification-owned), gated on Gantry's task 12.
+- **Notes for next session:** build-task-1's spike PASSED (mechanism (a) built, live in `hooks/otto-trace.mjs`)
+  — the fallback mechanism (b) was never needed. All code-level acceptance criteria are green; see Bitforge's
+  build report for the exact commands and counts.
+
+---
+
+## Status Summary
+
+| Task | Status | Owner |
+|------|--------|-------|
+| build-task-1: tier-capture spike (GATE) | DONE — PASS | Bitforge |
+| task 2: hooks/otto-trace.mjs | DONE | Bitforge |
+| task 3: viewer/server.mjs | DONE | Bitforge |
+| task 4: viewer/spend.html | DONE (mechanical; Cathode polish pass optional) | Bitforge |
+| task 5: viewer/README.md | DONE | Bitforge |
+| task 6: agents/baudrate-cfo.md | DONE | Bitforge |
+| task 7: agents/otto-foreman.md | DONE | Bitforge |
+| task 8: docs/profile-schema.md | DONE | Bitforge |
+| task 9: scripts/validate.mjs | DONE | Bitforge |
+| task 10: scripts/test-otto-trace.mjs | DONE | Bitforge |
+| task 11: scripts/test-spend-report.mjs | DONE | Bitforge |
+| task 12: version bump + CHANGELOG | TODO | Gantry |
+| task 13: full test run | DONE (202/202 after bump) | Gantry |
+| task 14: QA + harmony check | TODO | Glitchtrap |
+| task 15: merge prep | TODO | Bitforge |
+
+**Next:** Gantry's task 12 (version bump + CHANGELOG), then Glitchtrap's task 14 (QA + harmony check,
+whole-system verify per the dispatch contract). Bitforge's task 15 (merge prep) waits on task 14 green.

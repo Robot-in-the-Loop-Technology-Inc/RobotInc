@@ -44,6 +44,7 @@ import {
   summarizeResult,
   computeLedgerEntry,
   ROBOTS,
+  extractTier,
 } from '../hooks/otto-trace.mjs';
 import { parseLedgerLine } from '../viewer/server.mjs';
 
@@ -90,13 +91,22 @@ function readLog(dir, name) {
 // message" formula inflates massively on exactly this shape; the fix must
 // land on the LAST message's total instead.
 function writeTranscript(path, rows) {
-  const lines = rows.map((r) =>
-    JSON.stringify({
-      timestamp: r.ts,
-      message: r.usage ? { usage: r.usage } : { role: 'assistant' },
-    })
-  );
+  const lines = rows.map((r) => {
+    const message = {};
+    if (r.role) message.role = r.role;
+    if (r.content !== undefined) message.content = r.content;
+    if (r.usage) message.usage = r.usage;
+    if (!r.role && !r.usage) message.role = 'assistant'; // matches the old default shape exactly
+    return JSON.stringify({ timestamp: r.ts, message });
+  });
   writeFileSync(path, lines.join('\n') + '\n', 'utf8');
+}
+
+// A bare in-memory transcript entry shaped like `entries[i]` inside
+// computeLedgerEntry / extractTier — no file I/O needed for the pure
+// extractTier() tests below.
+function userEntry(content) {
+  return { message: { role: 'user', content } };
 }
 
 // ---------------------------------------------------------------- fixtures
@@ -298,6 +308,161 @@ record('run() writes no ledger line when the transcript path is absent (fail-sof
   );
   const ledger = readLog(join(projectDir, '.claude'), 'otto-ledger.log');
   assert(ledger === '', `expected no ledger line, got: ${ledger}`);
+});
+
+// ============================================================ v22.13.0 TIER CAPTURE (docs/spec-spend-report.md §10)
+// Mechanism (a): confirmed live by build-task-1's spike against a real
+// dispatch transcript on this machine — a subagent's own transcript first
+// user-message entry carries the FULL dispatch prompt, byte-identical,
+// including the `[Dispatch contract]` line and `tier=<value>`, never
+// truncated. extractTier() re-derives that same real-world shape.
+const DISPATCH_CONTRACT = (tier) =>
+  `[Dispatch contract] gear=build tier=${tier} box="one pass" verify="tests green"\n\nYou are Bitforge...`;
+
+for (const tier of ['WORKSHOP', 'T1', 'T2', 'T3']) {
+  record(`extractTier: captures "${tier}" from a first-user-message dispatch contract line`, () => {
+    const got = extractTier([userEntry(DISPATCH_CONTRACT(tier))]);
+    assert(got === tier, `expected "${tier}", got "${got}"`);
+  });
+}
+
+record('extractTier: no tier= present anywhere -> null, no throw', () => {
+  const got = extractTier([userEntry('You are Bitforge, Engineer seat at RobotInc. Build the thing.')]);
+  assert(got === null, `expected null, got ${JSON.stringify(got)}`);
+});
+
+record('extractTier: no role:"user" entry at all -> null', () => {
+  const got = extractTier([{ message: { role: 'assistant', content: 'tier=T2' } }]);
+  assert(got === null, `expected null when no user entry exists, got ${JSON.stringify(got)}`);
+});
+
+record('extractTier: stops at whitespace (regex is /tier=(\\S+)/, group 1 only)', () => {
+  const got = extractTier([userEntry('prefix tier=T2 box="something with spaces" suffix')]);
+  assert(got === 'T2', `expected "T2" (stopped at whitespace), got "${got}"`);
+});
+
+record('extractTier: quote-collision — a later decoy tier= in the SAME message never wins over the real one', () => {
+  const prompt = DISPATCH_CONTRACT('T2') + '\n\nNote: a subagent could later quote tier=T3 in its own output, '
+    + 'or a fixture could say tier=WORKSHOP here as a decoy — the real dispatch contract line always comes '
+    + 'first, so extraction must return the FIRST match, never a later one.';
+  const got = extractTier([userEntry(prompt)]);
+  assert(got === 'T2', `expected the real contract value "T2" (first match), got "${got}" — decoy corrupted the capture`);
+});
+
+record('extractTier: only the FIRST role:"user" entry is scanned, never a later one', () => {
+  const entries = [
+    userEntry(DISPATCH_CONTRACT('T1')),
+    { message: { role: 'assistant', content: 'working on it' } },
+    userEntry('a later turn mentioning tier=T3, which must never be read'),
+  ];
+  const got = extractTier(entries);
+  assert(got === 'T1', `expected the FIRST user message's value "T1", got "${got}"`);
+});
+
+record('extractTier: content as an array of type:"text" blocks is join(\'\')-serialized before matching', () => {
+  const entries = [userEntry([
+    { type: 'text', text: '[Dispatch contract] gear=build tier=' },
+    { type: 'text', text: 'T3 box="x" verify="y"' },
+    { type: 'image', source: 'ignored' },
+  ])];
+  const got = extractTier(entries);
+  assert(got === 'T3', `expected "T3" reassembled across text blocks, got "${got}"`);
+});
+
+record('extractTier: an unrecognized content shape degrades to null, never a throw', () => {
+  const got = extractTier([{ message: { role: 'user', content: 42 } }]);
+  assert(got === null, `expected null on an unrecognized content shape, got ${JSON.stringify(got)}`);
+});
+
+record('extractTier: empty entries list -> null, never a throw', () => {
+  assert(extractTier([]) === null, 'expected null on an empty list');
+});
+
+record('computeLedgerEntry: returns tier alongside tokens/durationMs when the first user message carries it', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'otto-trace-transcript-'));
+  scratchDirs.push(dir);
+  const p = join(dir, 'agent.jsonl');
+  writeTranscript(p, [
+    { ts: '2026-07-22T01:00:00.000Z', role: 'user', content: DISPATCH_CONTRACT('T2') },
+    { ts: '2026-07-22T01:00:05.000Z', usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 10, cache_read_input_tokens: 0 } },
+  ]);
+  const entry = computeLedgerEntry(p);
+  assert(entry !== null, 'expected an entry');
+  assert(entry.tier === 'T2', `expected tier "T2", got ${JSON.stringify(entry.tier)}`);
+  assert(entry.tokens === 12, `tier capture must not disturb the existing token math, got ${entry.tokens}`);
+});
+
+record('computeLedgerEntry: tier is null (never the string "null") when the transcript never declares one', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'otto-trace-transcript-'));
+  scratchDirs.push(dir);
+  const p = join(dir, 'agent.jsonl');
+  writeTranscript(p, [
+    { ts: '2026-07-22T01:00:00.000Z', role: 'user', content: 'no dispatch contract here' },
+    { ts: '2026-07-22T01:00:05.000Z', usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 10, cache_read_input_tokens: 0 } },
+  ]);
+  const entry = computeLedgerEntry(p);
+  assert(entry !== null, 'expected an entry (tokens/duration still real)');
+  assert(entry.tier === null, `expected tier null, got ${JSON.stringify(entry.tier)}`);
+});
+
+record('run() ledger line carries a trailing tier=<T> ONLY when captured — never `tier=` empty, never `tier=null`', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  const transcriptDir = mkdtempSync(join(tmpdir(), 'otto-trace-transcript-'));
+  scratchDirs.push(transcriptDir);
+  const withTierPath = join(transcriptDir, 'with-tier.jsonl');
+  writeTranscript(withTierPath, [
+    { ts: '2026-07-22T01:00:00.000Z', role: 'user', content: DISPATCH_CONTRACT('WORKSHOP') },
+    { ts: '2026-07-22T01:00:05.000Z', usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 10, cache_read_input_tokens: 0 } },
+  ]);
+  run(
+    { agent_type: `robotinc:${CREW_ID}`, last_assistant_message: 'ok', cwd: projectDir, agent_transcript_path: withTierPath },
+    { env: {}, home: configDir }
+  );
+  const ledger = readLog(join(projectDir, '.claude'), 'otto-ledger.log');
+  assert(/ tier=WORKSHOP$/m.test(ledger), `expected a trailing " tier=WORKSHOP" segment, got: ${ledger}`);
+  assert(!/tier=null/.test(ledger), 'regression: the literal string "tier=null" leaked into the ledger');
+});
+
+record('run() ledger line omits the tier segment ENTIRELY when no tier was captured', () => {
+  const { configDir, projectDir } = freshDirs();
+  withClaudeDir(projectDir);
+  const transcriptDir = mkdtempSync(join(tmpdir(), 'otto-trace-transcript-'));
+  scratchDirs.push(transcriptDir);
+  const noTierPath = join(transcriptDir, 'no-tier.jsonl');
+  writeTranscript(noTierPath, [
+    { ts: '2026-07-22T01:00:00.000Z', role: 'user', content: 'no dispatch contract at all' },
+    { ts: '2026-07-22T01:00:05.000Z', usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 10, cache_read_input_tokens: 0 } },
+  ]);
+  run(
+    { agent_type: `robotinc:${CREW_ID}`, last_assistant_message: 'ok', cwd: projectDir, agent_transcript_path: noTierPath },
+    { env: {}, home: configDir }
+  );
+  const ledger = readLog(join(projectDir, '.claude'), 'otto-ledger.log');
+  assert(ledger.trim().endsWith('duration_ms=5000'), `expected the line to end at duration_ms with no tier suffix, got: ${ledger}`);
+  assert(!/tier=/.test(ledger), `regression: a tier= segment appeared though none was captured: ${ledger}`);
+});
+
+record('viewer parseLedgerLine: round-trips a NEW tier-tagged line, extracting tier alongside the rest', () => {
+  const line = '2026-07-22T01:00:00.000Z [RobotInc] Bitforge tokens=352 duration_ms=5000 tier=T2';
+  const parsed = parseLedgerLine(line);
+  assert(parsed !== null, 'expected a parse');
+  assert(parsed.tier === 'T2', `expected tier "T2", got ${JSON.stringify(parsed.tier)}`);
+  assert(parsed.tokens === 352 && parsed.durationMs === 5000, 'tier parsing must not disturb tokens/duration');
+});
+
+record('viewer parseLedgerLine: a legacy line with no tier segment parses tier: null (never rewritten, never a throw)', () => {
+  const line = '2026-07-16T01:00:00.000Z [RobotInc] Bitforge tokens=137202 duration_ms=30000';
+  const parsed = parseLedgerLine(line);
+  assert(parsed !== null, 'expected a parse of the legacy shape');
+  assert(parsed.tier === null, `expected tier null on a line with no tier= segment, got ${JSON.stringify(parsed.tier)}`);
+});
+
+record('viewer parseLedgerLine: the oldest untagged shape (no [project], no tier) still parses cleanly', () => {
+  const line = '2026-07-16T01:00:00.000Z Bitforge tokens=137202 duration_ms=30000';
+  const parsed = parseLedgerLine(line);
+  assert(parsed !== null, 'expected a parse of the oldest shape');
+  assert(parsed.project === null && parsed.tier === null, `expected project/tier both null, got ${JSON.stringify(parsed)}`);
 });
 
 // ============================================================ FIX 3: per-project ledger tag

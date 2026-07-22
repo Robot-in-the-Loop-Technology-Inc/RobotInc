@@ -142,8 +142,9 @@ function resolveLogDir(payload, env, home) {
 // them. Baudrate's estimates from this field are approximate for that reason,
 // and must say so.
 //
-// LEDGER LINE FORMAT (v22.8.3, per-project attribution):
-//   <ISO-timestamp> [<project>] <robot-name> tokens=<N> duration_ms=<M>
+// LEDGER LINE FORMAT (v22.8.3, per-project attribution; v22.13.0 adds an
+// optional trailing tier):
+//   <ISO-timestamp> [<project>] <robot-name> tokens=<N> duration_ms=<M> [tier=<T>]
 // `<project>` is basename(cwd) -- the SAME derivation and the SAME `[...]`
 // bracket style as hooks/otto-state.mjs's own project tag on
 // otto-state-global.md (see that file's GLOBAL_HEADER and its
@@ -154,14 +155,65 @@ function resolveLogDir(payload, env, home) {
 // This is an APPEND-ONLY log: lines written before this change
 // (`<ts> <name> tokens=N duration_ms=M`, no tag) are never rewritten and stay
 // on disk exactly as they were. viewer/server.mjs's parser treats the
-// `[project]` segment as optional so both shapes keep parsing; an untagged
-// historical line simply renders with no project.
+// `[project]` segment and the trailing `tier=<T>` segment as optional so
+// every historical shape keeps parsing; a line with neither simply renders
+// with no project and no tier.
+//
+// TIER CAPTURE (docs/spec-spend-report.md §10, Vector's ruling, mechanism
+// (a) -- CONFIRMED via build-task-1's spike against a real transcript: a
+// subagent's own transcript first user-message entry carries the FULL
+// dispatch prompt, byte-identical, including the `[Dispatch contract]` line
+// and `tier=<value>`, never truncated). `tier=<T>` is written trailing the
+// ledger line ONLY when captured -- omitted entirely when null, never
+// `tier=` empty, never the literal string `tier=null`. Captured by a SECOND
+// pass over the exact same in-memory transcript JSONL list already read for
+// tokens (see extractTier() below) -- no new file, no second hook, no join,
+// no lock, and tokens+tier can never disagree because they come from one
+// read. Rendered surfaces (the viewer, Baudrate's prose, Otto's footer) must
+// never print the word "tier" or a raw tier value -- this ledger line and
+// this comment are the one place it legitimately lives backstage
+// (scripts/validate.mjs's no-jargon scan explicitly excludes both).
 //
 // Independent try/catch from the block above on purpose: a malformed or missing
 // subagent transcript (e.g. --no-session-persistence genuinely never writes one)
 // must never take the trace-log write above down with it. No transcript, no
 // timestamps, or no usage data anywhere in it => write nothing to the ledger for
 // this event; never log a fabricated 0 standing in for "unknown."
+// Locates the FIRST `message.role === 'user'` entry in the transcript and
+// pulls the tier the dispatch contract declared, per docs/spec-spend-
+// report.md §10. Serializes `message.content` to text exactly as the hooks
+// docs already prescribe elsewhere in this codebase for `tool_response.
+// content`: a string as-is, or `join('')` the `.text` of `type: 'text'`
+// blocks. Scanning stops at the FIRST match of `/tier=(\S+)/`, so a subagent
+// quoting `tier=` later in its own output (a decoy, or a self-referential
+// mention like this very comment's own words) can never corrupt the
+// capture — the real dispatch contract line is always first because Otto
+// composes it as the opening line of the prompt. Own guard, independent of
+// the token/duration logic above: malformed or unexpected content shapes
+// degrade to `null`, never a throw, and never take the token write down
+// with them.
+function extractTier(entries) {
+  try {
+    for (const e of entries) {
+      const msg = e.message;
+      if (!msg || msg.role !== 'user') continue;
+      const content = msg.content;
+      let text;
+      if (typeof content === 'string') text = content;
+      else if (Array.isArray(content)) {
+        text = content.filter((b) => b && b.type === 'text').map((b) => b.text || '').join('');
+      } else {
+        return null; // no recognizable text shape on the first user message
+      }
+      const m = text.match(/tier=(\S+)/);
+      return m ? m[1] : null;
+    }
+    return null; // no role:'user' entry found at all
+  } catch {
+    return null; // fail-soft, same footing as every other guard in this hook
+  }
+}
+
 function computeLedgerEntry(agentTranscriptPath) {
   if (!agentTranscriptPath || !existsSync(agentTranscriptPath)) return null;
 
@@ -191,7 +243,13 @@ function computeLedgerEntry(agentTranscriptPath) {
     (lastUsage.cache_creation_input_tokens || 0) +
     (lastUsage.cache_read_input_tokens || 0);
 
-  return { tokens, durationMs };
+  // Tier is a SECOND pass over this SAME in-memory entries list, computed
+  // AFTER tokens/duration and behind its own guard (extractTier's internal
+  // try/catch) — a malformed first-user-message shape must never take the
+  // token write above down with it (spec §10).
+  const tier = extractTier(entries);
+
+  return { tokens, durationMs, tier };
 }
 
 // Takes an already-parsed hook payload and performs the writes. Exported for
@@ -236,7 +294,10 @@ export function run(payload, opts = {}) {
       // tag -- see the LEDGER LINE FORMAT comment above computeLedgerEntry().
       const cwd = payload.cwd || process.cwd();
       const project = basename(cwd);
-      const ledgerLine = `${stamp} [${project}] ${robot} tokens=${entry.tokens} duration_ms=${entry.durationMs}\n`;
+      // Trailing tier segment, ONLY when captured -- never `tier=` empty,
+      // never the literal string `tier=null` (spec §10).
+      const tierSuffix = entry.tier ? ` tier=${entry.tier}` : '';
+      const ledgerLine = `${stamp} [${project}] ${robot} tokens=${entry.tokens} duration_ms=${entry.durationMs}${tierSuffix}\n`;
       appendFileSync(join(dir, 'otto-ledger.log'), ledgerLine, 'utf8');
     }
   } catch {
@@ -269,4 +330,4 @@ if (isMainModule()) {
 }
 
 // Exported for tests only — the hook itself never imports these from outside.
-export { bareType, summarizeResult, computeLedgerEntry, resolveLogDir, ROBOTS };
+export { bareType, summarizeResult, computeLedgerEntry, resolveLogDir, ROBOTS, extractTier };

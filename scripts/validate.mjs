@@ -16,7 +16,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];
@@ -410,6 +410,130 @@ if (naked.length) fail(`robots with no skills (a department without tools is a c
     if (existsSync(join(REPO, path)) && !read(path).includes(LEDGER_FILE)) {
       fail(`${label}: does not mention "${LEDGER_FILE}" — the hook that writes it, the robot that reads `
          + `it, and the docs that name it must all agree on the exact filename.`);
+    }
+  }
+}
+
+// ------------------------------------------- spend report: no rigor-declaration jargon on a rendered surface
+// docs/spec-spend-report.md §2/§8/§9/§11 -- the hard, non-negotiable constraint: the words "tier", "WORKSHOP",
+// "T1", "T2", "T3" (this codebase's internal rigor-declaration vocabulary, docs/doctrine.md's "Rigor tiers")
+// are captured and consumed ONLY to compute the plain-language proportionality flag; they must never reach a
+// human, on any surface. Scan-exclusion seam (Vector's ruling, §10): otto-ledger.log legitimately stores
+// `tier=<T>` backstage and hooks/otto-trace.mjs IS the capture mechanism -- neither is a rendered surface and
+// neither is scanned here; scanning them would false-positive on this feature's own mechanism.
+{
+  // JARGON_RE is single-sourced in viewer/server.mjs (exported specifically so
+  // this scan and scripts/test-spend-report.mjs's own jargon tests can never
+  // quietly drift apart). This first import just reads the constant off the
+  // module — it does not care which CLAUDE_CONFIG_DIR was active when Node
+  // evaluated the file, since nothing here calls computeSpendReport() yet.
+  const { JARGON_RE: JARGON } = await import(pathToFileURL(join(REPO, 'viewer/server.mjs')).href);
+
+  // viewer/spend.html has no legitimate reason to ever mention this vocabulary
+  // at all (unlike agents/otto-foreman.md or agents/baudrate-cfo.md, which
+  // separately discuss Stripe pricing tiers and the human's own otto-profile
+  // "tier" seat setting) -- whole-file scan. This is the exact regression the
+  // mockup shipped with ("declared WORKSHOP", "T2 targeted-board runs",
+  // .tier-pill/.tier-workshop) -- it must be caught here before it ships again.
+  if (existsSync(join(REPO, 'viewer/spend.html'))) {
+    const spendHtml = read('viewer/spend.html');
+    if (JARGON.test(spendHtml)) {
+      fail('viewer/spend.html: contains forbidden rigor-declaration vocabulary (tier/WORKSHOP/T1-3) -- this '
+         + 'user-facing page must never teach the word "tier" (docs/spec-spend-report.md §2)');
+    }
+  }
+
+  // agents/otto-foreman.md and agents/baudrate-cfo.md legitimately use "tier"
+  // elsewhere in this same file (Stripe pricing tiers, the human's own
+  // otto-profile tier setting) -- a whole-file scan would false-positive on
+  // those. Only the SPEND-REPORT-PROSE marker block -- the actual report-
+  // composing prose this feature added -- is scanned.
+  for (const path of ['agents/otto-foreman.md', 'agents/baudrate-cfo.md']) {
+    if (!existsSync(join(REPO, path))) continue;
+    const src = read(path);
+    const m = src.match(/<!-- SPEND-REPORT-PROSE:START[\s\S]*?-->([\s\S]*?)<!-- SPEND-REPORT-PROSE:END -->/);
+    if (!m) {
+      fail(`${path}: no SPEND-REPORT-PROSE marker block found -- the no-jargon scan cannot verify the `
+         + `report-composing prose (docs/spec-spend-report.md §9)`);
+      continue;
+    }
+    if (JARGON.test(m[1])) {
+      fail(`${path}: the SPEND-REPORT-PROSE block contains forbidden rigor-declaration vocabulary `
+         + `(tier/WORKSHOP/T1-3) -- this prose composes a report a human reads and must never teach that word`);
+    }
+  }
+
+  // viewer/server.mjs's SOURCE legitimately discusses the capture/scoping
+  // mechanism in comments (parseLedgerLine, the /spend endpoint) -- a text
+  // scan of the file would false-positive on its own backstage documentation.
+  // What must actually stay clean is the RENDERED OUTPUT a client receives,
+  // so exercise the real function against a fixture built to populate every
+  // string field (a flagged row, so `message` is non-null) and scan the real
+  // JSON response instead of the source text.
+  if (existsSync(join(REPO, 'viewer/server.mjs'))) {
+    const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const scratchDir = mkdtempSync(join(tmpdir(), 'spend-jargon-scan-'));
+    mkdirSync(join(scratchDir, '.claude'), { recursive: true });
+    const project = 'spend-jargon-scan-project';
+    const ledgerLines = [
+      `2026-07-22T10:00:00.000Z [${project}] Bitforge tokens=10000 duration_ms=60000 tier=T2\n`,
+      `2026-07-22T10:05:00.000Z [${project}] Bitforge tokens=40000 duration_ms=120000 tier=T2\n`,
+    ].join('');
+    writeFileSync(join(scratchDir, '.claude', 'otto-ledger.log'), ledgerLines, 'utf8');
+
+    const prevConfigDir = process.env.CLAUDE_CONFIG_DIR;
+    // CONFIG_DIR is a top-level const in viewer/server.mjs, snapshotted at
+    // import time -- it must be set BEFORE the dynamic import below, not after.
+    process.env.CLAUDE_CONFIG_DIR = join(scratchDir, '.claude');
+    try {
+      const mod = await import(pathToFileURL(join(REPO, 'viewer/server.mjs')).href + `?jargon-scan=${Date.now()}`);
+      const report = mod.computeSpendReport();
+      if (!report.flags.length || !report.flags[0].message) {
+        fail('scripts/validate.mjs: the spend-report jargon-scan fixture did not produce a flagged row -- '
+           + 'cannot verify viewer/server.mjs\'s rendered output is jargon-free (fixture drifted from the '
+           + 'threshold in docs/spec-spend-report.md §8)');
+      } else if (JARGON.test(JSON.stringify(report))) {
+        fail('viewer/server.mjs: the /spend endpoint\'s rendered JSON output contains forbidden rigor-'
+           + 'declaration vocabulary (tier/WORKSHOP/T1-3) -- this must never reach a client');
+      }
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = prevConfigDir;
+      rmSync(scratchDir, { recursive: true, force: true });
+    }
+  }
+}
+
+// ------------------------------------------- spend report: spendReporting enum, single source
+// docs/profile-schema.md is the schema's one definition (its own header says so); agents/otto-foreman.md's
+// footer table must state the exact same four values, same convention as the PROFILE_CHAR_CAP drift gate
+// above -- a future edit to one alone (a renamed value, a dropped setting) gets caught here instead of
+// shipping a dial that silently disagrees with what the docs promise.
+{
+  const schema = read('docs/profile-schema.md');
+  const schemaEnumMatch = schema.match(/"spendReporting":\s*"[^"]*",\s*\/\/\s*(.+)/);
+  if (!schemaEnumMatch) {
+    fail('docs/profile-schema.md: no `"spendReporting": "..." // <enum>` line found in the whole-file '
+       + 'example -- the spendReporting drift gate cannot run');
+  } else {
+    const schemaEnum = new Set(
+      schemaEnumMatch[1].split('|').map((s) => s.replace(/\(default\)/i, '').trim()).filter(Boolean)
+    );
+    const otto = read(`agents/${MAIN_THREAD}`);
+    for (const val of schemaEnum) {
+      const re = new RegExp('`' + val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '`');
+      if (!re.test(otto)) {
+        fail(`agents/${MAIN_THREAD}: spendReporting drift -- docs/profile-schema.md's enum includes `
+           + `"${val}", not found as a backtick-quoted value in the spend footer's dial table`);
+      }
+    }
+    const ottoValues = new Set([...otto.matchAll(/\|\s*`(off|on-request|build-end|verbose)`/g)].map((m) => m[1]));
+    for (const val of ottoValues) {
+      if (!schemaEnum.has(val)) {
+        fail(`agents/${MAIN_THREAD}: spendReporting drift -- the spend footer's dial table lists "${val}", `
+           + `which docs/profile-schema.md's enum does not have`);
+      }
     }
   }
 }
