@@ -9,9 +9,10 @@
 
 import { createServer } from 'node:http';
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir } from 'node:os';
+import { readActiveGoal } from '../hooks/otto-goal-lib.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -46,6 +47,36 @@ const ROBOTS = {
   'docket-legal': { badge: '📜', name: 'Docket', role: 'Legal', color: '#22c55e' },
 };
 const NAME_TO_ID = Object.fromEntries(Object.entries(ROBOTS).map(([id, r]) => [r.name, id]));
+
+// ---------------------------------------------------------- spend report
+// Robot -> department display-label normalizer (docs/spec-spend-report.md
+// §9): the ROBOTS map's `role` field is already department-shaped for most
+// robots (Engineer -> Engineering, Architect -> Architecture) -- this is a
+// small mechanical mapping, not a new identity table. Only the handful of
+// roles that don't already read as a department name get a translation;
+// everything else falls through to its own role string unchanged.
+const ROLE_TO_DEPARTMENT = {
+  'Chief of Staff': 'Ops / Admin',
+  CFO: 'Finance',
+  Engineer: 'Engineering',
+  Architect: 'Architecture',
+};
+
+function departmentForRobot(name) {
+  const id = NAME_TO_ID[name];
+  const role = id ? ROBOTS[id].role : null;
+  if (!role) return 'Unknown';
+  return ROLE_TO_DEPARTMENT[role] || role;
+}
+
+// The one definition of "forbidden rigor-declaration vocabulary" a rendered
+// surface may never contain (docs/spec-spend-report.md §2/§8/§9) — shared,
+// not duplicated, by scripts/validate.mjs's no-jargon scan AND scripts/test-
+// spend-report.mjs's own jargon tests, so the ban and its test can never
+// quietly drift apart. `(?<!-)` excludes the legitimate, unrelated phrase
+// "cost-tier breakdown" (LLM pricing granularity, carried over from
+// Cathode's mockup on purpose) without exempting any other compound.
+const JARGON_RE = /(?<!-)\btier\b|\bWORKSHOP\b|\bT1\b|\bT2\b|\bT3\b/i;
 
 // A plugin-sourced subagent_type arrives NAMESPACED, e.g.
 // "robotinc:bitforge-engineer" (see hooks/otto-state.mjs's own comment on
@@ -129,21 +160,32 @@ function parseTraceLine(line) {
   return { ts, summary, ...identity };
 }
 
-// Handles BOTH ledger line shapes, old and new (hooks/otto-trace.mjs's
+// Handles every ledger line shape, old and new (hooks/otto-trace.mjs's
 // "LEDGER LINE FORMAT" comment):
-//   old (untagged, historical, still on disk -- this log is append-only):
+//   oldest (untagged, historical, still on disk -- this log is append-only):
 //     <ts> <name> tokens=N duration_ms=M
-//   new (v22.8.3, per-project attribution):
+//   v22.8.3, per-project attribution:
 //     <ts> [<project>] <name> tokens=N duration_ms=M
-// The `[project]` segment is optional in the pattern so a pre-existing line
-// keeps parsing exactly as before; group 2 (project) is undefined for it.
-const LEDGER_RE = /^(\S+) (?:\[([^\]]+)\] )?(.+) tokens=(\d+) duration_ms=(\d+)$/;
+//   v22.13.0, optional trailing tier (docs/spec-spend-report.md §10):
+//     <ts> [<project>] <name> tokens=N duration_ms=M tier=T
+// Both the `[project]` segment and the trailing `tier=` segment are optional
+// in the pattern so every pre-existing line keeps parsing exactly as before;
+// group 2 (project) and group 6 (tier) are undefined/null for lines that
+// never carried them.
+const LEDGER_RE = /^(\S+) (?:\[([^\]]+)\] )?(.+) tokens=(\d+) duration_ms=(\d+)(?:\s+tier=(\S+))?$/;
 
 function parseLedgerLine(line) {
   const m = line.match(LEDGER_RE);
   if (!m) return null;
-  const [, ts, project, , tokens, durationMs] = m;
-  return { ts, project: project || null, tokens: Number(tokens), durationMs: Number(durationMs) };
+  const [, ts, project, robot, tokens, durationMs, tier] = m;
+  return {
+    ts,
+    project: project || null,
+    robot,
+    tokens: Number(tokens),
+    durationMs: Number(durationMs),
+    tier: tier || null,
+  };
 }
 
 function buildLedgerIndex() {
@@ -157,6 +199,217 @@ function buildLedgerIndex() {
     if (parsed) map.set(parsed.ts, parsed);
   }
   return map;
+}
+
+// ------------------------------------------------------------------ /spend
+// docs/spec-spend-report.md §4/§8/§9 — the statement view's data contract.
+// Reads the SAME ledger every other rendering reads, once, never a second
+// copy of the arithmetic.
+
+// Reads the WHOLE ledger (not just the last N lines buildLedgerIndex() caps
+// at for the live feed) -- a spend report has to sum every scoped line, not
+// just the recent tail.
+function readAllLedgerRows() {
+  const rows = [];
+  for (const line of readLastLines(LEDGER_LOG, Infinity)) {
+    const parsed = parseLedgerLine(line);
+    if (parsed) rows.push(parsed);
+  }
+  return rows;
+}
+
+// Scopes to "this effort" (spec §4): the active goal anchor for the project
+// this viewer is reading -- `dirname(CONFIG_DIR)` is the same project root
+// hooks/otto-trace.mjs's own resolveLogDir() derives the ledger path from
+// (both land under `<cwd>/.claude` when that directory exists), so this is
+// the same "project" the ledger's own `[project]` tag already names. No
+// active anchor (or a project that never captured one) falls back to the
+// whole ledger for that project -- same as Baudrate's on-request behavior
+// today -- and the label degrades one step further, from "this effort" to
+// "recent activity" (spec §4, never "this build").
+function scopeLedgerRows(rows) {
+  const projectRoot = dirname(CONFIG_DIR);
+  const goal = readActiveGoal(projectRoot);
+  if (!goal) return { rows, scopeLabel: 'recent activity' };
+  const project = basename(projectRoot);
+  const scoped = rows.filter((r) => {
+    if (r.project && r.project !== project) return false;
+    // ISO timestamps compare correctly as plain strings against the
+    // anchor's bare YYYY-MM-DD `confirmed` date: same-or-later dates always
+    // sort lexically >= the shorter date-only prefix.
+    return r.ts >= goal.confirmed;
+  });
+  return { rows: scoped, scopeLabel: 'this effort' };
+}
+
+function median(nums) {
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function formatK(tokens) {
+  return `${Math.round(tokens / 1000)}K`;
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.round(ms / 1000);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}m${String(s).padStart(2, '0')}s`;
+}
+
+// The threshold's three conditions, spec §8 — all three required, together.
+const FLAG_RATIO_MIN = 2;
+const FLAG_GAP_MIN_TOKENS = 15000;
+const FLAG_BASIS_FLOOR_TOKENS = 10000;
+
+// Baudrate's full flagged template (spec §8), tier-free, `~`-rounded to the
+// nearest K. `{descriptor}` deliberately always takes the documented
+// fallback ("this pass") rather than attempting to extract a task word from
+// free-form trace text — that free-text-classification frontier is the same
+// one this codebase's hooks explicitly stay out of (see hooks/otto-goal-
+// audit.mjs's header on why verify= text is never parsed for meaning). This
+// is Baudrate's own prose voice when he composes the terminal reports
+// directly from the ledger; the viewer renders the identical string so the
+// wording never forks between the two surfaces.
+function fullFlagMessage(row) {
+  const ratioStr = row.ratio % 1 === 0 ? String(row.ratio) : row.ratio.toFixed(1);
+  return `⚠ ${row.robot}'s this pass cost about ${ratioStr}× its own typical run in `
+    + `${row.department} this effort (~${formatK(row.tokens)} vs ~${formatK(row.tokensExpected)}) `
+    + `— worth a look.`;
+}
+
+// Self-comparison basis + threshold (spec §8): a robot compared only against
+// its OWN other same-tier, same-department runs in this scoped window —
+// never a crew-wide band. 2+ priors -> their median is the basis; exactly 1
+// prior -> that single run IS the basis; 0 priors -> no basis, no flag,
+// contributes to the "no-data" finding rather than "clean". Rows with no
+// captured tier can't be matched into a same-tier bucket at all, so they
+// carry tokens/duration into the rollup but never participate in flag
+// comparison, on either side (spec §10's degrade: missing tier degrades the
+// FLAG on that row, never the rest of the report).
+function computeFlags(rows) {
+  const withTier = rows.filter((r) => r.tier);
+  const buckets = new Map(); // "<robot>|<department>|<tier>" -> rows sharing that bucket
+  for (const r of withTier) {
+    const key = `${r.robot}|${r.department}|${r.tier}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(r);
+  }
+
+  const evaluated = [];
+  let evaluableCount = 0; // rows that had at least 1 prior to compare against
+  let anyFlagged = false;
+
+  for (const r of withTier) {
+    const key = `${r.robot}|${r.department}|${r.tier}`;
+    const priors = buckets.get(key).filter((x) => x !== r).map((x) => x.tokens);
+
+    if (priors.length === 0) {
+      evaluated.push({ ...r, tokensExpected: null, priorRunCount: 0, ratio: null, flagged: false, comparisonBasis: 'none', message: null });
+      continue;
+    }
+
+    evaluableCount++;
+    const basis = priors.length >= 2 ? median(priors) : priors[0];
+    const ratio = basis > 0 ? r.tokens / basis : Infinity;
+    const meetsRatio = ratio >= FLAG_RATIO_MIN;
+    const meetsGap = r.tokens - basis >= FLAG_GAP_MIN_TOKENS;
+    const meetsFloor = basis >= FLAG_BASIS_FLOOR_TOKENS;
+    const flagged = meetsRatio && meetsGap && meetsFloor;
+    const row = {
+      ...r,
+      tokensExpected: basis,
+      priorRunCount: priors.length,
+      ratio: Math.round(ratio * 10) / 10,
+      flagged,
+      comparisonBasis: priors.length >= 2 ? 'median-of-priors' : 'single-prior',
+      message: null,
+    };
+    if (flagged) {
+      anyFlagged = true;
+      row.message = fullFlagMessage(row);
+    }
+    evaluated.push(row);
+  }
+
+  // Rows with no tier at all: still real rows, just never evaluable.
+  const untiered = rows.filter((r) => !r.tier).map((r) => ({
+    ...r, tokensExpected: null, priorRunCount: 0, ratio: null, flagged: false, comparisonBasis: 'none', message: null,
+  }));
+
+  // The 4th state (Baudrate's honesty catch, spec §8): "checked and found
+  // clean" and "had nothing to check" are different findings. Clean requires
+  // at least ONE row to have had a real basis to compare against — the N>=2
+  // language in the spec describes the comparable-runs bucket, not a
+  // per-row minimum; a mix of evaluable and singleton rows with no flags is
+  // still clean as long as at least one row had a real basis (spec §8's
+  // note to Bitforge).
+  const auditState = anyFlagged ? 'flagged' : evaluableCount > 0 ? 'clean' : 'no-data';
+
+  return { rows: [...evaluated, ...untiered], auditState };
+}
+
+function calmNegativeMessage(auditState, totalRuns) {
+  if (auditState === 'clean') return `Spend looked proportionate across all ${totalRuns} runs.`;
+  if (auditState === 'no-data') return 'Not enough same-scope runs this effort to compare — no audit finding either way.';
+  return null;
+}
+
+function computeSpendReport() {
+  const allRows = readAllLedgerRows();
+  const { rows: scopedRaw, scopeLabel } = scopeLedgerRows(allRows);
+  const scoped = scopedRaw.map((r) => ({ ...r, department: departmentForRobot(r.robot) }));
+
+  const totalRuns = scoped.length;
+  const crewMeasuredTokens = scoped.reduce((sum, r) => sum + r.tokens, 0);
+  const crewMeasuredDurationMs = scoped.reduce((sum, r) => sum + r.durationMs, 0);
+
+  const deptTotals = new Map();
+  for (const r of scoped) {
+    deptTotals.set(r.department, (deptTotals.get(r.department) || 0) + r.tokens);
+  }
+  const departments = [...deptTotals.entries()]
+    .map(([name, tokens]) => ({
+      name,
+      tokens,
+      pct: crewMeasuredTokens > 0 ? Math.round((tokens / crewMeasuredTokens) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.tokens - a.tokens);
+
+  const { rows: flaggedRows, auditState } = computeFlags(scoped);
+  const robots = flaggedRows.map((r) => ({
+    robot: r.robot,
+    badge: (ROBOTS[NAME_TO_ID[r.robot]] || {}).badge || '🧩',
+    department: r.department,
+    tokens: r.tokens,
+    duration: formatDuration(r.durationMs),
+    flagged: r.flagged,
+    flagMessage: r.message,
+  }));
+  const flags = flaggedRows.filter((r) => r.flagged).map((r) => ({
+    robot: r.robot,
+    department: r.department,
+    message: r.message,
+  }));
+
+  return {
+    scopeLabel, // "this effort" | "recent activity" -- never "this build"
+    totalRuns,
+    crewMeasuredTokens,
+    crewMeasuredDurationMs,
+    // Otto's own main-thread spend is never logged to the ledger (it stays
+    // an estimate derived live from context length + turn count) — this
+    // static log reader has no data source for it and must not fabricate
+    // one. Honest absence, not a silent zero.
+    ottoEstimateTokens: null,
+    departments,
+    robots,
+    auditState, // 'flagged' | 'clean' | 'no-data'
+    calmNegative: calmNegativeMessage(auditState, totalRuns),
+    flags,
+  };
 }
 
 // ------------------------------------------------------------------ /state
@@ -245,6 +498,20 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (req.url === '/spend') {
+    let body;
+    try {
+      body = JSON.stringify(computeSpendReport());
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err && err.message || err) }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(body);
+    return;
+  }
+
   if (req.url === '/' || req.url === '/index.html') {
     try {
       const html = readFileSync(join(__dirname, 'index.html'));
@@ -253,6 +520,18 @@ const server = createServer((req, res) => {
     } catch {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('index.html not found next to server.mjs');
+    }
+    return;
+  }
+
+  if (req.url === '/spend.html') {
+    try {
+      const html = readFileSync(join(__dirname, 'spend.html'));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('spend.html not found next to server.mjs');
     }
     return;
   }
@@ -276,6 +555,21 @@ if (isMainModule()) {
   });
 }
 
-// Exported for tests only (scripts/test-otto-trace.mjs) — the module itself
-// never imports these from outside.
-export { parseLedgerLine };
+// Exported for tests only (scripts/test-otto-trace.mjs, scripts/test-spend-
+// report.mjs) — the module itself never imports these from outside.
+export {
+  parseLedgerLine,
+  departmentForRobot,
+  computeFlags,
+  computeSpendReport,
+  scopeLedgerRows,
+  calmNegativeMessage,
+  median,
+  formatK,
+  formatDuration,
+  fullFlagMessage,
+  FLAG_RATIO_MIN,
+  FLAG_GAP_MIN_TOKENS,
+  FLAG_BASIS_FLOOR_TOKENS,
+  JARGON_RE,
+};

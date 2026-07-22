@@ -1,5 +1,45 @@
 # Changelog
 
+## 22.13.0 — 2026-07-22
+
+**Spend report — honest business activity report with proportionality audit, surfaces crew per-robot cost and flags outlier runs.**
+
+### What it surfaces
+
+**The cost of this effort** (scoped to the active goal anchor's confirmed date, or the whole project's recent activity if no anchor) — crew-measured tokens by department and per-robot, with Otto's own main-thread estimate shown separately and never summed into crew totals. Three terminal zoom levels (full box-drawn ledger, terse inline rules-not-grid, one-line digest) and a statement-style viewer page — all reading the same `otto-ledger.log` source, same footing as Baudrate's existing on-request behavior.
+
+**The proportionality audit** — a plain-language flag on runs that cost about twice their own typical cost (or more) in their robot-department-tier group this effort, with a 15K-token minimum gap to kill ratio explosions off tiny numbers. Flags fire only when all three threshold conditions hold (actual ≥ 2× typical, gap ≥ 15K, typical run ≥ 10K); when there are no flags, two distinct calm-negatives: "Spend looked proportionate across all N runs" (2+ comparable runs checked) or "Not enough same-scope runs this effort to compare" (singletons or first run). **No tier jargon reaches the human** — the tier is captured and consumed only internally to compute the flag basis; the report surface never mentions the word.
+
+### Tier capture mechanism (Vector's §10, RESOLVED)
+
+`hooks/otto-trace.mjs` tier-capture runs **mechanism (a):** a second pass over the SubagentStop hook's in-memory transcript JSONL (already read for tokens) — locates the first user-message, runs `/tier=(\S+)/` to extract the declared tier from the dispatch contract line, appends ` tier=<T>` to the ledger line only when captured (never empty, never `tier=null`). Spike PASSED (build-task-1, Bitforge-owned): the full `[Dispatch contract]` line with `tier=` is preserved byte-identical in the first subagent user message, round-trips correctly in `/spend` endpoint and all report renderings, and the regex is safe against quote-collision. Fallback mechanism (b) was evaluated and rejected; not needed.
+
+### Surfacing and gating
+
+- **Default: build-end one-line footer**, riding the goal anchor's existing final-summary moment (same discipline: "this effort," never "this build"; "recent activity" if no anchor). Gear-gated to feature/build tier only (same reasoning as the goal anchor, never on answer/small-change). Direct Otto composition from ledger lines, not a Baudrate subagent dispatch — cost-optimized.
+- **User-dialable** via new `spendReporting` profile field: `off` (no proactive), `on-request` (bare pointer), `build-end` (default), `verbose` (full expansion). Baudrate's on-request spend reports (asking directly, any time) unaffected by this dial and unchanged from today's behavior.
+
+### Files touched
+
+- `hooks/otto-trace.mjs` — tier-capture mechanism (a), appends ` tier=<T>` to ledger lines
+- `viewer/server.mjs` — tier-parsing in ledger reader, new `/spend` endpoint for statement view
+- `viewer/spend.html` — promoted from mockup, wired to `/spend`, removed $ estimates and tier columns per spec §6
+- `viewer/README.md` — documented new statement view
+- `agents/baudrate-cfo.md` — flag threshold, basis, wording (all tier-free), two calm-negatives (RESOLVED, per spec §8)
+- `agents/otto-foreman.md` — build-end footer, `spendReporting` dial, "this effort" noun gating
+- `docs/profile-schema.md` — new `spendReporting` enum field (off/on-request/build-end/verbose, default build-end)
+- `scripts/validate.mjs` — no-jargon scan (tier/WORKSHOP/T1-3 forbidden in user-facing output, excluded from ledger/hook), `spendReporting` enum drift check
+- `scripts/test-otto-trace.mjs` — tier extraction tests (all 4 values, absent → null, quote-collision safe, ledger round-trip)
+- `scripts/test-spend-report.mjs` (new) — comprehensive report tests (department rollup, flag threshold, basis self-comparison, two calm-negatives, gear-gating, no-jargon scan, measured-vs-estimated honesty)
+
+### Consistency notes
+
+- The descriptor in flagged-row templates ("quick fix", "overhaul", etc.) is drawn fallback-only from `"this pass"` / `"this run"` — deliberately **not** extracting task words from free text, consistent with RobotInc's avoidance of free-text classification.
+- Ledger format append-compatible: legacy lines parse to `tier: null`; new lines include optional ` tier=<T>` only when captured.
+- Validation gates enforced at session start: version match (22.13.0 in both `.claude-plugin/plugin.json` and `RobotInc.md`), no-jargon scan covers rendered surfaces, enum drift check on `spendReporting`.
+
+---
+
 ## 22.12.0 — 2026-07-22
 
 **Goal-anchor enhancements adapted from Boris Cherny's Claude Code workflow — interview-style capture questions and deterministic verify= audit.**

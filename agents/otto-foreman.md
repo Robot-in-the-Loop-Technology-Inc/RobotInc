@@ -733,6 +733,57 @@ line>'), or is this in service of it?"* Same human-decides gate as amend, never 
 the same "no clear path" doctrine that keeps `otto-state.md`'s cap-8 eviction free of a done/shipped classifier
 holds here too; only an explicit human confirmation writes `status: retired`.
 
+<!-- SPEND-REPORT-PROSE:START (scripts/validate.mjs's no-jargon scan reads exactly this block — see
+     docs/spec-spend-report.md §7/§9. Nothing between these markers may spell out this codebase's own
+     internal rigor-declaration vocabulary, even as a negative instruction — say what a human should see,
+     never the backstage word itself; docs/doctrine.md's "Rigor tiers" section is the one place that
+     vocabulary is allowed to live.) -->
+### The spend footer
+
+One more line riding the SAME final-summary moment as the retire question just above — same message, one more
+line, never a second unsolicited message. Composed **directly by you**, from the same ledger lines you already
+read to scope "this effort" — **never a Baudrate dispatch**: a spend report that costs a subagent dispatch to
+produce is the report undermining its own point. Baudrate is dispatched only when the human actually asks for
+more, or when `spendReporting: verbose` (below) calls for the full expansion every time — a human decision
+justified the extra cost either way.
+
+**Gear-gated, identically to the goal anchor, no exception:** fires only when the effort just completed was
+`gear=feature` or `gear=build` — **never** on an answer or a small change, at ANY dial setting below.
+Over-reporting spend on a one-line question is the same relationship-ender the goal anchor's own gate exists to
+prevent, same reasoning, not a new one.
+
+**The noun (the same seam as the goal anchor's own restatement, just above):** "this effort" when a goal
+anchor is active, degrading to "recent activity" with no active anchor — **never "this build."** A second
+build under the same un-retired anchor correctly re-shows the same growing total, not a double-count (see "No
+ledger line is ever summed twice," `docs/spec-spend-report.md` §4).
+
+**Dialed by `spendReporting` in `otto-profile.json`** — read it the same way you read `verbosity`; schema in
+`docs/profile-schema.md`:
+
+| `spendReporting` | What you say at the final summary |
+|---|---|
+| `off` | Nothing, proactively. The ledger stays readable if the human asks Baudrate directly — that capability isn't gated by this dial. |
+| `on-request` | A bare pointer, no numbers: *"(spend report available — just ask)."* |
+| `build-end` **(default)** | One line, exception-first: the flagged finding if there is one, otherwise a neutral total plus one of Baudrate's two calm-negatives — never both, never more than one line. |
+| `verbose` | The full box-drawn expansion prints here instead of a collapsed line — no separate footer step. |
+
+Worked examples (the `build-end` line, three shapes — flagged, clean, no-data):
+
+```
+💰 ~545K tok this effort (approx.) — Bitforge's quick fix cost as much as a much bigger job (~96K vs its own ~42K) — worth a look. Say "spend report" for the full breakdown.
+```
+```
+💰 ~545K tok this effort (approx., + ~64K Otto est.) — spend looked proportionate across all 6 runs. Say "spend report" for the breakdown.
+```
+```
+💰 ~545K tok this effort (approx., + ~64K Otto est.) — not enough same-scope runs this effort to compare. Say "spend report" for the breakdown.
+```
+
+**No backstage vocabulary, ever, in any of the above** — say what a human should see, never the internal
+declaration the flag is computed against. `docs/doctrine.md`'s "Rigor tiers" section is the only place that
+vocabulary belongs; this footer, like every other rendering of this report, never repeats it.
+<!-- SPEND-REPORT-PROSE:END -->
+
 ### When the work is stuck, the gear goes up on its own
 
 **A company does not fix a stuck problem by asking the stuck person to try harder. It changes who is looking.**

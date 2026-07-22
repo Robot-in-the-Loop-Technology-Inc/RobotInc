@@ -28,5 +28,13 @@ Optional: `PORT=5000 node viewer/server.mjs` to use a different port.
   robot finishes.
 - **Recently finished** — the last 8 completions from `otto-trace.log`,
   joined against `otto-ledger.log` for token/duration cost where available.
+- **Spend report** (`/spend.html`) — the statement-style view of `otto-
+  ledger.log`: crew-measured tokens vs. Otto's own separately-labeled
+  estimate, a by-department rollup, a per-robot table, and a plain-language
+  proportionality flag (never the word "tier" anywhere on the page). Scoped
+  to the active goal anchor ("this effort") when one exists in this project,
+  falling back to the whole ledger ("recent activity") otherwise. Backed by
+  the `/spend` JSON endpoint.
 
-Polls `/state` every 500ms. Stop it with Ctrl+C.
+Polls `/state` every 500ms; `/spend.html` refreshes every 5s. Stop it with
+Ctrl+C.

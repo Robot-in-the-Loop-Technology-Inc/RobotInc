@@ -69,6 +69,9 @@ checks it against the figure stated in this section so the two can never quietly
   "verbosity": "balanced",                                // brief | balanced | thorough
   "scale":     "business",                                // utility | prototype | business
 
+  // ── How much unsolicited spend reporting they want (read like verbosity) ───
+  "spendReporting": "build-end",  // off | on-request | build-end (default) | verbose
+
   // ── How they like to be spoken to (learned over time, never inferred) ──────
   "style": {
     "prefers":  ["tables", "no-preamble"],
@@ -93,6 +96,8 @@ checks it against the figure stated in this section so the two can never quietly
 
 **Absent keys are not errors.** A profile with no `org`, no `workspace`, no `style` is a normal profile —
 those blocks appear only when there was something true to record. Never write an empty block to look complete.
+A profile from before `spendReporting` existed is also normal — absent reads as `build-end`, the default,
+exactly as if it had been written.
 
 ---
 
@@ -160,6 +165,24 @@ a Hacker often wants three words. **Never derive verbosity from tier.**
 | **thorough** | The answer, the reasoning, the options rejected, the tradeoff taken. Never padding. |
 
 Changing it is a one-field edit — *"be brief from now on"* is never a rebuild.
+
+---
+
+## `spendReporting` — how much unsolicited spend reporting they want
+
+**Their setting, read the same way as `verbosity`, never our inference.** Governs only the *proactive* footer
+`agents/otto-foreman.md` rides on the goal anchor's final summary at the end of a feature/build effort — it
+never gates Baudrate reading `otto-ledger.log` on request, which stays available at every setting.
+
+| Value | Means |
+|---|---|
+| **off** | No proactive mention, ever. |
+| **on-request** | Same silence, plus a bare pointer with no numbers: *"(spend report available — just ask)."* |
+| **build-end** *(default)* | A one-line, exception-first digest rides the final summary. |
+| **verbose** | The full expansion prints at the final summary instead of a collapsed line. |
+
+Set the same way `verbosity` is — a plain-English ask, a yes, a one-field write, never a slash command the
+human has to discover first (`docs/spec-spend-report.md` §2, §7).
 
 ---
 
