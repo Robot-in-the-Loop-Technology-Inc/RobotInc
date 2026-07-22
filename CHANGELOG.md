@@ -1,5 +1,37 @@
 # Changelog
 
+## 22.12.0 — 2026-07-22
+
+**Goal-anchor enhancements adapted from Boris Cherny's Claude Code workflow — interview-style capture questions and deterministic verify= audit.**
+
+### Interview-style capture questions
+
+The goal-capture step now incorporates four structured questions from Cherny's research-validated Claude Code workflow: **core problem** (what is the real bottleneck), **who for** (the user or use-case the goal solves), **success criteria** (how the work is verified as done), and **explicit non-goals** (what is deliberately out of scope). These four questions enrich the capture step and surface misunderstandings early, before multi-hop work diverges.
+
+Built into the capture protocol (otto-foreman.md step 2); gate-locked to feature/build tier (small work skips the protocol). Session captures the four responses alongside the goal statement and re-anchors them at compaction boundaries via `otto-goal-compact.mjs`.
+
+### New `verify=` field in the dispatch contract
+
+The mandatory `[Dispatch ...]` contract line now carries a `verify=` field, audited deterministically alongside `gear=/tier=/box=` by `hooks/otto-goal-audit.mjs`. The field names **how the delivered work will be verified as shipped** — a one-line commitment matched against goal success criteria captured in the session. Dispatch audit fires if verification method is unstated or incoherent with the tier.
+
+**Deterministically audited on the dispatch prompt only** — not injected into Otto's own turns via hook, and not decoded from his free-prose reply. Resurfacing verification stays prompt-discipline (the Stop-hook / free-prose-classifier path is deliberately rejected). The audit reads the contract field, the session goal, and reports coherence; the human reads the audit and corrects the dispatch if needed.
+
+### "Retire & recapture fresh" amend option
+
+Session-close amend flow now offers an explicit option: retire the current goal and recapture a fresh goal for the next tier-escalated work. Allows a session to close (goal achieved, work shipped), and the *next* session's dispatch to carry a new goal statement tailored to the next batch of work — avoiding goal-scope creep that happens when real work diverges from the original capture.
+
+### Validation gates
+
+- Goal-capture enhancements covered in `docs/spec-goal-contract.md` (§§ 2.1–2.4).
+- `validate.mjs` gates: `verify=` field presence on any dispatch-contract line; coherence audit (verify method vs goal criteria); Cherny-question responses round-trip correctly in session state.
+- Test coverage expanded: `test-otto-goal.mjs` now 20/20 (added Cherny-question round-trip + verify= audit + retire-recapture flow).
+
+### Scope notes
+
+All three enhancements ship on this pass: Cherny-question capture, verify= field, retire-recapture amend. Verification is audited on the dispatch prompt line *only* and stays prompt-discipline; no hook-side injection or free-prose decoding is used (those paths were evaluated and rejected to preserve determinism and auditability).
+
+---
+
 ## 22.11.0 — 2026-07-21
 
 **Goal anchor for feature/build-scale work — confirmed user-visible goal statement + deterministic drift audits and capture protocol.**
