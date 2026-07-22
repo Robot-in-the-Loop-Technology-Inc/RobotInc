@@ -314,6 +314,30 @@ record('negative: audit never blocks — writes a flag, returns nothing, never t
   assert(readFlagLines(projectDir).length === 1, 'exactly one flag line should have been written for the missing-everything dispatch');
 });
 
+record('negative/positive: audit checks verify= on the same footing as gear=/tier=/box= — flags a dispatch missing it, passes one that has it', () => {
+  const projectDir = freshProjectDir();
+  writeGoalFile(projectDir);
+  const anchor = renderAnchorBlock(readActiveGoal(projectDir));
+
+  // Missing verify= only — same shape as a dispatch missing gear/tier/box.
+  const withoutVerify = `${anchor}\n\n[Dispatch contract] gear=feature tier=T2 box="one pass, then report"\n\nGo build it.`;
+  assert(missingChecks(withoutVerify).includes('verify'), 'missingChecks must flag verify as missing when the contract line omits it');
+  runAudit(agentPayload({ prompt: withoutVerify, cwd: projectDir }));
+  const flaggedLines = readFlagLines(projectDir);
+  assert(flaggedLines.length === 1, 'a dispatch missing only verify= should still produce exactly one flag line');
+  assert(flaggedLines[0].includes('verify'), `flag line should record the missing verify field, got: ${flaggedLines[0]}`);
+
+  // Same dispatch, verify= present — must not be flagged at all (proves the
+  // check has teeth in both directions, not just "always flags").
+  const projectDir2 = freshProjectDir();
+  writeGoalFile(projectDir2);
+  const anchor2 = renderAnchorBlock(readActiveGoal(projectDir2));
+  const withVerify = `${anchor2}\n\n[Dispatch contract] gear=feature tier=T2 box="one pass, then report" verify="run test-otto-goal.mjs, expect green"\n\nGo build it.`;
+  assert(!missingChecks(withVerify).includes('verify'), 'missingChecks must not flag verify when the contract line includes it');
+  runAudit(agentPayload({ prompt: withVerify, cwd: projectDir2 }));
+  assert(readFlagLines(projectDir2).length === 0, 'a dispatch with the full contract line including verify= must never be flagged');
+});
+
 record('negative: idempotency-detection primitive — a prompt already containing ANCHOR_SENTINEL is correctly recognized as anchored', () => {
   // hooks/otto-goal-inject.mjs itself is deferred (build-task-1's spike has
   // not run) — but the SAME substring check its eventual idempotency guard
@@ -364,7 +388,7 @@ record('positive: feature/build ask fires end-to-end — pin, dispatch carries a
   const anchor = renderAnchorBlock(goal);
   assert(anchor.startsWith(ANCHOR_SENTINEL), 'rendered anchor must start with the sentinel header');
 
-  const prompt = `${anchor}\n\n[Dispatch contract] gear=feature tier=T2 box="one pass, then report"\n\nGo build it.`;
+  const prompt = `${anchor}\n\n[Dispatch contract] gear=feature tier=T2 box="one pass, then report" verify="run test-otto-goal.mjs, expect green"\n\nGo build it.`;
   runAudit(agentPayload({ prompt, cwd: projectDir }));
   assert(readFlagLines(projectDir).length === 0, 'a well-formed dispatch (anchor + full contract line) must never be flagged');
 

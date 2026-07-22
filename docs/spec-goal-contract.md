@@ -12,6 +12,30 @@ touched and test lists in §7 grew to match. Where reconciling the ruling agains
 duplication, or a dangling edge, it is called out in-line and resolved — see the **Cohesion note** after §8 for
 the full list in one place.
 
+**Post-ship addendum (v22.11.0, still §4.B):** a research review of Boris Cherny's project-kickoff workflow
+surfaced three small, contradiction-free refinements, folded in directly below rather than as a bolt-on
+section — none of them are a new mechanism or a lifecycle change:
+
+1. **§3, capture** — the confirm loop now actively asks the four project-kickoff questions (core problem, who
+   it's for, what success looks like, and — the one that used to only fill in if volunteered — what this
+   should explicitly NOT do), so `## Non-goals` is populated far more often than "only if the human happened to
+   mention one." Pure wording on the capture step already owned here; no new field, no new file.
+2. **§6.1, the dispatch contract** — a fourth field, `verify=`, joins `gear=`/`tier=`/`box=` in the mandatory
+   `[Dispatch contract]` line and in the audit's check-set, on the identical footing as the other three:
+   Otto's own live per-dispatch judgment, string-checked by the audit, never semantically validated, never a
+   permission decision. **This is deliberately the reframe's whole boundary**: `verify=` is adopted only on the
+   dispatch prompt the audit already reads — it is explicitly NOT added as a check on Otto's own checkpoint or
+   final-summary reply text. Resurfacing the verification method at a tie-back stays prompt-discipline (§3 step
+   5, §6.3), for the exact reason §6.3 already gives for why no `Stop`-hook content-check exists: a check for
+   "did Otto's own prose really name a verification" is the same natural-language frontier that killed the
+   terminal-clear detector twice. Adding a hook on Otto's own messages here would rebuild that already-rejected
+   trap; it is not built, and this addendum names that boundary explicitly so it does not get quietly
+   re-litigated later.
+3. **§3/§5, amend** — "retire this and recapture fresh" joins "patch in place" as an option Otto offers at the
+   same amend event when the file has accumulated enough human-approved amendments to be unwieldy. Still
+   human-decided, still an explicit event, still no bloat classifier deciding when to offer it — one more menu
+   option at an event that already fires, not a new stage between amend and retire.
+
 ---
 
 ## 1. Problem statement
@@ -97,7 +121,7 @@ gear: feature
 <the human's own words, first capture, unparaphrased, capped — see §6 ANCHOR_CHAR_CAP>
 
 ## Non-goals
-<only if the human stated one during capture; section omitted entirely if none>
+<the capture conversation now asks for this directly, not just waits for it to be volunteered; section omitted entirely if the human truly has none>
 
 ## Amendment history
 <YYYY-MM-DD> — pivoted from "<old confirmed line>" to "<new confirmed line>" — confirmed by human
@@ -105,11 +129,16 @@ gear: feature
 
 ### Lifecycle
 
-1. **Capture** — at the moment Otto sorts a feature/build-scale ask, *before* the first dispatch, Otto states
-   its restated understanding in its own words: *"Here's what I understand you want: <restatement>. That
-   right?"* This is the one moment in the whole system where paraphrase is unavoidable — so it happens once,
-   at the point of freshest context, and is then frozen. Everything downstream reads the frozen record, never
-   Otto's live memory of the conversation.
+1. **Capture** — at the moment Otto sorts a feature/build-scale ask, *before* the first dispatch, Otto has a
+   short conversation that makes the restatement worth confirming, not a rigid interrogation: it weaves in
+   whichever of four questions the ask hasn't already answered — the core problem, who it's for, what success
+   looks like, and (the one that is easy to skip, and the one worth asking for on purpose) **what this should
+   explicitly NOT do.** That fourth question is the one that feeds `## Non-goals` below; asking it directly, in
+   the same breath as the others, is what changes that section from "only if the human happened to mention one"
+   to "asked for as a matter of course." Then Otto states its restated understanding in its own words: *"Here's
+   what I understand you want: <restatement>. That right?"* This is the one moment in the whole system where
+   paraphrase is unavoidable — so it happens once, at the point of freshest context, and is then frozen.
+   Everything downstream reads the frozen record, never Otto's live memory of the conversation.
 2. **Confirm** — the human's yes is the write gate. No yes, no file. A correction ("not quite, actually...")
    loops back to restate, never writes a half-confirmed version.
 3. **Pin** — Otto writes `.claude/otto-goal.md` verbatim from the confirmed exchange. The confirm step already
@@ -126,8 +155,14 @@ gear: feature
      re-shown at every checkpoint (each handoff Otto relays to the human) and restated explicitly in the final
      summary, with the delivered work tied back to it in one line: *"Goal: <confirmed line>. Delivered:
      <summary>. Ties back: <one line>."* This is what makes a report answer "did we do the thing that was
-     asked" instead of just "here's what happened." See §6.3 for why this one has no deterministic backstop.
-6. **Amend** — a legitimate pivot updates the anchor. Human-decided, never inferred — full UX in §5.
+     asked" instead of just "here's what happened." **The tie-back also names how it was verified** — the
+     `verify=` given at dispatch, or however Otto confirmed it — same prompt-discipline footing as the goal
+     restatement it rides alongside; no hook reads this text, and none should (§6.1's post-ship addendum, §6.3).
+     See §6.3 for why this one has no deterministic backstop.
+6. **Amend** — a legitimate pivot updates the anchor. Human-decided, never inferred — full UX in §5. **When the
+   file has accumulated enough human-approved amendments to be getting unwieldy, Otto also offers "retire this
+   and recapture fresh" alongside "patch in place" at that same amend event** — still human-decided, still an
+   explicit event, one more menu option rather than a new stage between amend and retire (§5).
 7. **Retire** — flips `status: active` to `status: retired`. Never inferred from wording (same "no clear path"
    doctrine as `otto-state.md`'s cap-8 eviction — see that file's header comment for the two build rounds that
    tried and failed to classify "terminal" wording). Retirement is always an **explicit event**:
@@ -344,6 +379,15 @@ that point on, every subsequent dispatch (via whichever mechanism §4 resolved t
 *"No, still on track"* or *"no, pull it back"* writes nothing; the file is untouched and Otto redirects the
 work.
 
+**A second option at the same event, once the file itself is unwieldy.** When `## Amendment history` has
+accumulated several human-approved entries and the record is getting hard to read, Otto offers *"retire this
+and recapture fresh"* alongside *"patch in place,"* in the same breath as the amend question above — e.g.
+*"...want me to update the anchor, or is this enough of a pivot that it's worth retiring this one and
+capturing fresh instead?"* This is still gated by the identical human-decides mechanism as amend and retire
+each already use on their own (§3 steps 6–7) — **not** a bloat classifier deciding when the file is "too big,"
+and not a new lifecycle stage between amend and retire. It is one more menu option Otto is willing to name at
+an event that already fires, nothing more.
+
 ## 6. Effort-bounding
 
 Reframe first, because it is easy to build this wrong: **the target is proportional and visible, never
@@ -352,7 +396,7 @@ runs an hour on a payments path is not the failure this fixes. The failure is ef
 ask (an hour on a typo) and effort that's *invisible* (silence for hours). Nothing below should read as "make
 it faster."
 
-### 6.1 Mandatory gear + tier + box, and its deterministic audit + reader
+### 6.1 Mandatory gear + tier + box + verify, and its deterministic audit + reader
 
 Today, `agents/otto-foreman.md` tells Otto to hand a robot "the tier, whether co-piloting..., and the lane and
 gear" in the Task prompt — but nothing makes it non-optional, and nothing checks that it happened. This build
@@ -361,12 +405,24 @@ makes it a hard rule with a checkable shape, so it can be **audited**, not just 
 Every Task `prompt` for feature/build-scale work must contain one line, verbatim format:
 
 ```
-[Dispatch contract] gear=<answer|small-change|feature|build> tier=<WORKSHOP|T1|T2|T3> box="<one pass, then report — or a scoped equivalent>"
+[Dispatch contract] gear=<answer|small-change|feature|build> tier=<WORKSHOP|T1|T2|T3> box="<one pass, then report — or a scoped equivalent>" verify="<how this dispatch's work will be checked>"
 ```
 
-This is **prompt-discipline by nature and cannot be otherwise** — gear/tier/box are Otto's live per-dispatch
-judgment, not a static value any hook could pre-fill (see §4.A's note on why this differs from the goal
-anchor).
+**`verify=` (added in the Boris Cherny wording pass, see the Post-ship addendum above)** states a checkable
+verification method before the dispatch runs, not just its intent — `verify="run test-otto-goal.mjs, expect
+green"`, `verify="Glitchtrap mutation-proves the negative"`. It is on the **identical footing** as the three
+fields it joins: Otto's own live per-dispatch judgment, never a static value a hook pre-fills, string-checked
+for presence only, never validated for content. **The boundary that matters:** this field is adopted only on
+the dispatch prompt the audit already reads — it is deliberately **not** mirrored as any kind of check on
+Otto's own checkpoint or final-summary reply text. Resurfacing the verification at the tie-back (§3 step 5)
+stays prompt-discipline for the same reason §6.3 gives for why no `Stop`-hook content-check exists at all: a
+check for whether Otto's own prose "really" named a verification is the same natural-language-frontier
+classifier that killed the terminal-clear detector twice. Do not build that check; adding one here would
+rebuild the exact contradiction this addendum exists to avoid.
+
+This is **prompt-discipline by nature and cannot be otherwise** — gear/tier/box/verify are Otto's live
+per-dispatch judgment, not a static value any hook could pre-fill (see §4.A's note on why this differs from
+the goal anchor).
 
 **The audit: `hooks/otto-goal-audit.mjs`, `PostToolUse`, appended as a SECOND entry in the existing
 `"Task"` matcher's `hooks` array in `hooks.json`** (alongside the existing `otto-state.mjs` entry —
@@ -401,29 +457,34 @@ never an automatic verdict.
 
 **Check-set is conditional on the §4 outcome:**
 
-- **Under 4.A** (inject hook confirmed working) → checks for `gear=`, `tier=`, and `box=` substrings **only**.
-  **Deliberately drops the anchor-presence check** the prior draft's audit carried under all conditions, for
-  two reasons: the inject hook already guarantees the anchor deterministically, so checking for it is inert;
-  and per build-task-1 criterion (f), `PostToolUse` may see the **pre-mutation** prompt — if so, an
+- **Under 4.A** (inject hook confirmed working) → checks for `gear=`, `tier=`, `box=`, and `verify=` substrings
+  **only**. **Deliberately drops the anchor-presence check** the prior draft's audit carried under all
+  conditions, for two reasons: the inject hook already guarantees the anchor deterministically, so checking for
+  it is inert; and per build-task-1 criterion (f), `PostToolUse` may see the **pre-mutation** prompt — if so, an
   anchor-presence check here would false-flag **every single dispatch**, not just genuine misses, because the
   audit would be reading the prompt before the inject hook ever touched it.
-- **Under 4.B** (fallback) → **also** checks for `ANCHOR_SENTINEL` presence, exactly as the prior draft
-  specified — there is no deterministic injector to make that check inert, so it still earns its keep.
+- **Under 4.B** (fallback, current build) → **also** checks for `ANCHOR_SENTINEL` presence, exactly as the
+  prior draft specified — there is no deterministic injector to make that check inert, so it still earns its
+  keep.
 
-Pure string-presence, no semantic validation of *which* gear or tier was chosen, no model, **never a
-permission decision** — `PostToolUse` cannot block a tool call that already ran.
+`verify=` sits in **both** branches unconditionally, on the same footing as `gear=`/`tier=`/`box=` — it is
+never conditional on §4's outcome, because it is Otto's live judgment either way, not something an inject hook
+could ever pre-fill (an inject hook mutates the anchor block, not the dispatch contract line).
+
+Pure string-presence, no semantic validation of *which* gear, tier, or verify method was chosen, no model,
+**never a permission decision** — `PostToolUse` cannot block a tool call that already ran.
 
 **The write — flag sink, format, and locking.** One flagged line per dispatch that misses any check, appended
 to `.claude/otto-goal-flags.log` (project-local, alongside `otto-goal.md`, same scoping — a goal is
 project-scoped, so is its audit). Format:
 
 ```
-2026-07-21 general-purpose subscription schema: missing=gear,box
+2026-07-21 general-purpose subscription schema: missing=gear,box,verify
 ```
 
 Date, raw `subagent_type` (deliberately **not** resolved through a `ROBOTS` map — see the Cohesion note for
 why this is a deliberate simplification, not an oversight), the dispatch's own `description`, and a
-comma-joined list of which checks it missed (`anchor`, `gear`, `tier`, `box`, any subset). Append-only, capped
+comma-joined list of which checks it missed (`anchor`, `gear`, `tier`, `box`, `verify`, any subset). Append-only, capped
 at `AUDIT_LOG_CAP = 20` lines by recency eviction (the oldest line drops on the 21st write) — same "no clear
 path, cap-N recency only" grammar `otto-state.mjs` already uses, scaled up from its `CAP = 8` because this is
 a lower-stakes diagnostic log, not a relay record a human reads directly. Locked with the same
@@ -451,8 +512,8 @@ same zero-cost-when-clean philosophy as everything else in this spec; a session 
 active goal with zero flags, gets nothing new. `agents/otto-foreman.md`'s session-open protocol (step 1's
 facts-block list) and its checkpoint/final-summary guidance (§3 step 5, §6.3) both get a line: if `goal_flags`
 is present, surface it at the next checkpoint or session-open brief in plain language (never the mechanism's
-name) — e.g. *"heads up, three dispatches on this build went out without the full gear/tier/box line — want
-me to look at which?"*
+name) — e.g. *"heads up, three dispatches on this build went out without the full gear/tier/box/verify line —
+want me to look at which?"*
 
 ### 6.2 Mid-run checkpoint / no-vanish — honestly, mostly prompt-discipline
 
@@ -484,7 +545,7 @@ implying a check exists.
 
 Covered in §3, step 5 — pure prompt-discipline (Otto's own reply text). There is no hook on Otto's own
 outgoing chat message the way there is on a Task's prompt/response, so this cannot be deterministically
-audited the way §4.C's compaction-preservation or §6.1's gear/tier/box-miss can.
+audited the way §4.C's compaction-preservation or §6.1's gear/tier/box/verify-miss can.
 
 **The `Stop`-hook idea from the prior draft is resolved: deferred, not pursued.** `docs/hook-events.md`
 confirms a real `Stop` event, sibling to `SubagentStop`, carrying `last_assistant_message` — the field is real
@@ -527,8 +588,13 @@ stays `active` — completion wording alone must never flip it, mirroring `otto-
 for the same trap.
 
 **Negative — audit never blocks.** For both `hooks/otto-goal-audit.mjs` checks (missing anchor under 4.B,
-missing gear/tier/box under either), assert the dispatch's own tool call is untouched and unblocked — the
-audit only ever writes a flag line, never a permission decision.
+missing gear/tier/box/verify under either), assert the dispatch's own tool call is untouched and unblocked —
+the audit only ever writes a flag line, never a permission decision.
+
+**Negative/positive — `verify=` is checked on the identical footing as `gear=`/`tier=`/`box=`.** Mirror the
+existing gear/tier/box audit assertions exactly: a dispatch prompt with a full contract line except `verify=`
+must be flagged (`missing=...,verify` in the flag line); the identical dispatch with `verify=` present must
+produce zero flag lines. This proves the field earns its keep in both directions, not just "always flags."
 
 **Negative — idempotency guard holds.** Feed the inject hook a `tool_input.prompt` that already contains
 `ANCHOR_SENTINEL`. Assert `updatedInput` is never emitted (or, if emitted, is byte-identical to the input) —
@@ -545,8 +611,8 @@ retired effort never inflate the new one's count.
 **Positive — feature/build ask fires end to end.** Drive a scripted feature-scale ask. Assert: capture+confirm
 happens before the first dispatch; `.claude/otto-goal.md` is written with `status: active` and the confirmed
 text; the following dispatch's `tool_input.prompt` carries the anchor block (via whichever mechanism §4
-resolved to) and the `gear=`/`tier=`/`box=` line; the checkpoint and final summary both restate the confirmed
-goal.
+resolved to) and the `gear=`/`tier=`/`box=`/`verify=` line; the checkpoint and final summary both restate the
+confirmed goal, including how it was verified.
 
 **Positive — amend on explicit yes.** Simulate the human explicitly confirming a pivot. Assert the old
 confirmed line moves to `## Amendment history` with a date, the new line becomes the confirmed goal, and the
@@ -718,3 +784,11 @@ plainly with three concrete reasons why (§6.2). The `Stop`-hook resurfacing ide
 deferred (§6.3, §8-Q3) — same natural-language-frontier trap as the terminal-clear detector, twice already.
 
 Files: see the table above. Ready for Gantry to sequence into `TASKS.md`.
+
+**Post-ship addendum, folded in above rather than appended:** capture now actively asks the four project-
+kickoff questions (Non-goals fills in far more often); the dispatch contract gained a fourth field, `verify=`,
+checked by the audit on the identical string-presence footing as gear/tier/box — and, the boundary that
+matters, **never** mirrored as a check on Otto's own reply text, which stays exactly where §6.3 already left
+it: prompt-discipline, no `Stop`-hook, no content classifier; and amend gained a second menu option, "retire
+and recapture fresh," alongside "patch in place," still gated by the same human-decides event as everything
+else in this lifecycle.

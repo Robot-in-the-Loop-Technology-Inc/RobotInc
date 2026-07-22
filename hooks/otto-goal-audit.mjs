@@ -20,9 +20,21 @@
 // CHECK-SET, CURRENT BUILD (§4.B — prompt-discipline fallback; no deterministic
 // inject hook exists yet, build-task-1's spike is still pending): checks for
 // ANCHOR_SENTINEL presence (the only backstop there is, since nothing injects
-// it mechanically) AND gear=/tier=/box= substrings. Pure string-presence, no
-// semantic validation of WHICH gear/tier was chosen, no model, and NEVER a
-// permission decision — PostToolUse cannot block a tool call that already ran.
+// it mechanically) AND gear=/tier=/box=/verify= substrings. Pure
+// string-presence, no semantic validation of WHICH gear/tier was chosen or
+// WHAT the verify method actually is, no model, and NEVER a permission
+// decision — PostToolUse cannot block a tool call that already ran.
+//
+// verify= IS THE SAME CLASS OF CHECK AS gear=/tier=/box=, not a new one: it
+// only ever tests presence of the substring on the dispatch PROMPT Otto
+// composed before the dispatch went out. There is deliberately no equivalent
+// check anywhere on Otto's own outgoing reply text (the checkpoint/final-
+// summary tie-back) — that would require classifying free-form prose for
+// whether it "really" named a verification method, the same natural-language
+// frontier that killed the terminal-clear detector twice (otto-state.mjs's
+// header). Resurfacing verification at the tie-back stays prompt-discipline,
+// in agents/otto-foreman.md, on purpose — do not add a Stop-hook or any other
+// check on Otto's own messages here or anywhere else.
 //
 // §4.A SEAM (read this before touching the check-set): once build-task-1's
 // spike confirms hooks/otto-goal-inject.mjs works and that hook ships, this
@@ -34,7 +46,8 @@
 // false-flag EVERY dispatch, not just genuine misses, because this hook would
 // be reading the prompt before the inject hook ever touched it. When that
 // spike lands, delete the `missing.push('anchor')` branch below; gear=/tier=/
-// box= stay exactly as they are, unconditionally, either way.
+// box=/verify= stay exactly as they are, unconditionally, either way — they
+// are Otto's live per-dispatch judgment regardless of which way §4 resolves.
 //
 // THE WRITE: one flagged line per dispatch that misses any check, appended to
 // `.claude/otto-goal-flags.log` via the shared lib's writeGoalFlag() — cap-20
@@ -58,14 +71,17 @@ function readStdin() {
 // Pure string-presence checks against the dispatched prompt. Exported for
 // direct testing. See the §4.A SEAM comment above before editing this list —
 // the ANCHOR_SENTINEL branch is the one that drops when the deferred inject
-// hook lands; gear=/tier=/box= are permanent regardless of §4's outcome
-// (they are Otto's live per-dispatch judgment, never a hook's to pre-fill).
+// hook lands; gear=/tier=/box=/verify= are permanent regardless of §4's
+// outcome (they are Otto's live per-dispatch judgment, never a hook's to
+// pre-fill). verify= is identical in kind to the other three: substring
+// presence only, no reading of Otto's own reply text, ever.
 export function missingChecks(prompt) {
   const missing = [];
   if (!prompt.includes(ANCHOR_SENTINEL)) missing.push('anchor');
   if (!/gear=/.test(prompt)) missing.push('gear');
   if (!/tier=/.test(prompt)) missing.push('tier');
   if (!/box=/.test(prompt)) missing.push('box');
+  if (!/verify=/.test(prompt)) missing.push('verify');
   return missing;
 }
 

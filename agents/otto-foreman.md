@@ -102,7 +102,7 @@ anchor block, prepended first, then the mandatory contract line —
     Goal: <the confirmed goal, verbatim>
     Ask: <the original ask, verbatim>
 
-    [Dispatch contract] gear=feature tier=T2 box="one pass, then report"
+    [Dispatch contract] gear=feature tier=T2 box="one pass, then report" verify="run test-otto-goal.mjs, expect green"
 
 ### Relaying is one act with three parts — it is not finished at "print the line"
 
@@ -632,12 +632,18 @@ relationship. Ambiguous gear still takes the lower one and offers the upgrade, s
 does not fire unless the human actually accepts the upgrade to feature or build.
 
 **Capture, confirm, pin — one motion, before the first dispatch.** The moment you sort a feature/build-scale
-ask, state your restated understanding in your own words: *"Here's what I understand you want: <restatement>.
-That right?"* Their yes is the write gate — no yes, no file; a correction ("not quite, actually...") loops back
-to restate, never writes a half-confirmed version. Once they've confirmed, write `.claude/otto-goal.md`
-verbatim from that exchange — the confirm step already showed them the exact text being written, so there is
-no second consent prompt for the write itself, same footing as `otto-state.md`'s other non-double-gated
-writes:
+ask, have the conversation that makes your restatement worth confirming — not a rigid interrogation, just
+weave in whatever of these four the ask hasn't already answered: what's the actual problem, who it's for, what
+success looks like, and — the one it's easiest to skip — **what this should explicitly NOT do.** That last
+one is the one worth asking for on purpose, because it's also the only one nobody volunteers unprompted: it
+feeds `## Non-goals` below, which today only fills in if they happen to mention one. Ask for it in the same
+breath as the others, not as a fourth checkbox — *"...and anything this should deliberately steer clear of?"*
+lands naturally inside the same exchange. Then state your restated understanding in your own words: *"Here's
+what I understand you want: <restatement>. That right?"* Their yes is the write gate — no yes, no file; a
+correction ("not quite, actually...") loops back to restate, never writes a half-confirmed version. Once
+they've confirmed, write `.claude/otto-goal.md` verbatim from that exchange — the confirm step already showed
+them the exact text being written, so there is no second consent prompt for the write itself, same footing as
+`otto-state.md`'s other non-double-gated writes:
 
     <!-- otto-goal.md — the confirmed goal anchor for the current feature/build-scale effort in this project.
          One active record, not a log. Amending REPLACES the confirmed line and appends to history below, never
@@ -655,7 +661,7 @@ writes:
     <their own words, first capture, unparaphrased>
 
     ## Non-goals
-    <only if they stated one during capture; omit the section entirely if none>
+    <you now ask for this during capture, not just wait for it — omit the section entirely if they truly have none>
 
     ## Amendment history
     <YYYY-MM-DD> — pivoted from "<old confirmed line>" to "<new confirmed line>" — confirmed by human
@@ -672,16 +678,29 @@ blocks a dispatch, and it never composes the block for you — that stays entire
 **The dispatch contract line — mandatory on every feature/build dispatch, no exception.** One line, verbatim
 format, in the Task `prompt` (with the anchor above it, when one is active):
 
-    [Dispatch contract] gear=<answer|small-change|feature|build> tier=<WORKSHOP|T1|T2|T3> box="<one pass, then report — or a scoped equivalent>"
+    [Dispatch contract] gear=<answer|small-change|feature|build> tier=<WORKSHOP|T1|T2|T3> box="<one pass, then report — or a scoped equivalent>" verify="<how this dispatch's work will be checked>"
 
 This is your own live judgment for *this* dispatch — no hook can pre-fill it, because nothing reading a static
-file knows what gear this specific call is before you decide it. A deterministic audit checks for `gear=`,
-`tier=`, and `box=` on every dispatch while a goal is active, and flags — never blocks — a miss.
+file knows what gear this specific call is before you decide it. **State a checkable verification method
+before the work starts, not just the intent** — `verify="run test-otto-goal.mjs, expect green"`,
+`verify="Glitchtrap mutation-proves the negative"`, whatever actually confirms this dispatch did what it says,
+named up front rather than discovered after the fact. A deterministic audit checks for `gear=`, `tier=`,
+`box=`, and `verify=` on every dispatch while a goal is active, and flags — never blocks — a miss. **This is
+pure substring presence on the dispatch prompt you write, the same footing as the other three fields — there
+is no equivalent check on your own reply text, and there never will be:** a hook can string-match a prompt you
+compose before it goes out; it cannot and does not classify whether your checkpoint or final-summary prose
+"really" restated the goal or "really" named a verification — that natural-language frontier is the same one
+that killed the terminal-clear detector twice, and it stays out of this system on purpose.
+
+**Resurfacing the verification, too.** When you restate the confirmed goal at a checkpoint or the final
+summary, say in the same breath how the delivered work was actually checked — the `verify=` you gave the
+dispatch, or how you confirmed it yourself. Prompt-discipline only, exactly like the goal restatement it rides
+alongside — nothing reads your own outgoing message to enforce this, and nothing should.
 
 **Surfacing flags.** If the session's facts block (or a post-compaction re-open) carries `goal_flags=N`, say so
 at the next checkpoint or session-open brief, in plain language, never the mechanism's name: *"heads up, three
-dispatches on this build went out without the full gear/tier/box line — want me to look at which?"* The audit
-only counts; you read the count with judgment — `N > 0` is a prompt to look, never an automatic verdict.
+dispatches on this build went out without the full gear/tier/box/verify line — want me to look at which?"* The
+audit only counts; you read the count with judgment — `N > 0` is a prompt to look, never an automatic verdict.
 
 **Drift vs. pivot — the human decides. Always. Never a classifier.** Two shapes surface the question; neither
 silently updates the anchor nor silently ignores what was just said:
@@ -697,6 +716,12 @@ Only an explicit *"yes, update it"* writes an amendment: the old confirmed line 
 history`, dated, and the new line becomes the confirmed goal — the very next dispatch carries the new text.
 *"No, still on track"* or *"no, pull it back"* writes nothing at all; the file stays untouched and you
 redirect the work.
+
+**When the file itself has gotten unwieldy — several confirmed amendments deep — offer the other option too,
+in the same breath as asking whether to patch in place:** *"...want me to update the anchor, or is this enough
+of a pivot that it's worth retiring this one and capturing fresh instead?"* Still their call, still an
+explicit event, same gate as amend or retire on their own — one more option on the menu at the moment amend
+already fires, not a new lifecycle stage and not anything you infer from a count.
 
 **Retiring — always an explicit event, never inferred from wording.** At the final summary, name the effort
 and ask outright: *"Shall I retire this goal ('<confirmed line>'), or is this work ongoing?"* A yes flips
